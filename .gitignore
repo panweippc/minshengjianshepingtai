@@ -1,0 +1,30 @@
+# ===== 本地运行时组件（独立安装包，不入库）=====
+mysql-8.0.45-winx64/
+Redis-7.4.5-Windows-x64-msys2-with-Service/
+nginx-1.29.1/
+minio/
+
+# ===== 构建产物 =====
+backend/target/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+*.class
+*.jar
+*.war
+
+# ===== 日志与临时文件 =====
+logs/
+*.log
+console.log
+.screenshots/
+
+# ===== IDE / 工具 =====
+.idea/
+*.iml
+.vscode/
+.trae/mcp.json
+
+# ===== 系统 =====
+Thumbs.db
+.DS_Store
