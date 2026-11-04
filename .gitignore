@@ -25,6 +25,9 @@ console.log
 .vscode/
 .trae/mcp.json
 
+# ===== Redis 持久化文件 =====
+dump.rdb
+
 # ===== 系统 =====
 Thumbs.db
 .DS_Store
