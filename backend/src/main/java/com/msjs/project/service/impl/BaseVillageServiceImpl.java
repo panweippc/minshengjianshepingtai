@@ -11,6 +11,7 @@ import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.BaseVillageService;
 import com.msjs.project.vo.RegionTreeVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -94,7 +95,12 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         region.setDirector(trimToNull(dto.getDirector()));
         region.setDirectorPhone(trimToNull(dto.getDirectorPhone()));
         region.setSort(dto.getSort() == null ? 0 : dto.getSort());
-        regionMapper.insert(region);
+        try {
+            regionMapper.insert(region);
+        } catch (DuplicateKeyException e) {
+            // 并发新增时仍可能触发唯一索引冲突，统一转为业务提示
+            throw new BizException("区划编码「" + dto.getCode().trim() + "」已存在，请更换编码");
+        }
         return region.getId();
     }
 
@@ -170,12 +176,11 @@ public class BaseVillageServiceImpl implements BaseVillageService {
                 .eq(SysRegion::getCode, code.trim()));
     }
 
-    /** 校验区划编码全局唯一 */
+    /** 校验区划编码全局唯一（需包含已逻辑删除数据，避免与唯一索引冲突） */
     private void checkCodeUnique(String code) {
-        Long count = regionMapper.selectCount(new LambdaQueryWrapper<SysRegion>()
-                .eq(SysRegion::getCode, code.trim()));
-        if (count != null && count > 0) {
-            throw new BizException("区划编码「" + code.trim() + "」已存在");
+        long count = regionMapper.countByCodeIncludeDeleted(code.trim());
+        if (count > 0) {
+            throw new BizException("区划编码「" + code.trim() + "」已存在（含已删除区划），请更换编码");
         }
     }
 
