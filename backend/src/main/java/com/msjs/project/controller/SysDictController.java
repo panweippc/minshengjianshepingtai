@@ -54,6 +54,12 @@ public class SysDictController {
         return Result.ok(dictService.types());
     }
 
+    @Operation(summary = "按字典类型查询字典项（业务下拉联动用）")
+    @GetMapping("/type/{dictType}")
+    public Result<List<SysDict>> listByType(@PathVariable String dictType) {
+        return Result.ok(dictService.listByType(dictType));
+    }
+
     @Operation(summary = "新增字典")
     @RequirePerm("system:dict:add")
     @OperLog(module = "字典管理", operation = "新增字典")

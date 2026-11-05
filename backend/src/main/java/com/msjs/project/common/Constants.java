@@ -31,4 +31,13 @@ public final class Constants {
 
     /** 请求头 Token 名称 */
     public static final String HEADER_TOKEN = "Authorization";
+
+    /** 区划层级：乡镇 */
+    public static final int REGION_LEVEL_TOWN = 4;
+    /** 区划层级：村 */
+    public static final int REGION_LEVEL_VILLAGE = 5;
+    /** 区划层级：组 */
+    public static final int REGION_LEVEL_GROUP = 6;
+    /** 村委会管理层级起点（乡镇） */
+    public static final int REGION_MANAGE_MIN_LEVEL = REGION_LEVEL_TOWN;
 }

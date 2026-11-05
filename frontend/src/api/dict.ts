@@ -19,6 +19,11 @@ export function getDictTypes() {
   return get<Result<string[]>>('/api/system/dict/types')
 }
 
+/** 按字典类型查询字典项（业务下拉联动用，如 qu_hua_lei_xing） */
+export function getDictByType(dictType: string) {
+  return get<Result<DictVO[]>>(`/api/system/dict/type/${encodeURIComponent(dictType)}`)
+}
+
 /** 新增字典 */
 export function createDict(data: DictSaveDTO) {
   return post<Result<void>>('/api/system/dict', data)
