@@ -8,6 +8,7 @@ import com.msjs.project.dto.FacilitySaveDTO;
 import com.msjs.project.entity.BaseFacility;
 import com.msjs.project.service.BaseFacilityService;
 import com.msjs.project.vo.FacilityDetailVO;
+import com.msjs.project.vo.RegionFacilityCountVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,6 +48,13 @@ public class BaseFacilityController {
             @Parameter(description = "设施类型") @RequestParam(required = false) String facilityType,
             @Parameter(description = "树节点区划编码") @RequestParam(required = false) String nodeCode) {
         return Result.ok(facilityService.page(pageNum, pageSize, facilityCode, facilityName, facilityType, nodeCode));
+    }
+
+    @Operation(summary = "各区划设施数量统计（左侧区划树徽标）")
+    @RequirePerm("base:facility:list")
+    @GetMapping("/region-counts")
+    public Result<List<RegionFacilityCountVO>> regionCounts() {
+        return Result.ok(facilityService.regionCounts());
     }
 
     @Operation(summary = "设施详情（含附件和关联项目）")

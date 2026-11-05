@@ -1,6 +1,7 @@
 package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.PageVO;
@@ -20,6 +21,7 @@ import com.msjs.project.service.BaseFacilityService;
 import com.msjs.project.vo.FacilityAttachmentVO;
 import com.msjs.project.vo.FacilityDetailVO;
 import com.msjs.project.vo.ProjectVO;
+import com.msjs.project.vo.RegionFacilityCountVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -64,6 +66,28 @@ public class BaseFacilityServiceImpl implements BaseFacilityService {
                 .eq(isNotBlank(facilityType), BaseFacility::getFacilityType, facilityType)
                 .orderByDesc(BaseFacility::getCreateTime);
         return PageVO.of(facilityMapper.selectPage(page, wrapper));
+    }
+
+    @Override
+    public List<RegionFacilityCountVO> regionCounts() {
+        // 按所属行政村分组统计设施数量，逻辑删除由 MyBatis-Plus 自动过滤
+        QueryWrapper<BaseFacility> wrapper = new QueryWrapper<BaseFacility>()
+                .select("region_code", "COUNT(*) AS cnt")
+                .groupBy("region_code");
+        List<Map<String, Object>> rows = facilityMapper.selectMaps(wrapper);
+        List<RegionFacilityCountVO> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Object code = row.get("region_code");
+            if (code == null) {
+                continue;
+            }
+            RegionFacilityCountVO vo = new RegionFacilityCountVO();
+            vo.setRegionCode(String.valueOf(code));
+            Object cnt = row.get("cnt");
+            vo.setCount(cnt instanceof Number number ? number.longValue() : 0L);
+            result.add(vo);
+        }
+        return result;
     }
 
     @Override

@@ -216,7 +216,7 @@ export interface ProjectVO {
 
 /** 公共基础设施列表记录 */
 export interface FacilityVO {
-  id: number
+  id: string
   facilityCode: string
   facilityName: string
   facilityType: string
@@ -231,9 +231,15 @@ export interface FacilityVO {
   updateTime: string
 }
 
+/** 区划设施数量统计（左侧区划树徽标） */
+export interface RegionFacilityCountVO {
+  regionCode: string
+  count: number
+}
+
 /** 公共基础设施详情（含附件和关联项目） */
 export interface FacilityDetailVO {
-  id: number
+  id: string
   facilityCode: string
   facilityName: string
   facilityType: string
@@ -262,7 +268,7 @@ export interface FacilityAttachmentSaveDTO {
 
 /** 公共基础设施保存入参 */
 export interface FacilitySaveDTO {
-  id?: number
+  id?: string
   facilityCode: string
   facilityName: string
   facilityType?: string
