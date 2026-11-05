@@ -2,12 +2,14 @@
   <div class="facility-page">
     <!-- 左侧：区划树（乡镇/村/组） -->
     <el-card shadow="never" class="tree-card">
-      <template #header>
-        <div class="card-header">
-          <span>区划树</span>
-          <el-button link type="primary" @click="handleTreeAll">全部</el-button>
-        </div>
-      </template>
+      <div class="tree-search">
+        <el-input
+          v-model="treeKeyword"
+          placeholder="搜索区划名称"
+          prefix-icon="Search"
+          clearable
+        />
+      </div>
       <div class="tree-body">
         <el-tree
           ref="treeRef"
@@ -17,18 +19,27 @@
           highlight-current
           default-expand-all
           :expand-on-click-node="false"
+          :filter-node-method="filterTree"
           @node-click="handleTreeClick"
         >
           <template #default="{ data }">
             <span class="tree-node">
+              <el-icon class="tree-node-icon" :class="{ 'is-town': data.regionType === '1' }">
+                <LocationFilled v-if="data.regionType === '1'" />
+                <Folder v-else />
+              </el-icon>
               <span class="tree-node-name">{{ data.name }}</span>
-              <el-tag v-if="data.regionType" size="small" type="info" effect="plain">
-                {{ regionTypeLabel(data.regionType) }}
-              </el-tag>
+              <span v-if="countMap[data.code]" class="tree-node-count">
+                {{ countMap[data.code] }}项
+              </span>
             </span>
           </template>
         </el-tree>
         <el-empty v-if="!treeData.length" description="暂无区划数据" :image-size="80" />
+      </div>
+      <div class="tree-footer">
+        <span>共 {{ totalFacilityCount }} 项设施 · {{ groupCount }} 个村民组</span>
+        <el-button link type="primary" class="tree-all-btn" @click="handleTreeAll">全部</el-button>
       </div>
     </el-card>
 
@@ -223,10 +234,24 @@
           暂无附件，请点击上方「添加附件」
         </div>
         <div v-for="(att, idx) in form.attachments" :key="idx" class="attachment-item">
-          <el-row :gutter="12" align="middle">
-            <el-col :span="6">
-              <el-form-item :prop="`attachments.${idx}.attachmentType`">
-                <el-select v-model="att.attachmentType" placeholder="附件类型" style="width: 100%">
+          <!-- 附件卡片头部：序号 + 标题 + 删除 -->
+          <div class="attachment-header">
+            <span class="attachment-index">{{ idx + 1 }}</span>
+            <span class="attachment-title">附件 #{{ idx + 1 }}</span>
+            <el-button
+              type="danger"
+              link
+              icon="Delete"
+              class="attachment-remove"
+              @click="removeAttachment(idx)"
+            >
+              删除
+            </el-button>
+          </div>
+          <el-row :gutter="16">
+            <el-col :span="8">
+              <el-form-item label="附件类型" label-position="top" :prop="`attachments.${idx}.attachmentType`">
+                <el-select v-model="att.attachmentType" placeholder="请选择类型..." style="width: 100%">
                   <el-option
                     v-for="item in attachmentTypeOptions"
                     :key="item.value"
@@ -237,17 +262,38 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item :prop="`attachments.${idx}.fileName`">
-                <el-input v-model="att.fileName" placeholder="文件名" />
+              <el-form-item label="上传附件" label-position="top">
+                <el-upload
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  multiple
+                  @change="(file: UploadFile) => handleAttachmentFileChange(file, att)"
+                >
+                  <div class="upload-trigger">
+                    <el-icon><Upload /></el-icon>
+                    <span>点击选择文件...</span>
+                  </div>
+                </el-upload>
+                <!-- 已选文件列表：支持逐个删除 -->
+                <div v-if="att.files.length" class="upload-file-list">
+                  <div
+                    v-for="(file, fIdx) in att.files"
+                    :key="`${file.fileName}_${fIdx}`"
+                    class="upload-file-item"
+                  >
+                    <el-icon class="upload-file-icon"><Document /></el-icon>
+                    <span class="upload-file-name" :title="file.fileName">{{ file.fileName }}</span>
+                    <el-icon class="upload-file-remove" @click="removeAttachmentFile(att, fIdx)">
+                      <Close />
+                    </el-icon>
+                  </div>
+                </div>
               </el-form-item>
             </el-col>
-            <el-col :span="6">
-              <el-form-item :prop="`attachments.${idx}.remark`">
-                <el-input v-model="att.remark" placeholder="备注" />
+            <el-col :span="8">
+              <el-form-item label="备注" label-position="top" :prop="`attachments.${idx}.remark`">
+                <el-input v-model="att.remark" placeholder="选填" />
               </el-form-item>
-            </el-col>
-            <el-col :span="4">
-              <el-button type="danger" link icon="Delete" @click="removeAttachment(idx)">删除</el-button>
             </el-col>
           </el-row>
         </div>
@@ -329,9 +375,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import {
@@ -342,7 +388,8 @@ import {
   getFacilityDetail,
   createFacility,
   updateFacility,
-  deleteFacility
+  deleteFacility,
+  getFacilityRegionCounts
 } from '@/api/facility'
 import type { FacilityQuery } from '@/api/facility'
 import type {
@@ -350,19 +397,93 @@ import type {
   VillageTreeVO,
   FacilityVO,
   FacilityDetailVO,
-  FacilitySaveDTO,
-  FacilityAttachmentSaveDTO
+  FacilitySaveDTO
 } from '@/types/system'
 
 const store = useUserStore()
 
 type EditDialogMode = 'add' | 'edit'
 
+/** 附件卡片中的单个文件 */
+interface AttachmentFileItem {
+  fileName: string
+  fileSize?: number
+  filePath?: string
+  fileHash?: string
+}
+
+/** 附件卡片编辑模型：一张卡片可上传多个文件 */
+interface AttachmentEditItem {
+  attachmentType: string
+  remark: string
+  files: AttachmentFileItem[]
+}
+
+/** 设施表单模型（提交时再展开为后端入参） */
+interface FacilityFormModel {
+  id?: string
+  facilityCode: string
+  facilityName: string
+  facilityType: string
+  regionCode: string
+  regionName: string
+  location: string
+  buildYear?: number
+  quantity?: number
+  unit: string
+  remark: string
+  attachments: AttachmentEditItem[]
+}
+
 /** 区划树 */
-const treeRef = ref<{ setCurrentKey: (key?: string) => void }>()
+const treeRef = ref<{ setCurrentKey: (key?: string) => void; filter: (value: string) => void }>()
 const treeProps = { label: 'name', children: 'children' }
 const treeData = ref<VillageTreeVO[]>([])
 const selectedTreeNode = ref<VillageTreeVO | null>(null)
+
+/** 区划树搜索关键字 */
+const treeKeyword = ref('')
+const filterTree = (value: string, data: VillageTreeVO) => {
+  if (!value) return true
+  return data.name.includes(value)
+}
+watch(treeKeyword, (val) => treeRef.value?.filter(val))
+
+/** 各区划设施数量（含所有下级区划汇总） */
+const regionCounts = ref<Record<string, number>>({})
+const countMap = computed(() => {
+  const result: Record<string, number> = {}
+  const walk = (nodes: VillageTreeVO[]): number => {
+    let sum = 0
+    for (const node of nodes) {
+      const childSum = node.children?.length ? walk(node.children) : 0
+      const own = regionCounts.value[node.code] || 0
+      result[node.code] = own + childSum
+      sum += own + childSum
+    }
+    return sum
+  }
+  walk(treeData.value)
+  return result
+})
+
+/** 设施总数（所有区划合计） */
+const totalFacilityCount = computed(() =>
+  Object.values(regionCounts.value).reduce((sum, item) => sum + item, 0)
+)
+
+/** 村民组数量（区划类型字典：3=组） */
+const groupCount = computed(() => {
+  let count = 0
+  const walk = (nodes: VillageTreeVO[]) => {
+    for (const node of nodes) {
+      if (node.regionType === '3') count++
+      if (node.children?.length) walk(node.children)
+    }
+  }
+  walk(treeData.value)
+  return count
+})
 
 /** 字典 */
 const DEFAULT_FACILITY_TYPES = [
@@ -380,15 +501,9 @@ const DEFAULT_ATTACHMENT_TYPES = [
   { label: '检测报告', value: '4' },
   { label: '其他', value: '5' }
 ]
-const regionDictItems = ref<DictVO[]>([])
 const facilityTypeDictItems = ref<DictVO[]>([])
 const attachmentTypeDictItems = ref<DictVO[]>([])
 
-const regionTypeOptions = computed(() =>
-  regionDictItems.value.length
-    ? regionDictItems.value.map((item) => ({ label: item.dictLabel, value: item.dictValue }))
-    : [{ label: '乡镇', value: '1' }, { label: '村', value: '2' }, { label: '组', value: '3' }]
-)
 const facilityTypeOptions = computed(() =>
   facilityTypeDictItems.value.length
     ? facilityTypeDictItems.value.map((item) => ({ label: item.dictLabel, value: item.dictValue }))
@@ -436,13 +551,13 @@ const editDialogMode = ref<EditDialogMode>('add')
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
 
-const emptyAttachment = (): FacilityAttachmentSaveDTO => ({
+const emptyAttachment = (): AttachmentEditItem => ({
   attachmentType: '',
-  fileName: '',
-  remark: ''
+  remark: '',
+  files: []
 })
 
-const form = reactive<FacilitySaveDTO>({
+const form = reactive<FacilityFormModel>({
   facilityCode: '',
   facilityName: '',
   facilityType: '',
@@ -469,7 +584,7 @@ const resetForm = () => {
     quantity: undefined,
     unit: '',
     remark: '',
-    attachments: [] as FacilityAttachmentSaveDTO[]
+    attachments: [] as AttachmentEditItem[]
   })
 }
 
@@ -488,11 +603,6 @@ const detailActiveTab = ref('info')
 const detail = ref<FacilityDetailVO | null>(null)
 
 /** 字典标签 */
-const regionTypeLabel = (value?: string) => {
-  if (!value) return '—'
-  const hit = regionTypeOptions.value.find((item) => item.value === value)
-  return hit ? hit.label : value
-}
 const facilityTypeLabel = (value?: string) => {
   if (!value) return '—'
   const hit = facilityTypeOptions.value.find((item) => item.value === value)
@@ -511,20 +621,28 @@ const formatMoney = (value: number) => {
 
 /** 加载字典 */
 const loadDict = async () => {
-  const [res1, res2, res3] = await Promise.all([
-    getDictByType('qu_hua_lei_xing'),
+  const [res1, res2] = await Promise.all([
     getDictByType('she_shi_lei_xing'),
     getDictByType('fu_jian_lei_xing')
   ])
-  regionDictItems.value = res1.data || []
-  facilityTypeDictItems.value = res2.data || []
-  attachmentTypeDictItems.value = res3.data || []
+  facilityTypeDictItems.value = res1.data || []
+  attachmentTypeDictItems.value = res2.data || []
 }
 
 /** 加载区划树 */
 const loadTree = async () => {
   const res = await getVillageTree()
   treeData.value = res.data || []
+}
+
+/** 加载各区划设施数量（左侧区划树徽标） */
+const loadRegionCounts = async () => {
+  const res = await getFacilityRegionCounts()
+  const map: Record<string, number> = {}
+  for (const item of res.data || []) {
+    map[item.regionCode] = item.count
+  }
+  regionCounts.value = map
 }
 
 /** 加载列表数据 */
@@ -572,6 +690,20 @@ const addAttachment = () => {
   form.attachments.push(emptyAttachment())
 }
 
+/** 选择附件文件：支持多选，按文件名+大小去重（文件上传接口后续接入 MinIO） */
+const handleAttachmentFileChange = (uploadFile: UploadFile, att: AttachmentEditItem) => {
+  const raw = uploadFile.raw
+  if (!raw) return
+  const duplicated = att.files.some((f) => f.fileName === raw.name && f.fileSize === raw.size)
+  if (duplicated) return
+  att.files.push({ fileName: raw.name, fileSize: raw.size })
+}
+
+/** 删除附件卡片中的某个文件 */
+const removeAttachmentFile = (att: AttachmentEditItem, idx: number) => {
+  att.files.splice(idx, 1)
+}
+
 /** 删除附件 */
 const removeAttachment = (idx: number) => {
   form.attachments?.splice(idx, 1)
@@ -602,13 +734,11 @@ const openEdit = async (row: FacilityVO) => {
     unit: data.unit || '',
     remark: data.remark || '',
     attachments: (data.attachments || []).map((a) => ({
-      id: a.id,
       attachmentType: a.attachmentType || '',
-      fileName: a.fileName || '',
-      filePath: a.filePath || '',
-      fileHash: undefined,
-      fileSize: a.fileSize,
-      remark: a.remark || ''
+      remark: a.remark || '',
+      files: a.fileName
+        ? [{ fileName: a.fileName, fileSize: a.fileSize, filePath: a.filePath }]
+        : []
     }))
   })
   editDialogVisible.value = true
@@ -622,20 +752,46 @@ const openDetail = async (row: FacilityVO) => {
   detailDialogVisible.value = true
 }
 
+/** 组装提交参数：把附件卡片的多文件展开为后端附件记录（同一卡片共用附件类型与备注） */
+const buildSubmitPayload = (): FacilitySaveDTO => ({
+  id: form.id,
+  facilityCode: form.facilityCode,
+  facilityName: form.facilityName,
+  facilityType: form.facilityType,
+  regionCode: form.regionCode,
+  regionName: form.regionName,
+  location: form.location,
+  buildYear: form.buildYear,
+  quantity: form.quantity,
+  unit: form.unit,
+  remark: form.remark,
+  attachments: form.attachments.flatMap((card) =>
+    card.files.map((file) => ({
+      attachmentType: card.attachmentType,
+      fileName: file.fileName,
+      filePath: file.filePath,
+      fileHash: file.fileHash,
+      fileSize: file.fileSize,
+      remark: card.remark
+    }))
+  )
+})
+
 /** 提交 */
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   submitLoading.value = true
   try {
+    const payload = buildSubmitPayload()
     if (editDialogMode.value === 'edit') {
-      await updateFacility({ ...form })
+      await updateFacility(payload)
     } else {
-      await createFacility({ ...form })
+      await createFacility(payload)
     }
     ElMessage.success('操作成功')
     editDialogVisible.value = false
-    await loadData()
+    await Promise.all([loadData(), loadRegionCounts()])
   } finally {
     submitLoading.value = false
   }
@@ -647,7 +803,7 @@ const handleDelete = (row: FacilityVO) => {
     async () => {
       await deleteFacility(row.id)
       ElMessage.success('删除成功')
-      await loadData()
+      await Promise.all([loadData(), loadRegionCounts()])
     }
   )
 }
@@ -655,6 +811,7 @@ const handleDelete = (row: FacilityVO) => {
 onMounted(() => {
   loadDict()
   loadTree()
+  loadRegionCounts()
   loadData()
 })
 </script>
@@ -666,12 +823,36 @@ onMounted(() => {
   align-items: flex-start;
 }
 .tree-card {
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 0 0 300px;
+  width: 300px;
+}
+.tree-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  min-height: calc(100vh - 170px);
+}
+.tree-search {
+  margin-bottom: 8px;
 }
 .tree-body {
-  max-height: calc(100vh - 190px);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+}
+.tree-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+  font-size: 12px;
+  color: #909399;
+}
+.tree-all-btn {
+  font-size: 12px;
 }
 .right-area {
   flex: 1;
@@ -685,22 +866,27 @@ onMounted(() => {
   flex-wrap: nowrap;
   align-items: center;
 }
+/* 筛选控件固定宽度，保证设施类型与查询/重置按钮同处一行且不换行 */
 .query-card :deep(.el-form-item) {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   margin-right: 16px;
   margin-bottom: 0;
 }
+.query-card :deep(.el-form-item:not(:last-child)) {
+  width: 210px;
+}
 .query-card :deep(.el-form-item__content) {
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
-.query-card :deep(.el-input) {
+.query-card :deep(.el-input),
+.query-card :deep(.el-select) {
   width: 100%;
 }
+/* 查询/重置靠右，与下方列表区右侧对齐 */
 .query-card :deep(.el-form-item:last-child) {
-  flex: 0 0 auto;
   margin-right: 0;
+  margin-left: auto;
 }
 .list-card {
   margin-top: 12px;
@@ -710,6 +896,17 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
 }
+/* 区划树节点行样式（复刻原型：图标 + 名称 + 数量徽标） */
+.tree-card :deep(.el-tree-node__content) {
+  height: 36px;
+  border-radius: 4px;
+}
+.tree-card :deep(.el-tree-node__content:hover) {
+  background: #f5f7fa;
+}
+.tree-card :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background: #e8f2ff;
+}
 .tree-node {
   display: flex;
   align-items: center;
@@ -717,11 +914,33 @@ onMounted(() => {
   width: 100%;
   overflow: hidden;
 }
+.tree-node-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  color: #e6a23c;
+}
+.tree-node-icon.is-town {
+  color: #3b82f6;
+}
 .tree-node-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  color: #303133;
+}
+.tree-node-count {
+  flex: 0 0 auto;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 6px;
+  line-height: 20px;
+  border-radius: 10px;
+  background: #f2f3f5;
+  color: #909399;
+  font-size: 12px;
+  text-align: center;
 }
 .empty-tip {
   color: #909399;
@@ -732,11 +951,112 @@ onMounted(() => {
   font-size: 13px;
 }
 .attachment-item {
-  padding: 8px 12px;
-  background: #fafafa;
+  padding: 12px 16px 2px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.attachment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.attachment-index {
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  border-radius: 50%;
+  background: #e8f0fe;
+  color: #3b82f6;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.attachment-title {
+  font-size: 14px;
+  color: #303133;
+}
+.attachment-remove {
+  margin-left: auto;
+}
+.attachment-item :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+.attachment-item :deep(.el-form-item__label) {
+  padding: 0;
+  color: #606266;
+  line-height: 24px;
+  margin-bottom: 6px;
+}
+.attachment-item :deep(.el-upload) {
+  width: 100%;
+}
+/* 上传附件触发区：虚线框 + 上传图标 */
+.upload-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 13px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.2s, color 0.2s;
+}
+.upload-trigger:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+.upload-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 已选文件列表 */
+.upload-file-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upload-file-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
-  margin-bottom: 8px;
+  background: #fafafa;
+  font-size: 12px;
+  color: #606266;
+}
+.upload-file-icon {
+  flex: 0 0 auto;
+  color: #909399;
+}
+.upload-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-file-remove {
+  flex: 0 0 auto;
+  color: #909399;
+  cursor: pointer;
+}
+.upload-file-remove:hover {
+  color: #f56c6c;
 }
 .section-title {
   margin: 16px 0 8px;

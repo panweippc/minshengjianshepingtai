@@ -1,5 +1,7 @@
 package com.msjs.project.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -15,6 +17,7 @@ import java.util.List;
 @Schema(description = "公共基础设施详情")
 public class FacilityDetailVO implements Serializable {
 
+    @JsonSerialize(using = ToStringSerializer.class)
     @Schema(description = "主键")
     private Long id;
 

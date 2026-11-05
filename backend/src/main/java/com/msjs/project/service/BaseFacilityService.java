@@ -4,6 +4,9 @@ import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.FacilitySaveDTO;
 import com.msjs.project.entity.BaseFacility;
 import com.msjs.project.vo.FacilityDetailVO;
+import com.msjs.project.vo.RegionFacilityCountVO;
+
+import java.util.List;
 
 /**
  * 公共基础设施服务接口
@@ -35,4 +38,9 @@ public interface BaseFacilityService {
      * 删除（含附件级联删除）
      */
     void delete(Long id);
+
+    /**
+     * 各区划设施数量统计（按所属行政村分组）
+     */
+    List<RegionFacilityCountVO> regionCounts();
 }
