@@ -145,3 +145,42 @@ export interface RegionVO {
   parentCode: string
   level: number
 }
+
+/** 区划树节点（乡镇/村/组） */
+export interface VillageTreeVO {
+  id: number
+  code: string
+  name: string
+  parentCode: string
+  level: number
+  regionType: string
+  children: VillageTreeVO[]
+}
+
+/** 村委会区划记录 */
+export interface VillageVO {
+  id: number
+  code: string
+  name: string
+  parentCode: string
+  level: number
+  regionType: string
+  secretary: string
+  secretaryPhone: string
+  director: string
+  directorPhone: string
+  sort: number
+}
+
+/** 村委会区划保存入参（区划编码为业务编码，编辑时用于定位且不可修改） */
+export interface VillageSaveDTO {
+  code: string
+  name: string
+  parentCode?: string
+  regionType: string
+  secretary?: string
+  secretaryPhone?: string
+  director?: string
+  directorPhone?: string
+  sort?: number
+}

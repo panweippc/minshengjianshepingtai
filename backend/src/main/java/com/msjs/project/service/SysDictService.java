@@ -17,6 +17,9 @@ public interface SysDictService {
     /** 全部字典类型（筛选下拉用） */
     List<String> types();
 
+    /** 按字典类型查询字典项（业务下拉联动用） */
+    List<SysDict> listByType(String dictType);
+
     /** 新增字典 */
     Long add(DictSaveDTO dto);
 

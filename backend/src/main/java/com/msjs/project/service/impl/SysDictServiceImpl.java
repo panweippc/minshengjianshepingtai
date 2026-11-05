@@ -52,6 +52,14 @@ public class SysDictServiceImpl implements SysDictService {
     }
 
     @Override
+    public List<SysDict> listByType(String dictType) {
+        return dictMapper.selectList(new LambdaQueryWrapper<SysDict>()
+                .eq(SysDict::getDictType, dictType)
+                .orderByAsc(SysDict::getSort)
+                .orderByAsc(SysDict::getId));
+    }
+
+    @Override
     public Long add(DictSaveDTO dto) {
         checkValueUnique(dto.getDictType(), dto.getDictValue(), null);
         SysDict dict = new SysDict();
