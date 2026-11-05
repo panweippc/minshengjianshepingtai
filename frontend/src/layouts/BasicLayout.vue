@@ -97,9 +97,13 @@ const handleCommand = (cmd: string) => {
 .aside {
   background-color: #001529;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 .logo {
   height: 60px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -111,6 +115,21 @@ const handleCommand = (cmd: string) => {
 }
 .menu {
   border-right: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* 侧边栏滚动条样式 */
+.menu::-webkit-scrollbar {
+  width: 6px;
+}
+.menu::-webkit-scrollbar-thumb {
+  background-color: #2f4b66;
+  border-radius: 3px;
+}
+.menu::-webkit-scrollbar-track {
+  background-color: transparent;
 }
 .header {
   display: flex;
