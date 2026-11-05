@@ -82,7 +82,7 @@ public class BaseVillageServiceImpl implements BaseVillageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long add(RegionSaveDTO dto) {
-        checkCodeUnique(dto.getCode());
+        checkCodeAvailable(dto.getCode());
         int level = resolveLevel(dto.getParentCode(), dto.getRegionType());
         SysRegion region = new SysRegion();
         region.setName(dto.getName().trim());
@@ -176,12 +176,15 @@ public class BaseVillageServiceImpl implements BaseVillageService {
                 .eq(SysRegion::getCode, code.trim()));
     }
 
-    /** 校验区划编码全局唯一（需包含已逻辑删除数据，避免与唯一索引冲突） */
-    private void checkCodeUnique(String code) {
-        long count = regionMapper.countByCodeIncludeDeleted(code.trim());
-        if (count > 0) {
-            throw new BizException("区划编码「" + code.trim() + "」已存在（含已删除区划），请更换编码");
+    /** 校验编码可用性：仅有效区划占用编码；已删除区划不占用编码，允许重新新增 */
+    private void checkCodeAvailable(String code) {
+        String trimmed = code.trim();
+        long activeCount = regionMapper.countActiveByCode(trimmed);
+        if (activeCount > 0) {
+            throw new BizException("区划编码「" + trimmed + "」已存在，请更换编码");
         }
+        // 清理历史逻辑删除的同编码记录，释放唯一索引占用
+        regionMapper.deleteDeletedByCode(trimmed);
     }
 
     private int parseRegionType(String regionType) {
