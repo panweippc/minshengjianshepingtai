@@ -184,3 +184,94 @@ export interface VillageSaveDTO {
   directorPhone?: string
   sort?: number
 }
+
+// ==================== 公共基础设施 ====================
+
+/** 设施附件 */
+export interface FacilityAttachmentVO {
+  id: number
+  facilityId: number
+  attachmentType: string
+  fileName: string
+  filePath: string
+  fileSize: number
+  remark: string
+  createTime: string
+}
+
+/** 项目（简化版） */
+export interface ProjectVO {
+  id: number
+  projectCode: string
+  projectName: string
+  projectType: string
+  progress: number
+  budget: number
+  status: string
+  startYear: number
+  regionCode: string
+  createTime: string
+  updateTime: string
+}
+
+/** 公共基础设施列表记录 */
+export interface FacilityVO {
+  id: number
+  facilityCode: string
+  facilityName: string
+  facilityType: string
+  regionCode: string
+  regionName: string
+  location: string
+  buildYear: number
+  quantity: number
+  unit: string
+  remark: string
+  createTime: string
+  updateTime: string
+}
+
+/** 公共基础设施详情（含附件和关联项目） */
+export interface FacilityDetailVO {
+  id: number
+  facilityCode: string
+  facilityName: string
+  facilityType: string
+  regionCode: string
+  regionName: string
+  location: string
+  buildYear: number
+  quantity: number
+  unit: string
+  remark: string
+  createTime: string
+  attachments: FacilityAttachmentVO[]
+  projects: ProjectVO[]
+}
+
+/** 设施附件保存入参 */
+export interface FacilityAttachmentSaveDTO {
+  id?: number
+  attachmentType?: string
+  fileName?: string
+  filePath?: string
+  fileHash?: string
+  fileSize?: number
+  remark?: string
+}
+
+/** 公共基础设施保存入参 */
+export interface FacilitySaveDTO {
+  id?: number
+  facilityCode: string
+  facilityName: string
+  facilityType?: string
+  regionCode: string
+  regionName?: string
+  location?: string
+  buildYear?: number
+  quantity?: number
+  unit?: string
+  remark?: string
+  attachments?: FacilityAttachmentSaveDTO[]
+}
