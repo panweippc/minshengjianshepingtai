@@ -44,6 +44,12 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '菜单管理', icon: 'Menu' }
       },
       {
+        path: 'system/dict',
+        name: 'SystemDict',
+        component: () => import('@/views/system/Dict.vue'),
+        meta: { title: '字典管理', icon: 'Collection' }
+      },
+      {
         path: 'system/log',
         name: 'SystemLog',
         component: () => import('@/views/system/Log.vue'),

@@ -98,6 +98,30 @@ export interface MenuSaveDTO {
   status?: number
 }
 
+/** 字典记录 */
+export interface DictVO {
+  id: number
+  dictType: string
+  description: string
+  dictLabel: string
+  dictValue: string
+  sort: number
+  remark: string
+  createTime: string
+  updateTime: string
+}
+
+/** 字典保存入参 */
+export interface DictSaveDTO {
+  id?: number
+  dictType: string
+  description?: string
+  dictLabel: string
+  dictValue: string
+  sort?: number
+  remark?: string
+}
+
 /** 操作日志分页记录 */
 export interface OperLogVO {
   id: number
