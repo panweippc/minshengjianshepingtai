@@ -38,6 +38,12 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '户基础信息', icon: 'House' }
       },
       {
+        path: 'base/facility',
+        name: 'BaseFacility',
+        component: () => import('@/views/base/Facility.vue'),
+        meta: { title: '公共基础设施', icon: 'Connection' }
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/User.vue'),
