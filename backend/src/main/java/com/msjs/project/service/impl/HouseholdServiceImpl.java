@@ -1,6 +1,7 @@
 package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.LoginUser;
@@ -16,13 +17,16 @@ import com.msjs.project.mapper.HouseholdMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.mapper.SysUserMapper;
 import com.msjs.project.service.HouseholdService;
+import com.msjs.project.vo.RegionHouseholdCountVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -61,6 +65,28 @@ public class HouseholdServiceImpl implements HouseholdService {
                 .eq(isNotBlank(headIdCard), Household::getHeadIdCard, headIdCard == null ? null : headIdCard.trim())
                 .orderByDesc(Household::getCreateTime);
         return PageVO.of(householdMapper.selectPage(page, wrapper));
+    }
+
+    @Override
+    public List<RegionHouseholdCountVO> regionCounts() {
+        // 按所属行政村分组统计农户数量，逻辑删除由 MyBatis-Plus 自动过滤
+        QueryWrapper<Household> wrapper = new QueryWrapper<Household>()
+                .select("region_code", "COUNT(*) AS cnt")
+                .groupBy("region_code");
+        List<Map<String, Object>> rows = householdMapper.selectMaps(wrapper);
+        List<RegionHouseholdCountVO> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Object code = row.get("region_code");
+            if (code == null) {
+                continue;
+            }
+            RegionHouseholdCountVO vo = new RegionHouseholdCountVO();
+            vo.setRegionCode(String.valueOf(code));
+            Object cnt = row.get("cnt");
+            vo.setCount(cnt instanceof Number number ? number.longValue() : 0L);
+            result.add(vo);
+        }
+        return result;
     }
 
     @Override
@@ -162,8 +188,8 @@ public class HouseholdServiceImpl implements HouseholdService {
         if (exist == null) {
             throw new BizException("户基础信息不存在或已被删除");
         }
-        // 逻辑删除主表
-        householdMapper.deleteById(id);
+        // 逻辑删除主表：deleted 写入本行ID（墓碑值），释放户号供新记录复用
+        householdMapper.logicDeleteById(id);
         // 逻辑删除附件（一并清理，保持数据一致性）
         attachmentMapper.delete(new LambdaQueryWrapper<HouseholdAttachment>()
                 .eq(HouseholdAttachment::getHouseholdId, id));

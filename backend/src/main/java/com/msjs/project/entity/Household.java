@@ -80,7 +80,11 @@ public class Household implements Serializable {
     @Schema(description = "更新时间")
     private LocalDateTime updateTime;
 
+    /**
+     * 逻辑删除标记：0=正常；删除时写入本行ID（墓碑值）。
+     * 与 household_no 组成复合唯一索引，保证正常数据户号唯一的同时，允许复用已删除记录的户号
+     */
     @TableLogic
-    @Schema(description = "逻辑删除：0否 1是")
-    private Integer deleted;
+    @Schema(description = "逻辑删除：0=正常，其他值=被删除行ID")
+    private Long deleted;
 }

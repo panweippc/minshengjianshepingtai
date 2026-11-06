@@ -4,6 +4,7 @@ import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.HouseholdSaveDTO;
 import com.msjs.project.entity.Household;
 import com.msjs.project.entity.HouseholdAttachment;
+import com.msjs.project.vo.RegionHouseholdCountVO;
 
 import java.util.List;
 
@@ -14,6 +15,9 @@ public interface HouseholdService {
 
     /** 分页查询 */
     PageVO<Household> page(long pageNum, long pageSize, String headName, String headIdCard, String nodeCode);
+
+    /** 按区划统计农户数量（区划树徽标展示） */
+    List<RegionHouseholdCountVO> regionCounts();
 
     /** 详情（含附件） */
     Household detail(Long id);
