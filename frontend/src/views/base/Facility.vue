@@ -286,6 +286,14 @@
                   >
                     <el-icon class="upload-file-icon"><Document /></el-icon>
                     <span class="upload-file-name" :title="file.fileName">{{ file.fileName }}</span>
+                    <el-icon
+                      v-if="file.filePath"
+                      class="upload-file-download"
+                      title="下载"
+                      @click="handleDownloadAttachment(file)"
+                    >
+                      <Download />
+                    </el-icon>
                     <el-icon class="upload-file-remove" @click="removeAttachmentFile(att, fIdx)">
                       <Close />
                     </el-icon>
@@ -343,6 +351,14 @@
                     {{ file.fileName }}
                   </el-link>
                   <span v-else>{{ file.fileName || '—' }}</span>
+                  <el-icon
+                    v-if="file.filePath"
+                    class="attachment-file-download"
+                    title="下载"
+                    @click="handleDownloadAttachment(file)"
+                  >
+                    <Download />
+                  </el-icon>
                 </div>
               </template>
             </el-table-column>
@@ -401,6 +417,11 @@
       <div class="preview-body">
         <img v-if="previewUrl" :src="previewUrl" class="preview-image" alt="附件预览" />
       </div>
+      <!-- 预览弹窗内提供下载入口，避免只能看图无法保存 -->
+      <template #footer>
+        <el-button v-if="previewFile" type="primary" @click="handleDownloadAttachment(previewFile)">下载</el-button>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -639,6 +660,8 @@ const detail = ref<FacilityDetailVO | null>(null)
 const previewVisible = ref(false)
 const previewUrl = ref('')
 const previewName = ref('')
+/** 当前预览中的文件，供弹窗内“下载”按钮复用 */
+const previewFile = ref<FacilityAttachmentVO | null>(null)
 
 /** 图片类后缀 */
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
@@ -662,16 +685,44 @@ const handlePreviewAttachment = async (row: FacilityAttachmentVO) => {
   if (isImage) {
     previewUrl.value = url
     previewName.value = row.fileName || '附件预览'
+    previewFile.value = row
     previewVisible.value = true
     return
   }
   window.open(url, '_blank')
 }
 
+/**
+ * 下载附件：通过时效签名URL携带 attachment 响应头强制下载
+ * 说明：签名URL有效期 600 秒，每次下载重新签发，禁止永久直链
+ */
+const handleDownloadAttachment = async (file: AttachmentFileItem) => {
+  if (!file.filePath) {
+    ElMessage.warning('该附件未上传文件，请编辑后重新上传')
+    return
+  }
+  const res = await getPresignUrl({
+    bucket: 'archive-formal',
+    fileKey: file.filePath,
+    fileName: file.fileName,
+    download: true
+  })
+  // 跨域签名URL的 download 属性不生效，实际文件名由服务端 Content-Disposition 决定
+  const link = document.createElement('a')
+  link.href = res.data
+  link.target = '_blank'
+  link.rel = 'noopener'
+  link.download = file.fileName || ''
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 /** 关闭预览弹窗（签名URL无需释放） */
 const handlePreviewClosed = () => {
   previewUrl.value = ''
   previewName.value = ''
+  previewFile.value = null
 }
 
 /** 查看弹窗附件：按「附件类型 + 备注」归并，与编辑弹窗保持一致（一个附件含多个文件） */
@@ -1195,6 +1246,15 @@ onMounted(() => {
 .upload-file-remove:hover {
   color: #f56c6c;
 }
+/* 附件下载图标：统一使用小箭头样式（蓝色可点击） */
+.upload-file-download {
+  flex: 0 0 auto;
+  color: #409eff;
+  cursor: pointer;
+}
+.upload-file-download:hover {
+  color: #337ecc;
+}
 .section-title {
   margin: 16px 0 8px;
   font-size: 14px;
@@ -1217,5 +1277,15 @@ onMounted(() => {
 /* 查看弹窗附件：同一附件下的多个文件逐行展示 */
 .attachment-file-line {
   line-height: 24px;
+}
+/* 查看弹窗附件下载图标：与户基础信息页保持一致的小箭头 */
+.attachment-file-download {
+  margin-left: 6px;
+  color: #409eff;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.attachment-file-download:hover {
+  color: #337ecc;
 }
 </style>
