@@ -1,5 +1,7 @@
 package com.msjs.project.common;
 
+import java.util.Set;
+
 /**
  * 全局常量类
  * 魔法数字、固定分桶名称、编码前缀、文件大小限制统一在此定义，禁止硬编码
@@ -28,6 +30,13 @@ public final class Constants {
 
     /** 签名URL有效期（秒）：10分钟 */
     public static final int PRESIGNED_URL_EXPIRE = 600;
+
+    /** 允许上传的文件后缀白名单（小写，含点） */
+    public static final Set<String> ALLOWED_UPLOAD_EXTENSIONS = Set.of(
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
+            ".zip", ".rar", ".7z", ".txt", ".csv"
+    );
 
     /** 请求头 Token 名称 */
     public static final String HEADER_TOKEN = "Authorization";

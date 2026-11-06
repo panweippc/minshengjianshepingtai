@@ -20,7 +20,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -33,13 +32,6 @@ import java.util.concurrent.TimeUnit;
 public class FileServiceImpl implements FileService {
 
     private final MinioClient minioClient;
-
-    /** 允许上传的后缀白名单（小写，含点） */
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
-            ".zip", ".rar", ".7z", ".txt", ".csv"
-    );
 
     @Override
     public FileUploadVO upload(MultipartFile file) {
@@ -56,7 +48,7 @@ public class FileServiceImpl implements FileService {
         }
         // 后缀白名单校验
         String suffix = extractSuffix(original);
-        if (suffix == null || !ALLOWED_EXTENSIONS.contains(suffix.toLowerCase())) {
+        if (suffix == null || !Constants.ALLOWED_UPLOAD_EXTENSIONS.contains(suffix.toLowerCase())) {
             throw new BizException("不支持的文件类型：" + suffix);
         }
 

@@ -141,35 +141,6 @@
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="设施编号" prop="facilityCode">
-              <el-input
-                v-model="form.facilityCode"
-                :disabled="editDialogMode === 'edit'"
-                placeholder="请输入设施编号"
-                maxlength="32"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="设施名称" prop="facilityName">
-              <el-input v-model="form.facilityName" placeholder="请输入设施名称" maxlength="128" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="设施类型" prop="facilityType">
-              <el-select v-model="form.facilityType" placeholder="请选择设施类型" style="width: 100%">
-                <el-option
-                  v-for="item in facilityTypeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
             <el-form-item label="行政村" prop="regionCode">
               <el-tree-select
                 v-model="form.regionCode"
@@ -185,16 +156,43 @@
               />
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="24">
-            <el-form-item label="具体位置" prop="location">
-              <el-input v-model="form.location" placeholder="请输入具体位置" maxlength="255" />
+          <el-col :span="12">
+            <el-form-item label="设施编号" prop="facilityCode">
+              <el-input
+                v-model="form.facilityCode"
+                :disabled="editDialogMode === 'edit'"
+                placeholder="请输入设施编号"
+                maxlength="32"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :span="12">
+            <el-form-item label="设施名称" prop="facilityName">
+              <el-input v-model="form.facilityName" placeholder="请输入设施名称" maxlength="128" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="设施类型" prop="facilityType">
+              <el-select v-model="form.facilityType" placeholder="请选择设施类型" style="width: 100%">
+                <el-option
+                  v-for="item in facilityTypeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="具体位置" prop="location">
+              <el-input v-model="form.location" placeholder="请输入具体位置" maxlength="255" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="建成年份" prop="buildYear">
               <el-input-number
                 v-model="form.buildYear"
@@ -205,18 +203,20 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-form-item label="数量" prop="quantity">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="总数" prop="quantity">
               <el-input-number
                 v-model="form.quantity"
                 :min="0"
                 :precision="2"
-                placeholder="请输入数量"
+                placeholder="请输入总数"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="单位" prop="unit">
               <el-input v-model="form.unit" placeholder="如：个/公里/平方米" maxlength="16" />
             </el-form-item>
@@ -264,8 +264,11 @@
             <el-col :span="8">
               <el-form-item label="上传附件" label-position="top">
                 <el-upload
+                  class="upload-full"
+                  style="display: block; width: 100%"
                   :auto-upload="false"
                   :show-file-list="false"
+                  :disabled="attachmentUploading"
                   multiple
                   @change="(file: UploadFile) => handleAttachmentFileChange(file, att)"
                 >
@@ -314,25 +317,41 @@
             <el-descriptions-item label="设施编号">{{ detail.facilityCode || '—' }}</el-descriptions-item>
             <el-descriptions-item label="设施名称">{{ detail.facilityName || '—' }}</el-descriptions-item>
             <el-descriptions-item label="设施类型">{{ facilityTypeLabel(detail.facilityType) }}</el-descriptions-item>
-            <el-descriptions-item label="具体位置" :span="2">{{ detail.location || '—' }}</el-descriptions-item>
             <el-descriptions-item label="建成年份">{{ detail.buildYear || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="数量">
+            <el-descriptions-item label="总数">
               {{ detail.quantity ?? '—' }}<span v-if="detail.unit"> {{ detail.unit }}</span>
             </el-descriptions-item>
+            <el-descriptions-item label="具体位置" :span="2">{{ detail.location || '—' }}</el-descriptions-item>
           </el-descriptions>
           <h4 class="section-title">附件列表</h4>
-          <el-table :data="detail?.attachments || []" border size="small">
+          <el-table :data="groupedDetailAttachments" border size="small">
             <el-table-column label="附件类型" width="120" align="center">
-              <template #default="{ row }">{{ attachmentTypeLabel(row.attachmentType) }}</template>
+              <template #default="{ row }">{{ row.typeLabel || '—' }}</template>
             </el-table-column>
-            <el-table-column prop="fileName" label="文件名" min-width="200">
-              <template #default="{ row }">{{ row.fileName || '—' }}</template>
+            <el-table-column label="文件名" min-width="260">
+              <template #default="{ row }">
+                <div
+                  v-for="file in row.files"
+                  :key="file.filePath || file.fileName"
+                  class="attachment-file-line"
+                >
+                  <el-link
+                    v-if="file.fileName && file.filePath"
+                    type="primary"
+                    :underline="false"
+                    @click="handlePreviewAttachment(file)"
+                  >
+                    {{ file.fileName }}
+                  </el-link>
+                  <span v-else>{{ file.fileName || '—' }}</span>
+                </div>
+              </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="150">
+            <el-table-column label="备注" min-width="150">
               <template #default="{ row }">{{ row.remark || '—' }}</template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!detail?.attachments?.length" description="暂无附件" :image-size="60" />
+          <el-empty v-if="!groupedDetailAttachments.length" description="暂无附件" :image-size="60" />
         </el-tab-pane>
 
         <!-- 项目信息 -->
@@ -371,6 +390,19 @@
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 附件图片预览 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewName || '附件预览'"
+      width="820px"
+      destroy-on-close
+      @closed="handlePreviewClosed"
+    >
+      <div class="preview-body">
+        <img v-if="previewUrl" :src="previewUrl" class="preview-image" alt="附件预览" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -391,13 +423,15 @@ import {
   deleteFacility,
   getFacilityRegionCounts
 } from '@/api/facility'
+import { uploadFile as uploadFileApi, fetchFileBlob } from '@/api/file'
 import type { FacilityQuery } from '@/api/facility'
 import type {
   DictVO,
   VillageTreeVO,
   FacilityVO,
   FacilityDetailVO,
-  FacilitySaveDTO
+  FacilitySaveDTO,
+  FacilityAttachmentVO
 } from '@/types/system'
 
 const store = useUserStore()
@@ -602,6 +636,77 @@ const detailDialogVisible = ref(false)
 const detailActiveTab = ref('info')
 const detail = ref<FacilityDetailVO | null>(null)
 
+/** 附件预览弹窗（图片） */
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewName = ref('')
+
+/** 图片类后缀 */
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+
+/** 点击附件文件名：图片弹窗预览、PDF 新窗口打开、其它类型触发下载 */
+const handlePreviewAttachment = async (row: FacilityAttachmentVO) => {
+  if (!row.filePath) {
+    ElMessage.warning('该附件未上传文件，请编辑后重新上传')
+    return
+  }
+  const blob = await fetchFileBlob(row.filePath)
+  const url = URL.createObjectURL(blob)
+  const ext = (row.fileName || '').split('.').pop()?.toLowerCase() || ''
+  if (IMAGE_EXTENSIONS.includes(ext)) {
+    previewUrl.value = url
+    previewName.value = row.fileName || '附件预览'
+    previewVisible.value = true
+    return
+  }
+  if (ext === 'pdf') {
+    window.open(url, '_blank')
+  } else {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = row.fileName || '附件'
+    link.click()
+  }
+  // 非图片场景由浏览器接管，延迟释放本地 URL
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+/** 关闭预览弹窗时释放本地 URL */
+const handlePreviewClosed = () => {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+  }
+  previewUrl.value = ''
+  previewName.value = ''
+}
+
+/** 查看弹窗附件：按「附件类型 + 备注」归并，与编辑弹窗保持一致（一个附件含多个文件） */
+interface AttachmentGroup {
+  attachmentType: string
+  typeLabel: string
+  remark: string
+  files: FacilityAttachmentVO[]
+}
+
+const groupedDetailAttachments = computed<AttachmentGroup[]>(() => {
+  const groups = new Map<string, AttachmentGroup>()
+  for (const attachment of detail.value?.attachments || []) {
+    const key = `${attachment.attachmentType || ''}||${attachment.remark || ''}`
+    let group = groups.get(key)
+    if (!group) {
+      group = {
+        attachmentType: attachment.attachmentType || '',
+        typeLabel: attachmentTypeLabel(attachment.attachmentType),
+        remark: attachment.remark || '',
+        files: []
+      }
+      groups.set(key, group)
+    }
+    group.files.push(attachment)
+  }
+  return [...groups.values()]
+})
+
 /** 字典标签 */
 const facilityTypeLabel = (value?: string) => {
   if (!value) return '—'
@@ -690,13 +795,31 @@ const addAttachment = () => {
   form.attachments.push(emptyAttachment())
 }
 
-/** 选择附件文件：支持多选，按文件名+大小去重（文件上传接口后续接入 MinIO） */
-const handleAttachmentFileChange = (uploadFile: UploadFile, att: AttachmentEditItem) => {
+/** 附件上传中状态（上传完成前禁止重复选择） */
+const attachmentUploading = ref(false)
+
+/** 选择附件文件：立即上传，成功后记录文件元信息（支持多选，按文件名+大小去重） */
+const handleAttachmentFileChange = async (uploadFile: UploadFile, att: AttachmentEditItem) => {
   const raw = uploadFile.raw
   if (!raw) return
   const duplicated = att.files.some((f) => f.fileName === raw.name && f.fileSize === raw.size)
-  if (duplicated) return
-  att.files.push({ fileName: raw.name, fileSize: raw.size })
+  if (duplicated) {
+    ElMessage.warning('该文件已添加')
+    return
+  }
+  attachmentUploading.value = true
+  try {
+    const res = await uploadFileApi(raw)
+    const data = res.data
+    att.files.push({
+      fileName: data.fileName,
+      fileSize: data.fileSize,
+      filePath: data.filePath,
+      fileHash: data.fileHash
+    })
+  } finally {
+    attachmentUploading.value = false
+  }
 }
 
 /** 删除附件卡片中的某个文件 */
@@ -721,6 +844,27 @@ const openEdit = async (row: FacilityVO) => {
   editDialogMode.value = 'edit'
   const res = await getFacilityDetail(row.id)
   const data = res.data
+  // 附件按「附件类型 + 备注」归并为同一张卡片（一个附件可含多个文件）
+  const attachmentCards = new Map<string, AttachmentEditItem>()
+  for (const attachment of data.attachments || []) {
+    const key = `${attachment.attachmentType || ''}||${attachment.remark || ''}`
+    let card = attachmentCards.get(key)
+    if (!card) {
+      card = {
+        attachmentType: attachment.attachmentType || '',
+        remark: attachment.remark || '',
+        files: []
+      }
+      attachmentCards.set(key, card)
+    }
+    if (attachment.fileName) {
+      card.files.push({
+        fileName: attachment.fileName,
+        fileSize: attachment.fileSize,
+        filePath: attachment.filePath
+      })
+    }
+  }
   Object.assign(form, {
     id: data.id,
     facilityCode: data.facilityCode,
@@ -733,13 +877,7 @@ const openEdit = async (row: FacilityVO) => {
     quantity: data.quantity,
     unit: data.unit || '',
     remark: data.remark || '',
-    attachments: (data.attachments || []).map((a) => ({
-      attachmentType: a.attachmentType || '',
-      remark: a.remark || '',
-      files: a.fileName
-        ? [{ fileName: a.fileName, fileSize: a.fileSize, filePath: a.filePath }]
-        : []
-    }))
+    attachments: [...attachmentCards.values()]
   })
   editDialogVisible.value = true
 }
@@ -994,6 +1132,11 @@ onMounted(() => {
   width: 100%;
 }
 /* 上传附件触发区：虚线框 + 上传图标 */
+/* 上传组件占满所在列宽，避免右侧留白 */
+.upload-full {
+  display: block;
+  width: 100%;
+}
 .upload-trigger {
   display: flex;
   align-items: center;
@@ -1063,5 +1206,22 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+/* 附件预览：图片等比缩放并居中 */
+.preview-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 70vh;
+  overflow: auto;
+}
+.preview-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+/* 查看弹窗附件：同一附件下的多个文件逐行展示 */
+.attachment-file-line {
+  line-height: 24px;
 }
 </style>

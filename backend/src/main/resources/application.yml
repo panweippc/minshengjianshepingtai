@@ -42,6 +42,10 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
 
+# 本地文件存储（开发环境临时方案，后续可切换至 MinIO）
+file:
+  upload-dir: ./uploads
+
 # Knife4j 接口文档
 springdoc:
   swagger-ui:

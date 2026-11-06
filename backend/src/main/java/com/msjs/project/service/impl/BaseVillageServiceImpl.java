@@ -243,11 +243,10 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         if (parent == null) {
             throw new BizException("上级区划不存在");
         }
-        if (parent.getLevel() >= Constants.REGION_LEVEL_GROUP) {
-            throw new BizException("组下不允许再添加下级区划");
-        }
+        // 允许任意层级继续添加下级，下级层级 = 上级 + 1
         if (level != parent.getLevel() + 1) {
-            throw new BizException("下级区划类型须为「" + levelLabel(parent.getLevel() + 1) + "」");
+            // 若前端传的 regionType 对应的层级不是 parent+1，按 parent+1 自动校正（兼容组下继续分组的场景）
+            level = parent.getLevel() + 1;
         }
         return level;
     }

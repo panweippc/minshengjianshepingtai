@@ -111,7 +111,7 @@
                 编辑
               </el-button>
               <el-button
-                v-if="store.hasPerm('base:village:add') && row.level < 6"
+                v-if="store.hasPerm('base:village:add')"
                 link
                 type="success"
                 icon="Plus"
