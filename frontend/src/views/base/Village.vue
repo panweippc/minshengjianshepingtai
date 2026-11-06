@@ -71,7 +71,19 @@
           </div>
         </template>
         <el-table v-loading="loading" :data="tableData" border stripe>
-          <el-table-column prop="name" label="区划名称" min-width="150" />
+          <el-table-column label="区划名称" min-width="200">
+            <template #default="{ row }">
+              <span
+                class="region-indent"
+                :style="{ paddingLeft: Math.max((row.level || 1) - 1, 0) * 20 + 'px' }"
+              >
+                <el-icon v-if="row.level === 1" class="region-icon is-town"><LocationFilled /></el-icon>
+                <el-icon v-else-if="row.level === 2" class="region-icon is-village"><OfficeBuilding /></el-icon>
+                <el-icon v-else class="region-icon is-group"><HomeFilled /></el-icon>
+                <span class="region-name">{{ row.name }}</span>
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column prop="code" label="区划编码" min-width="150" />
           <el-table-column label="区划类型" width="110" align="center">
             <template #default="{ row }">{{ regionTypeLabel(row.regionType) }}</template>
@@ -234,7 +246,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { LocationFilled, Folder } from '@element-plus/icons-vue'
+import { LocationFilled, Folder, OfficeBuilding, HomeFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
@@ -658,6 +670,28 @@ onMounted(() => {
 .leader-phone {
   margin-left: 8px;
   color: #909399;
+}
+.region-indent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.region-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+}
+.region-icon.is-town {
+  color: #3b82f6;
+}
+.region-icon.is-village {
+  color: #22c55e;
+}
+.region-icon.is-group {
+  color: #e6a23c;
+}
+.region-name {
+  color: #303133;
 }
 .region-cascader-wrap {
   display: flex;
