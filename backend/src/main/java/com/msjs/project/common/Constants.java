@@ -28,6 +28,10 @@ public final class Constants {
     /** 分片大小：5MB */
     public static final long CHUNK_SIZE = 5L * 1024 * 1024;
 
+    /** 上传文件后缀黑名单（可执行文件，防安全风险） */
+    public static final java.util.Set<String> FILE_SUFFIX_BLACKLIST = java.util.Set.of(
+            "exe", "bat", "cmd", "sh", "msi", "dll", "com", "scr", "vbs", "ps1", "jar");
+
     /** 签名URL有效期（秒）：10分钟 */
     public static final int PRESIGNED_URL_EXPIRE = 600;
 

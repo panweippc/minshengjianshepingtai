@@ -1,18 +1,28 @@
-import { getBlob, post, uploadConfig } from './request'
+import { get, post, uploadConfig } from './request'
 import type { Result } from '@/types/common'
-import type { FileUploadVO } from '@/types/system'
 
-/** 上传单个文件（本地磁盘存储，需登录鉴权） */
+/** 文件上传结果（后端 FileUploadVO） */
+export interface FileUploadVO {
+  fileName: string
+  fileKey: string
+  bucket: string
+  fileSize: number
+  fileHash: string
+}
+
+/** 上传文件到正式归档桶（大文件单独超时） */
 export function uploadFile(file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  return post<Result<FileUploadVO>>('/api/file/upload', formData, {
-    ...uploadConfig,
-    headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  return post<Result<FileUploadVO>>('/api/file/upload', formData, uploadConfig)
 }
 
-/** 获取附件文件流（预览/下载，需登录鉴权） */
-export function fetchFileBlob(path: string) {
-  return getBlob(`/api/file/preview?path=${encodeURIComponent(path)}`)
+/** 获取时效签名URL（download=true 强制下载，false 浏览器内联预览） */
+export function getPresignUrl(params: {
+  bucket: string
+  fileKey: string
+  fileName?: string
+  download?: boolean
+}) {
+  return get<Result<string>>('/api/file/presign', { params })
 }

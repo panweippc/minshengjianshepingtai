@@ -423,7 +423,7 @@ import {
   deleteFacility,
   getFacilityRegionCounts
 } from '@/api/facility'
-import { uploadFile as uploadFileApi, fetchFileBlob } from '@/api/file'
+import { uploadFile as uploadFileApi, getPresignUrl } from '@/api/file'
 import type { FacilityQuery } from '@/api/facility'
 import type {
   DictVO,
@@ -650,32 +650,27 @@ const handlePreviewAttachment = async (row: FacilityAttachmentVO) => {
     ElMessage.warning('该附件未上传文件，请编辑后重新上传')
     return
   }
-  const blob = await fetchFileBlob(row.filePath)
-  const url = URL.createObjectURL(blob)
   const ext = (row.fileName || '').split('.').pop()?.toLowerCase() || ''
-  if (IMAGE_EXTENSIONS.includes(ext)) {
+  const isImage = IMAGE_EXTENSIONS.includes(ext)
+  // 附件访问统一走时效签名URL，禁止永久直链；非图片/PDF 强制下载
+  const res = await getPresignUrl({
+    bucket: 'archive-formal',
+    fileKey: row.filePath,
+    fileName: row.fileName,
+    download: !isImage && ext !== 'pdf'
+  })
+  const url = res.data
+  if (isImage) {
     previewUrl.value = url
     previewName.value = row.fileName || '附件预览'
     previewVisible.value = true
     return
   }
-  if (ext === 'pdf') {
-    window.open(url, '_blank')
-  } else {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = row.fileName || '附件'
-    link.click()
-  }
-  // 非图片场景由浏览器接管，延迟释放本地 URL
-  setTimeout(() => URL.revokeObjectURL(url), 60000)
+  window.open(url, '_blank')
 }
 
-/** 关闭预览弹窗时释放本地 URL */
+/** 关闭预览弹窗（签名URL无需释放） */
 const handlePreviewClosed = () => {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-  }
   previewUrl.value = ''
   previewName.value = ''
 }
@@ -814,7 +809,7 @@ const handleAttachmentFileChange = async (uploadFile: UploadFile, att: Attachmen
     att.files.push({
       fileName: data.fileName,
       fileSize: data.fileSize,
-      filePath: data.filePath,
+      filePath: data.fileKey,
       fileHash: data.fileHash
     })
   } finally {

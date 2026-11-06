@@ -8,6 +8,7 @@ import com.msjs.project.dto.HouseholdSaveDTO;
 import com.msjs.project.entity.Household;
 import com.msjs.project.entity.HouseholdAttachment;
 import com.msjs.project.service.HouseholdService;
+import com.msjs.project.vo.RegionHouseholdCountVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,6 +48,13 @@ public class HouseholdController {
             @Parameter(description = "户主身份证号") @RequestParam(required = false) String headIdCard,
             @Parameter(description = "树节点区划编码") @RequestParam(required = false) String nodeCode) {
         return Result.ok(householdService.page(pageNum, pageSize, headName, headIdCard, nodeCode));
+    }
+
+    @Operation(summary = "按区划统计农户数量（区划树徽标）")
+    @RequirePerm("base:household:list")
+    @GetMapping("/region-counts")
+    public Result<List<RegionHouseholdCountVO>> regionCounts() {
+        return Result.ok(householdService.regionCounts());
     }
 
     @Operation(summary = "户基础信息详情（含附件）")

@@ -4,6 +4,9 @@ Redis-7.4.5-Windows-x64-msys2-with-Service/
 nginx-1.29.1/
 minio/
 
+# ===== SQL 脚本（共享数据库，脚本不入库，避免 Flyway 版本号冲突）=====
+sql/
+
 # ===== 构建产物 =====
 backend/target/
 frontend/node_modules/

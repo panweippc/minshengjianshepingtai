@@ -1,19 +1,13 @@
 package com.msjs.project.controller;
 
-import com.msjs.project.common.BizException;
 import com.msjs.project.common.Result;
-import com.msjs.project.file.LocalFileStorageService;
+import com.msjs.project.common.annotation.OperLog;
+import com.msjs.project.service.FileService;
 import com.msjs.project.vo.FileUploadVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,14 +15,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 /**
- * 文件接口（本地磁盘存储，开发环境临时方案）
- * 安全说明：上传与预览均需登录鉴权，预览按附件类型内联返回
+ * 文件接口：上传、时效签名URL（预览/下载）
+ * 所有接口需登录（AuthInterceptor 统一拦截）；预览/下载写入操作日志满足审计要求
  */
 @Tag(name = "文件管理")
 @RestController
@@ -36,34 +25,23 @@ import java.nio.file.Path;
 @RequiredArgsConstructor
 public class FileController {
 
-    private final LocalFileStorageService localFileStorageService;
+    private final FileService fileService;
 
-    @Operation(summary = "上传文件")
+    @Operation(summary = "上传文件（写入正式归档桶，返回对象信息）")
+    @OperLog(module = "附件管理", operation = "上传附件")
     @PostMapping("/upload")
-    public Result<FileUploadVO> upload(
-            @Parameter(description = "上传文件") @RequestParam("file") MultipartFile file) {
-        return Result.ok(localFileStorageService.upload(file));
+    public Result<FileUploadVO> upload(@RequestParam("file") MultipartFile file) {
+        return Result.ok(fileService.upload(file));
     }
 
-    @Operation(summary = "预览/下载文件（需登录鉴权）")
-    @GetMapping("/preview")
-    public ResponseEntity<Resource> preview(
-            @Parameter(description = "文件相对路径") @RequestParam("path") String path) throws IOException {
-        Path file = localFileStorageService.resolve(path);
-        if (!Files.exists(file) || !Files.isRegularFile(file)) {
-            throw new BizException("文件不存在或已被删除");
-        }
-        // 根据后缀推断内容类型，图片/PDF 直接内联预览
-        String contentType = Files.probeContentType(file);
-        MediaType mediaType = contentType != null
-                ? MediaType.parseMediaType(contentType)
-                : MediaType.APPLICATION_OCTET_STREAM;
-        String fileName = file.getFileName().toString();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.inline().filename(fileName, StandardCharsets.UTF_8).build().toString())
-                .contentType(mediaType)
-                .contentLength(Files.size(file))
-                .body(new FileSystemResource(file));
+    @Operation(summary = "生成时效签名URL（预览或下载）")
+    @OperLog(module = "附件管理", operation = "预览/下载附件")
+    @GetMapping("/presign")
+    public Result<String> presign(
+            @Parameter(description = "存储桶") @RequestParam String bucket,
+            @Parameter(description = "对象 key") @RequestParam String fileKey,
+            @Parameter(description = "原始文件名（下载时使用）") @RequestParam(required = false) String fileName,
+            @Parameter(description = "是否强制下载") @RequestParam(defaultValue = "false") boolean download) {
+        return Result.ok(fileService.presign(bucket, fileKey, fileName, download));
     }
 }

@@ -86,9 +86,20 @@ export interface HouseholdSaveDTO {
   attachments?: HouseholdAttachmentItem[]
 }
 
+/** 区划农户数量统计（区划树徽标） */
+export interface RegionHouseholdCountVO {
+  regionCode: string
+  count: number
+}
+
 /** 户基础信息分页查询 */
 export function getHouseholdPage(params: HouseholdQuery) {
   return get<Result<PageVO<HouseholdVO>>>('/api/base/household/page', { params })
+}
+
+/** 按区划统计农户数量 */
+export function getHouseholdRegionCounts() {
+  return get<Result<RegionHouseholdCountVO[]>>('/api/base/household/region-counts')
 }
 
 /** 户基础信息详情 */
