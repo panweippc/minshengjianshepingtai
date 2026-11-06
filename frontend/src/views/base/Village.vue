@@ -492,6 +492,20 @@ const openDetail = async (row: VillageVO) => {
   dialogVisible.value = true
 }
 
+/** 递归在树形表格中查找节点并更新 */
+const updateNodeInTree = (nodes: VillageTreeVO[], code: string, patch: Partial<VillageTreeVO>): boolean => {
+  for (const node of nodes) {
+    if (node.code === code) {
+      Object.assign(node, patch)
+      return true
+    }
+    if (node.children?.length && updateNodeInTree(node.children, code, patch)) {
+      return true
+    }
+  }
+  return false
+}
+
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -499,12 +513,23 @@ const handleSubmit = async () => {
   try {
     if (dialogMode.value === 'edit') {
       await updateVillage({ ...form })
+      // 编辑：直接更新现有树节点，保留展开状态和滚动位置
+      updateNodeInTree(tableData.value, form.code!, {
+        name: form.name,
+        regionType: form.regionType,
+        secretary: form.secretary,
+        secretaryPhone: form.secretaryPhone,
+        director: form.director,
+        directorPhone: form.directorPhone
+      })
+      updateNodeInTree(treeData.value, form.code!, { name: form.name })
     } else {
       await createVillage({ ...form })
+      // 新增：涉及结构变化，需要重新加载
+      await Promise.all([loadTree(), loadData()])
     }
     ElMessage.success('操作成功')
     dialogVisible.value = false
-    await Promise.all([loadTree(), loadData()])
   } finally {
     submitLoading.value = false
   }
