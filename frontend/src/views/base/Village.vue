@@ -98,8 +98,9 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="290" fixed="right">
+          <el-table-column label="操作" width="320" fixed="right">
             <template #default="{ row }">
+              <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
               <el-button
                 v-if="store.hasPerm('base:village:edit')"
                 link
@@ -109,7 +110,6 @@
               >
                 编辑
               </el-button>
-              <el-button link type="info" icon="View" @click="openDetail(row)">详情</el-button>
               <el-button
                 v-if="store.hasPerm('base:village:add') && row.level < 6"
                 link
