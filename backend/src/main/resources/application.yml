@@ -36,11 +36,13 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# MinIO 对象存储（本项目独立实例，避免与其他项目冲突使用 9100 端口）
+# MinIO 对象存储（团队共享实例，常开服务器 192.168.2.142，使用 9100 端口）
+# 可用环境变量覆盖：MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY
+# 本机自测时可设 MINIO_ENDPOINT=http://localhost:9100
 minio:
-  endpoint: http://localhost:9100
-  access-key: minioadmin
-  secret-key: minioadmin
+  endpoint: ${MINIO_ENDPOINT:http://192.168.2.142:9100}
+  access-key: ${MINIO_ACCESS_KEY:msjs-app}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
 
 # 本地文件存储（开发环境临时方案，后续可切换至 MinIO）
 file:

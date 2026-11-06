@@ -53,4 +53,15 @@ public final class Constants {
     public static final int REGION_LEVEL_GROUP = 6;
     /** 村委会管理层级起点（乡镇） */
     public static final int REGION_MANAGE_MIN_LEVEL = REGION_LEVEL_TOWN;
+
+    /** 文件状态：临时（分片上传中，未归档） */
+    public static final int FILE_STATUS_TEMP = 0;
+    /** 文件状态：正式归档 */
+    public static final int FILE_STATUS_FORMAL = 1;
+    /** 默认业务类型 */
+    public static final String DEFAULT_BIZ_TYPE = "common";
+    /** 分片上传最大分片数 */
+    public static final int CHUNK_MAX_COUNT = 2000;
+    /** 签名URL最大有效期（秒）：1小时，防止签名链接被长期复用 */
+    public static final int MAX_PRESIGNED_EXPIRE = 3600;
 }

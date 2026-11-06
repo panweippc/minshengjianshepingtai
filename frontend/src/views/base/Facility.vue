@@ -206,12 +206,12 @@
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="总数" prop="quantity">
+            <el-form-item label="数量" prop="quantity">
               <el-input-number
                 v-model="form.quantity"
                 :min="0"
                 :precision="2"
-                placeholder="请输入总数"
+                placeholder="请输入数量"
                 style="width: 100%"
               />
             </el-form-item>
@@ -317,11 +317,10 @@
             <el-descriptions-item label="设施编号">{{ detail.facilityCode || '—' }}</el-descriptions-item>
             <el-descriptions-item label="设施名称">{{ detail.facilityName || '—' }}</el-descriptions-item>
             <el-descriptions-item label="设施类型">{{ facilityTypeLabel(detail.facilityType) }}</el-descriptions-item>
+            <el-descriptions-item label="具体位置">{{ detail.location || '—' }}</el-descriptions-item>
             <el-descriptions-item label="建成年份">{{ detail.buildYear || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="总数">
-              {{ detail.quantity ?? '—' }}<span v-if="detail.unit"> {{ detail.unit }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="具体位置" :span="2">{{ detail.location || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="数量">{{ detail.quantity ?? '—' }}</el-descriptions-item>
+            <el-descriptions-item label="单位">{{ detail.unit || '—' }}</el-descriptions-item>
           </el-descriptions>
           <h4 class="section-title">附件列表</h4>
           <el-table :data="groupedDetailAttachments" border size="small">
