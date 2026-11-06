@@ -70,20 +70,16 @@
             </el-button>
           </div>
         </template>
-        <el-table v-loading="loading" :data="tableData" border stripe>
-          <el-table-column label="区划名称" min-width="200">
-            <template #default="{ row }">
-              <span
-                class="region-indent"
-                :style="{ paddingLeft: Math.max((row.level || 1) - 1, 0) * 20 + 'px' }"
-              >
-                <el-icon v-if="row.level === 1" class="region-icon is-town"><LocationFilled /></el-icon>
-                <el-icon v-else-if="row.level === 2" class="region-icon is-village"><OfficeBuilding /></el-icon>
-                <el-icon v-else class="region-icon is-group"><HomeFilled /></el-icon>
-                <span class="region-name">{{ row.name }}</span>
-              </span>
-            </template>
-          </el-table-column>
+        <el-table
+          v-loading="loading"
+          :data="tableData"
+          row-key="code"
+          :tree-props="{ children: 'children' }"
+          :default-expand-all="true"
+          border
+          stripe
+        >
+          <el-table-column prop="name" label="区划名称" min-width="180" />
           <el-table-column prop="code" label="区划编码" min-width="150" />
           <el-table-column label="区划类型" width="110" align="center">
             <template #default="{ row }">{{ regionTypeLabel(row.regionType) }}</template>
@@ -135,16 +131,6 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-pagination
-          v-model:current-page="query.pageNum"
-          v-model:page-size="query.pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          style="margin-top: 16px; justify-content: flex-end"
-          @size-change="handleQuery"
-          @current-change="loadData"
-        />
       </el-card>
     </div>
 
@@ -246,13 +232,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { LocationFilled, Folder, OfficeBuilding, HomeFilled } from '@element-plus/icons-vue'
+import { LocationFilled, Folder } from '@element-plus/icons-vue'
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import {
   getVillageTree,
-  getVillagePage,
+  getVillageTreePage,
   getVillageDetail,
   createVillage,
   updateVillage,
@@ -347,7 +333,7 @@ const query = reactive<VillageQuery>({
   pageSize: 10
 })
 const total = ref(0)
-const tableData = ref<VillageVO[]>([])
+const tableData = ref<VillageTreeVO[]>([])
 const loading = ref(false)
 
 const dialogVisible = ref(false)
@@ -409,19 +395,32 @@ const loadTree = async () => {
   treeData.value = res.data || []
 }
 
+/** 递归统计树节点总数 */
+const countTreeNodes = (nodes: VillageTreeVO[]): number => {
+  let n = 0
+  for (const node of nodes) {
+    n += 1 + countTreeNodes(node.children || [])
+  }
+  return n
+}
+
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getVillagePage(query)
-    tableData.value = res.data.records
-    total.value = res.data.total
+    const res = await getVillageTreePage({
+      name: query.name,
+      secretary: query.secretary,
+      director: query.director,
+      nodeCode: query.nodeCode
+    })
+    tableData.value = res.data || []
+    total.value = countTreeNodes(tableData.value)
   } finally {
     loading.value = false
   }
 }
 
 const handleQuery = () => {
-  query.pageNum = 1
   loadData()
 }
 
@@ -670,28 +669,6 @@ onMounted(() => {
 .leader-phone {
   margin-left: 8px;
   color: #909399;
-}
-.region-indent {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-.region-icon {
-  flex: 0 0 auto;
-  font-size: 15px;
-}
-.region-icon.is-town {
-  color: #3b82f6;
-}
-.region-icon.is-village {
-  color: #22c55e;
-}
-.region-icon.is-group {
-  color: #e6a23c;
-}
-.region-name {
-  color: #303133;
 }
 .region-cascader-wrap {
   display: flex;

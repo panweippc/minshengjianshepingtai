@@ -154,6 +154,11 @@ export interface VillageTreeVO {
   parentCode: string
   level: number
   regionType: string
+  secretary?: string
+  secretaryPhone?: string
+  director?: string
+  directorPhone?: string
+  sort?: number
   children: VillageTreeVO[]
 }
 
@@ -229,6 +234,14 @@ export interface FacilityVO {
   remark: string
   createTime: string
   updateTime: string
+}
+
+/** 文件上传结果 */
+export interface FileUploadVO {
+  fileName: string
+  filePath: string
+  fileHash: string
+  fileSize: number
 }
 
 /** 区划设施数量统计（左侧区划树徽标） */

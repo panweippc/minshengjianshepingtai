@@ -19,6 +19,9 @@ public interface BaseVillageService {
     PageVO<SysRegion> page(long pageNum, long pageSize, String name, String secretary,
                            String director, String nodeCode);
 
+    /** 树形查询：返回可直接用于树形表格的层级数据（筛选时自动补全祖先路径） */
+    List<RegionTreeVO> treePage(String name, String secretary, String director, String nodeCode);
+
     /** 区划详情（按区划编码查询，业务编码全局唯一） */
     SysRegion detail(String code);
 
