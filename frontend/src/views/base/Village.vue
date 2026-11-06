@@ -147,7 +147,7 @@
       </el-descriptions>
 
       <el-form v-else ref="formRef" :model="form" :rules="formRules" label-width="140px">
-        <el-form-item label="区划名称" prop="name">
+        <el-form-item label="上级区划" prop="name">
           <div class="region-cascader-wrap">
             <el-cascader
               v-model="cascaderValue"
