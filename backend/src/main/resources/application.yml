@@ -41,7 +41,7 @@ mybatis-plus:
 # 本机自测时可设 MINIO_ENDPOINT=http://localhost:9100
 minio:
   endpoint: ${MINIO_ENDPOINT:http://192.168.2.14:9100}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  access-key: ${MINIO_ACCESS_KEY:msjs-app}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
 
 # 本地文件存储（开发环境临时方案，后续可切换至 MinIO）
