@@ -27,6 +27,7 @@ console.log
 
 # ===== Redis 持久化文件 =====
 dump.rdb
+redis-data/
 
 # ===== 系统 =====
 Thumbs.db
