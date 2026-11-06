@@ -61,6 +61,7 @@ commit message 前缀：`feat` 新功能 / `fix` 修复 / `refactor` 重构 / `c
 
 - 只做「推 pan」，**切回 lzj / merge origin/pan 回 lzj 全部不做**，用户自己需要时自己切
 - 不要在 pan 上直接开发
+- **SQL 脚本不入库**：数据库是共享库，`sql/` 已在 `.gitignore` 且已 `git rm --cached` 移出跟踪，任何 DDL/DML 变更只留本地文件，绝不提交推送（避免多人 Flyway 版本号冲突）
 - PowerShell 里 `git push` 进度写到 stderr 显示红色是正常的，退出码 0 即成功
 - 运行时组件和构建产物已在 `.gitignore`，不会被 `git add -A` 收录
 
