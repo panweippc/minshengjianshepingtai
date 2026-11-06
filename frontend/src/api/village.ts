@@ -20,6 +20,16 @@ export function getVillagePage(params: VillageQuery) {
   return get<Result<PageVO<VillageVO>>>('/api/base/village/page', { params })
 }
 
+/** 村委会树形列表（用于树形表格，支持筛选 + 节点过滤） */
+export function getVillageTreePage(params: {
+  name?: string
+  secretary?: string
+  director?: string
+  nodeCode?: string
+}) {
+  return get<Result<VillageTreeVO[]>>('/api/base/village/tree-page', { params })
+}
+
 /** 区划详情（按区划编码查询） */
 export function getVillageDetail(code: string) {
   return get<Result<VillageVO>>(`/api/base/village/detail/${encodeURIComponent(code)}`)

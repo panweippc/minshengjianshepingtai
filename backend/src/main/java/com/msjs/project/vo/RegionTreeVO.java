@@ -32,6 +32,21 @@ public class RegionTreeVO implements Serializable {
     @Schema(description = "区划类型（字典 qu_hua_lei_xing）")
     private String regionType;
 
+    @Schema(description = "党支部书记")
+    private String secretary;
+
+    @Schema(description = "党支部书记电话")
+    private String secretaryPhone;
+
+    @Schema(description = "村委会主任")
+    private String director;
+
+    @Schema(description = "村委会主任电话")
+    private String directorPhone;
+
+    @Schema(description = "排序")
+    private Integer sort;
+
     @Schema(description = "下级区划")
     private List<RegionTreeVO> children = new ArrayList<>();
 }

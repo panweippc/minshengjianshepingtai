@@ -71,6 +71,91 @@ public class BaseVillageServiceImpl implements BaseVillageService {
     }
 
     @Override
+    public List<RegionTreeVO> treePage(String name, String secretary, String director, String nodeCode) {
+        // 全量查询管理范围内区划，后续在内存中筛选并组装为树（树形表格不分页，避免父子断裂）
+        List<SysRegion> all = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+                .ge(SysRegion::getLevel, Constants.REGION_MANAGE_MIN_LEVEL)
+                .orderByAsc(SysRegion::getLevel)
+                .orderByAsc(SysRegion::getSort)
+                .orderByAsc(SysRegion::getCode));
+
+        boolean hasFilter = isNotBlank(name) || isNotBlank(secretary) || isNotBlank(director);
+        List<SysRegion> filtered;
+        if (!hasFilter && isNotBlank(nodeCode)) {
+            // 树节点筛选：该节点及其所有子孙
+            filtered = filterSubtree(all, nodeCode);
+        } else if (hasFilter) {
+            // 条件筛选：匹配节点 + 所有祖先（保证路径完整）
+            filtered = filterWithAncestors(all, name, secretary, director);
+        } else {
+            filtered = all;
+        }
+
+        Map<String, RegionTreeVO> nodeMap = new LinkedHashMap<>();
+        filtered.forEach(r -> nodeMap.put(r.getCode(), toTreeNode(r)));
+        List<RegionTreeVO> roots = new ArrayList<>();
+        for (SysRegion region : filtered) {
+            RegionTreeVO node = nodeMap.get(region.getCode());
+            RegionTreeVO parent = nodeMap.get(region.getParentCode());
+            if (parent == null) {
+                roots.add(node);
+            } else {
+                parent.getChildren().add(node);
+            }
+        }
+        return roots;
+    }
+
+    /** 筛选出指定节点及其所有子孙 */
+    private List<SysRegion> filterSubtree(List<SysRegion> all, String nodeCode) {
+        Map<String, List<SysRegion>> childrenMap = new LinkedHashMap<>();
+        for (SysRegion r : all) {
+            childrenMap.computeIfAbsent(r.getParentCode(), k -> new ArrayList<>()).add(r);
+        }
+        List<SysRegion> result = new ArrayList<>();
+        collectSubtree(all, nodeCode, childrenMap, result);
+        return result;
+    }
+
+    private void collectSubtree(List<SysRegion> all, String code,
+                                Map<String, List<SysRegion>> childrenMap, List<SysRegion> result) {
+        all.stream().filter(r -> code.equals(r.getCode())).findFirst().ifPresent(result::add);
+        List<SysRegion> children = childrenMap.getOrDefault(code, new ArrayList<>());
+        for (SysRegion child : children) {
+            collectSubtree(all, child.getCode(), childrenMap, result);
+        }
+    }
+
+    /** 条件筛选：匹配节点 + 所有祖先 */
+    private List<SysRegion> filterWithAncestors(List<SysRegion> all, String name,
+                                                String secretary, String director) {
+        Map<String, SysRegion> byCode = new LinkedHashMap<>();
+        for (SysRegion r : all) byCode.put(r.getCode(), r);
+
+        java.util.Set<String> keepCodes = new java.util.LinkedHashSet<>();
+        for (SysRegion r : all) {
+            boolean match = (!isNotBlank(name) || r.getName() != null && r.getName().contains(name))
+                    && (!isNotBlank(secretary) || r.getSecretary() != null && r.getSecretary().contains(secretary))
+                    && (!isNotBlank(director) || r.getDirector() != null && r.getDirector().contains(director));
+            if (match) {
+                keepCodes.add(r.getCode());
+                // 沿 parentCode 向上收集所有祖先
+                String cur = r.getParentCode();
+                while (cur != null && byCode.containsKey(cur)) {
+                    keepCodes.add(cur);
+                    cur = byCode.get(cur).getParentCode();
+                }
+            }
+        }
+        if (keepCodes.isEmpty()) return new ArrayList<>();
+        List<SysRegion> result = new ArrayList<>();
+        for (SysRegion r : all) {
+            if (keepCodes.contains(r.getCode())) result.add(r);
+        }
+        return result;
+    }
+
+    @Override
     public SysRegion detail(String code) {
         SysRegion region = selectByCode(code);
         if (region == null) {
@@ -158,11 +243,10 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         if (parent == null) {
             throw new BizException("上级区划不存在");
         }
-        if (parent.getLevel() >= Constants.REGION_LEVEL_GROUP) {
-            throw new BizException("组下不允许再添加下级区划");
-        }
+        // 允许任意层级继续添加下级，下级层级 = 上级 + 1
         if (level != parent.getLevel() + 1) {
-            throw new BizException("下级区划类型须为「" + levelLabel(parent.getLevel() + 1) + "」");
+            // 若前端传的 regionType 对应的层级不是 parent+1，按 parent+1 自动校正（兼容组下继续分组的场景）
+            level = parent.getLevel() + 1;
         }
         return level;
     }
@@ -216,6 +300,10 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         vo.setParentCode(region.getParentCode());
         vo.setLevel(region.getLevel());
         vo.setRegionType(region.getRegionType());
+        vo.setSecretary(region.getSecretary());
+        vo.setSecretaryPhone(region.getSecretaryPhone());
+        vo.setDirector(region.getDirector());
+        vo.setDirectorPhone(region.getDirectorPhone());
         return vo;
     }
 

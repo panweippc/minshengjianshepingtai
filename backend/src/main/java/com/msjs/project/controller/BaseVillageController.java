@@ -56,6 +56,17 @@ public class BaseVillageController {
         return Result.ok(villageService.page(pageNum, pageSize, name, secretary, director, nodeCode));
     }
 
+    @Operation(summary = "村委会树形列表（用于树形表格）")
+    @RequirePerm("base:village:list")
+    @GetMapping("/tree-page")
+    public Result<List<RegionTreeVO>> treePage(
+            @Parameter(description = "村名") @RequestParam(required = false) String name,
+            @Parameter(description = "党支部书记") @RequestParam(required = false) String secretary,
+            @Parameter(description = "村委会主任") @RequestParam(required = false) String director,
+            @Parameter(description = "树节点区划编码") @RequestParam(required = false) String nodeCode) {
+        return Result.ok(villageService.treePage(name, secretary, director, nodeCode));
+    }
+
     @Operation(summary = "区划详情")
     @RequirePerm("base:village:list")
     @GetMapping("/detail/{code}")

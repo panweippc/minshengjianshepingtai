@@ -2,12 +2,9 @@
   <div class="village-page">
     <!-- 左侧：区划树（乡镇/村/组） -->
     <el-card shadow="never" class="tree-card">
-      <template #header>
-        <div class="card-header">
-          <span>区划树</span>
-          <el-button link type="primary" @click="handleTreeAll">全部</el-button>
-        </div>
-      </template>
+      <div class="tree-search">
+        <el-input v-model="treeKeyword" placeholder="搜索区划名称" prefix-icon="Search" clearable />
+      </div>
       <div class="tree-body">
         <el-tree
           ref="treeRef"
@@ -17,18 +14,25 @@
           highlight-current
           default-expand-all
           :expand-on-click-node="false"
+          :filter-node-method="filterTree"
           @node-click="handleTreeClick"
         >
           <template #default="{ data }">
             <span class="tree-node">
+              <el-icon class="tree-node-icon" :class="{ 'is-town': data.regionType === '1' }">
+                <LocationFilled v-if="data.regionType === '1'" />
+                <Folder v-else />
+              </el-icon>
               <span class="tree-node-name">{{ data.name }}</span>
-              <el-tag v-if="data.regionType" size="small" type="info" effect="plain">
-                {{ regionTypeLabel(data.regionType) }}
-              </el-tag>
+              <span v-if="data.regionType" class="tree-node-count">{{ regionTypeLabel(data.regionType) }}</span>
             </span>
           </template>
         </el-tree>
         <el-empty v-if="!treeData.length" description="暂无区划数据" :image-size="80" />
+      </div>
+      <div class="tree-footer">
+        <span>共 {{ total }} 条村委会记录</span>
+        <el-button link type="primary" class="tree-all-btn" @click="handleTreeAll">全部</el-button>
       </div>
     </el-card>
 
@@ -66,8 +70,16 @@
             </el-button>
           </div>
         </template>
-        <el-table v-loading="loading" :data="tableData" border stripe>
-          <el-table-column prop="name" label="区划名称" min-width="150" />
+        <el-table
+          v-loading="loading"
+          :data="tableData"
+          row-key="code"
+          :tree-props="{ children: 'children' }"
+          :default-expand-all="true"
+          border
+          stripe
+        >
+          <el-table-column prop="name" label="区划名称" min-width="180" />
           <el-table-column prop="code" label="区划编码" min-width="150" />
           <el-table-column label="区划类型" width="110" align="center">
             <template #default="{ row }">{{ regionTypeLabel(row.regionType) }}</template>
@@ -86,8 +98,9 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="290" fixed="right">
+          <el-table-column label="操作" width="320" fixed="right">
             <template #default="{ row }">
+              <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
               <el-button
                 v-if="store.hasPerm('base:village:edit')"
                 link
@@ -97,9 +110,8 @@
               >
                 编辑
               </el-button>
-              <el-button link type="info" icon="View" @click="openDetail(row)">详情</el-button>
               <el-button
-                v-if="store.hasPerm('base:village:add') && row.level < 6"
+                v-if="store.hasPerm('base:village:add')"
                 link
                 type="success"
                 icon="Plus"
@@ -119,16 +131,6 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-pagination
-          v-model:current-page="query.pageNum"
-          v-model:page-size="query.pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          style="margin-top: 16px; justify-content: flex-end"
-          @size-change="handleQuery"
-          @current-change="loadData"
-        />
       </el-card>
     </div>
 
@@ -145,8 +147,26 @@
       </el-descriptions>
 
       <el-form v-else ref="formRef" :model="form" :rules="formRules" label-width="140px">
+        <el-form-item label="上级区划">
+          <el-cascader
+            v-model="cascaderValue"
+            :options="cascaderOptions"
+            :props="cascaderProps"
+            :disabled="dialogMode === 'edit'"
+            clearable
+            filterable
+            placeholder="请选择上级区划（新增下级）或当前区划（编辑）"
+            style="width: 100%"
+            @change="handleCascaderChange"
+          />
+        </el-form-item>
         <el-form-item label="区划名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入区划名称" maxlength="64" />
+          <el-input
+            v-model="form.name"
+            :disabled="dialogMode === 'edit'"
+            placeholder="请输入区划名称"
+            maxlength="64"
+          />
         </el-form-item>
         <el-form-item label="区划编码" prop="code">
           <el-input
@@ -157,7 +177,12 @@
           />
         </el-form-item>
         <el-form-item label="区划类型" prop="regionType">
-          <el-select v-model="form.regionType" placeholder="请选择区划类型" style="width: 100%">
+          <el-select
+            v-model="form.regionType"
+            :disabled="dialogMode === 'edit'"
+            placeholder="请选择区划类型"
+            style="width: 100%"
+          >
             <el-option
               v-for="item in regionTypeOptions"
               :key="item.value"
@@ -198,14 +223,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { LocationFilled, Folder } from '@element-plus/icons-vue'
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import {
   getVillageTree,
-  getVillagePage,
+  getVillageTreePage,
   getVillageDetail,
   createVillage,
   updateVillage,
@@ -218,10 +244,23 @@ const store = useUserStore()
 
 type DialogMode = 'add' | 'edit' | 'detail'
 
-/** 区划树 ref，仅使用清除选中项方法 */
-const treeRef = ref<{ setCurrentKey: (key?: string) => void }>()
+/** 区划树 ref，仅使用清除选中项与节点过滤方法 */
+const treeRef = ref<{ setCurrentKey: (key?: string) => void; filter: (value: string) => void }>()
 const treeProps = { label: 'name', children: 'children' }
 const treeData = ref<VillageTreeVO[]>([])
+
+/** 区划树搜索关键字 */
+const treeKeyword = ref('')
+
+/** 区划树节点过滤：按名称模糊匹配 */
+const filterTree = (value: string, data: VillageTreeVO) => {
+  if (!value) return true
+  return (data.name || '').includes(value)
+}
+
+watch(treeKeyword, (val) => {
+  treeRef.value?.filter(val)
+})
 
 /** 字典缺失时的兜底区划类型选项 */
 const DEFAULT_REGION_TYPES = [
@@ -236,12 +275,58 @@ const regionTypeOptions = computed(() =>
     : DEFAULT_REGION_TYPES
 )
 
+/** 级联选择器：从区划树转换 options 格式 */
+const cascaderProps = { value: 'code', label: 'name', children: 'children' }
+const cascaderValue = ref<string[]>([])
+const cascaderOptions = computed(() => treeData.value)
+
+/** 根据编码在区划树中查找完整路径 */
+const findPathInTree = (code: string, nodes: VillageTreeVO[], path: string[] = []): string[] | null => {
+  for (const node of nodes) {
+    const next = [...path, node.code]
+    if (node.code === code) return next
+    if (node.children?.length) {
+      const hit = findPathInTree(code, node.children, next)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+/** 级联选择变化：最后一级作为父级（新增模式），自动填充 parentCode 与 regionType */
+const handleCascaderChange = (val: string[]) => {
+  if (!val?.length) {
+    form.parentCode = undefined
+    return
+  }
+  const lastCode = val[val.length - 1]
+  // 从 treeData 中找到最后一级节点
+  const findNode = (nodes: VillageTreeVO[]): VillageTreeVO | undefined => {
+    for (const n of nodes) {
+      if (n.code === lastCode) return n
+      if (n.children?.length) {
+        const hit = findNode(n.children)
+        if (hit) return hit
+      }
+    }
+    return undefined
+  }
+  const node = findNode(treeData.value)
+  if (!node) return
+
+  if (dialogMode.value === 'add') {
+    // 新增模式：选中的是父级，自动填充 parentCode 和下一级区划类型
+    form.parentCode = node.code
+    form.regionType = String(Math.min(Number(node.regionType) + 1, 3))
+  }
+}
+
 const query = reactive<VillageQuery>({
   pageNum: 1,
   pageSize: 10
 })
 const total = ref(0)
-const tableData = ref<VillageVO[]>([])
+const tableData = ref<VillageTreeVO[]>([])
 const loading = ref(false)
 
 const dialogVisible = ref(false)
@@ -303,19 +388,32 @@ const loadTree = async () => {
   treeData.value = res.data || []
 }
 
+/** 递归统计树节点总数 */
+const countTreeNodes = (nodes: VillageTreeVO[]): number => {
+  let n = 0
+  for (const node of nodes) {
+    n += 1 + countTreeNodes(node.children || [])
+  }
+  return n
+}
+
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getVillagePage(query)
-    tableData.value = res.data.records
-    total.value = res.data.total
+    const res = await getVillageTreePage({
+      name: query.name,
+      secretary: query.secretary,
+      director: query.director,
+      nodeCode: query.nodeCode
+    })
+    tableData.value = res.data || []
+    total.value = countTreeNodes(tableData.value)
   } finally {
     loading.value = false
   }
 }
 
 const handleQuery = () => {
-  query.pageNum = 1
   loadData()
 }
 
@@ -351,6 +449,7 @@ const resetForm = () => {
     directorPhone: '',
     sort: 0
   })
+  cascaderValue.value = []
 }
 
 /** 新增；传入父级时自动匹配下一级区划类型 */
@@ -360,6 +459,9 @@ const openAdd = (parent?: VillageVO) => {
   if (parent) {
     form.parentCode = parent.code
     form.regionType = String(Math.min(Number(parent.regionType) + 1, 3))
+    // 回显父级在级联选择器中的完整路径
+    const path = findPathInTree(parent.code, treeData.value)
+    cascaderValue.value = path ?? []
   }
   dialogVisible.value = true
 }
@@ -377,6 +479,9 @@ const openEdit = (row: VillageVO) => {
     directorPhone: row.directorPhone ?? '',
     sort: row.sort ?? 0
   })
+  // 回显当前区划在级联选择器中的完整路径
+  const path = findPathInTree(row.code, treeData.value)
+  cascaderValue.value = path ?? []
   dialogVisible.value = true
 }
 
@@ -387,6 +492,20 @@ const openDetail = async (row: VillageVO) => {
   dialogVisible.value = true
 }
 
+/** 递归在树形表格中查找节点并更新 */
+const updateNodeInTree = (nodes: VillageTreeVO[], code: string, patch: Partial<VillageTreeVO>): boolean => {
+  for (const node of nodes) {
+    if (node.code === code) {
+      Object.assign(node, patch)
+      return true
+    }
+    if (node.children?.length && updateNodeInTree(node.children, code, patch)) {
+      return true
+    }
+  }
+  return false
+}
+
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -394,12 +513,23 @@ const handleSubmit = async () => {
   try {
     if (dialogMode.value === 'edit') {
       await updateVillage({ ...form })
+      // 编辑：直接更新现有树节点，保留展开状态和滚动位置
+      updateNodeInTree(tableData.value, form.code!, {
+        name: form.name,
+        regionType: form.regionType,
+        secretary: form.secretary,
+        secretaryPhone: form.secretaryPhone,
+        director: form.director,
+        directorPhone: form.directorPhone
+      })
+      updateNodeInTree(treeData.value, form.code!, { name: form.name })
     } else {
       await createVillage({ ...form })
+      // 新增：涉及结构变化，需要重新加载
+      await Promise.all([loadTree(), loadData()])
     }
     ElMessage.success('操作成功')
     dialogVisible.value = false
-    await Promise.all([loadTree(), loadData()])
   } finally {
     submitLoading.value = false
   }
@@ -433,12 +563,36 @@ onMounted(() => {
   align-items: flex-start;
 }
 .tree-card {
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 0 0 300px;
+  width: 300px;
+}
+.tree-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  min-height: calc(100vh - 170px);
+}
+.tree-search {
+  margin-bottom: 8px;
 }
 .tree-body {
-  max-height: calc(100vh - 190px);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+}
+.tree-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+  font-size: 12px;
+  color: #909399;
+}
+.tree-all-btn {
+  font-size: 12px;
 }
 .right-area {
   flex: 1;
@@ -490,6 +644,39 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  color: #303133;
+}
+/* 区划树节点样式与公共基础设施保持一致 */
+.tree-card :deep(.el-tree-node__content) {
+  height: 36px;
+  border-radius: 4px;
+}
+.tree-card :deep(.el-tree-node__content:hover) {
+  background: #f5f7fa;
+}
+.tree-card :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background: #e8f2ff;
+}
+.tree-node-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  color: #e6a23c;
+}
+.tree-node-icon.is-town {
+  color: #3b82f6;
+}
+.tree-node-count {
+  flex: 0 0 auto;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 6px;
+  line-height: 20px;
+  border-radius: 10px;
+  background: #f2f3f5;
+  color: #909399;
+  font-size: 12px;
+  text-align: center;
 }
 .leader-line {
   line-height: 22px;

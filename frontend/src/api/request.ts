@@ -24,6 +24,10 @@ service.interceptors.request.use(
 // 响应拦截：统一处理业务码与鉴权失败
 service.interceptors.response.use(
   (response) => {
+    // 二进制流（文件预览/下载）不做业务码解析，直接返回原始响应
+    if (response.config.responseType === 'blob') {
+      return response
+    }
     const res = response.data as Result
     if (res.code === 200) {
       return res as unknown as typeof response
@@ -67,6 +71,20 @@ export function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequ
 
 export function del<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   return service.delete(url, config) as unknown as Promise<T>
+}
+
+/** 获取二进制文件流（文件预览/下载，自动携带 token） */
+export async function getBlob(url: string, config?: AxiosRequestConfig): Promise<Blob> {
+  const response = await service.get(url, { ...config, responseType: 'blob' })
+  const blob = response.data as Blob
+  // 后端鉴权失败时返回的是 JSON，这里转换为错误提示
+  if (blob.type === 'application/json') {
+    const text = await blob.text()
+    const json = JSON.parse(text) as Result
+    ElMessage.error(json.msg || '文件获取失败')
+    throw new Error(json.msg || '文件获取失败')
+  }
+  return blob
 }
 
 export default service
