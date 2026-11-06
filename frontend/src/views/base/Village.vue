@@ -147,33 +147,26 @@
       </el-descriptions>
 
       <el-form v-else ref="formRef" :model="form" :rules="formRules" label-width="140px">
-        <el-form-item label="上级区划" prop="name">
-          <div class="region-cascader-wrap">
-            <el-cascader
-              v-model="cascaderValue"
-              :options="cascaderOptions"
-              :props="cascaderProps"
-              :disabled="dialogMode === 'edit'"
-              clearable
-              filterable
-              placeholder="请选择上级区划（新增下级）或当前区划（编辑）"
-              style="width: 100%"
-              @change="handleCascaderChange"
-            />
-            <el-input
-              v-if="dialogMode === 'add' && cascaderValue.length"
-              v-model="form.name"
-              placeholder="请输入新区划名称"
-              maxlength="64"
-            />
-            <el-input
-              v-else
-              v-model="form.name"
-              :disabled="dialogMode === 'edit'"
-              placeholder="请输入区划名称"
-              maxlength="64"
-            />
-          </div>
+        <el-form-item label="上级区划">
+          <el-cascader
+            v-model="cascaderValue"
+            :options="cascaderOptions"
+            :props="cascaderProps"
+            :disabled="dialogMode === 'edit'"
+            clearable
+            filterable
+            placeholder="请选择上级区划（新增下级）或当前区划（编辑）"
+            style="width: 100%"
+            @change="handleCascaderChange"
+          />
+        </el-form-item>
+        <el-form-item label="区划名称" prop="name">
+          <el-input
+            v-model="form.name"
+            :disabled="dialogMode === 'edit'"
+            placeholder="请输入区划名称"
+            maxlength="64"
+          />
         </el-form-item>
         <el-form-item label="区划编码" prop="code">
           <el-input
@@ -669,15 +662,5 @@ onMounted(() => {
 .leader-phone {
   margin-left: 8px;
   color: #909399;
-}
-.region-cascader-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-.region-cascader-wrap .el-cascader,
-.region-cascader-wrap .el-input {
-  width: 100%;
 }
 </style>
