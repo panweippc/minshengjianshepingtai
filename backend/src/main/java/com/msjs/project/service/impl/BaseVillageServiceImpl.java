@@ -300,6 +300,10 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         vo.setParentCode(region.getParentCode());
         vo.setLevel(region.getLevel());
         vo.setRegionType(region.getRegionType());
+        vo.setSecretary(region.getSecretary());
+        vo.setSecretaryPhone(region.getSecretaryPhone());
+        vo.setDirector(region.getDirector());
+        vo.setDirectorPhone(region.getDirectorPhone());
         return vo;
     }
 
