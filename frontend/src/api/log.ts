@@ -8,7 +8,7 @@ export function getLogPage(params: PageQuery & { username?: string; module?: str
 }
 
 /** 批量删除日志 */
-export function deleteLogs(ids: number[]) {
+export function deleteLogs(ids: string[]) {
   return del<Result<void>>('/api/system/log/batch', { data: ids })
 }
 

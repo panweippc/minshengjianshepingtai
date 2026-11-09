@@ -18,16 +18,16 @@ export function updateUser(data: UserSaveDTO) {
 }
 
 /** 删除用户 */
-export function deleteUser(id: number) {
+export function deleteUser(id: string) {
   return del<Result<void>>(`/api/system/user/${id}`)
 }
 
 /** 重置密码 */
-export function resetPassword(id: number, password: string) {
+export function resetPassword(id: string, password: string) {
   return put<Result<void>>(`/api/system/user/password/${id}`, { password })
 }
 
 /** 分配角色 */
-export function assignRoles(id: number, roleIds: number[]) {
+export function assignRoles(id: string, roleIds: string[]) {
   return put<Result<void>>(`/api/system/user/roleIds/${id}`, roleIds)
 }

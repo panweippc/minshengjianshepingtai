@@ -11,7 +11,7 @@ export interface LoginVO {
 
 /** 当前用户信息 */
 export interface UserInfoVO {
-  id: number
+  id: string
   username: string
   realName: string
   regionCode: string
@@ -23,8 +23,8 @@ export interface UserInfoVO {
 
 /** 菜单树节点 */
 export interface MenuVO {
-  id: number
-  parentId: number
+  id: string
+  parentId: string
   menuName: string
   menuType: string
   path: string
@@ -37,7 +37,7 @@ export interface MenuVO {
 
 /** 用户分页记录 */
 export interface UserVO {
-  id: number
+  id: string
   username: string
   realName: string
   regionCode: string
@@ -51,7 +51,7 @@ export interface UserVO {
 
 /** 用户保存入参 */
 export interface UserSaveDTO {
-  id?: number
+  id?: string
   username: string
   password?: string
   realName: string
@@ -59,12 +59,12 @@ export interface UserSaveDTO {
   phone?: string
   status?: number
   remark?: string
-  roleIds?: number[]
+  roleIds?: string[]
 }
 
 /** 角色分页记录 */
 export interface RoleVO {
-  id: number
+  id: string
   roleName: string
   roleKey: string
   dataScope: number
@@ -76,19 +76,19 @@ export interface RoleVO {
 
 /** 角色保存入参 */
 export interface RoleSaveDTO {
-  id?: number
+  id?: string
   roleName: string
   roleKey: string
   dataScope: number
   status?: number
   remark?: string
-  menuIds?: number[]
+  menuIds?: string[]
 }
 
 /** 菜单保存入参 */
 export interface MenuSaveDTO {
-  id?: number
-  parentId: number
+  id?: string
+  parentId: string
   menuName: string
   menuType: string
   path?: string
@@ -100,7 +100,7 @@ export interface MenuSaveDTO {
 
 /** 字典记录 */
 export interface DictVO {
-  id: number
+  id: string
   dictType: string
   description: string
   dictLabel: string
@@ -113,7 +113,7 @@ export interface DictVO {
 
 /** 字典保存入参 */
 export interface DictSaveDTO {
-  id?: number
+  id?: string
   dictType: string
   description?: string
   dictLabel: string
@@ -124,7 +124,7 @@ export interface DictSaveDTO {
 
 /** 操作日志分页记录 */
 export interface OperLogVO {
-  id: number
+  id: string
   module: string
   operation: string
   method: string
@@ -148,7 +148,7 @@ export interface RegionVO {
 
 /** 区划树节点（乡镇/村/组） */
 export interface VillageTreeVO {
-  id: number
+  id: string
   code: string
   name: string
   parentCode: string
@@ -164,7 +164,7 @@ export interface VillageTreeVO {
 
 /** 村委会区划记录 */
 export interface VillageVO {
-  id: number
+  id: string
   code: string
   name: string
   parentCode: string
@@ -194,8 +194,8 @@ export interface VillageSaveDTO {
 
 /** 设施附件 */
 export interface FacilityAttachmentVO {
-  id: number
-  facilityId: number
+  id: string
+  facilityId: string
   attachmentType: string
   fileName: string
   filePath: string
@@ -206,7 +206,7 @@ export interface FacilityAttachmentVO {
 
 /** 项目（简化版） */
 export interface ProjectVO {
-  id: number
+  id: string
   projectCode: string
   projectName: string
   projectType: string
@@ -270,7 +270,7 @@ export interface FacilityDetailVO {
 
 /** 设施附件保存入参 */
 export interface FacilityAttachmentSaveDTO {
-  id?: number
+  id?: string
   attachmentType?: string
   fileName?: string
   filePath?: string
