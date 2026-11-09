@@ -23,11 +23,11 @@ export function updateRole(data: RoleSaveDTO) {
 }
 
 /** 删除角色 */
-export function deleteRole(id: number) {
+export function deleteRole(id: string) {
   return del<Result<void>>(`/api/system/role/${id}`)
 }
 
 /** 分配菜单权限 */
-export function assignMenus(id: number, menuIds: number[]) {
+export function assignMenus(id: string, menuIds: string[]) {
   return put<Result<void>>(`/api/system/role/menuIds/${id}`, menuIds)
 }

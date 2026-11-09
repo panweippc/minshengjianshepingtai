@@ -35,6 +35,6 @@ export function updateDict(data: DictSaveDTO) {
 }
 
 /** 删除字典 */
-export function deleteDict(id: number) {
+export function deleteDict(id: string) {
   return del<Result<void>>(`/api/system/dict/${id}`)
 }

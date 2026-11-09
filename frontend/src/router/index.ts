@@ -72,6 +72,36 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: 'SystemLog',
         component: () => import('@/views/system/Log.vue'),
         meta: { title: '操作日志', icon: 'Document' }
+      },
+      {
+        path: 'material/item',
+        name: 'MaterialItem',
+        component: () => import('@/views/material/Item.vue'),
+        meta: { title: '物品信息', icon: 'Goods' }
+      },
+      {
+        path: 'material/warehouse',
+        name: 'MaterialWarehouse',
+        component: () => import('@/views/material/Warehouse.vue'),
+        meta: { title: '库房信息', icon: 'OfficeBuilding' }
+      },
+      {
+        path: 'material/stockin',
+        name: 'MaterialStockIn',
+        component: () => import('@/views/material/StockIn.vue'),
+        meta: { title: '入库单', icon: 'Tickets' }
+      },
+      {
+        path: 'material/stockout',
+        name: 'MaterialStockOut',
+        component: () => import('@/views/material/StockOut.vue'),
+        meta: { title: '出库单', icon: 'TakeawayBox' }
+      },
+      {
+        path: 'material/statistics',
+        name: 'MaterialStatistics',
+        component: () => import('@/views/material/Statistics.vue'),
+        meta: { title: '统计表', icon: 'DataAnalysis' }
       }
     ]
   }

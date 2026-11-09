@@ -140,7 +140,7 @@ const form = reactive<UserSaveDTO>({ username: '', password: '', realName: '', r
 const pwdVisible = ref(false)
 const pwdLoading = ref(false)
 const pwdFormRef = ref<FormInstance>()
-const pwdForm = reactive({ id: 0, password: '' })
+const pwdForm = reactive({ id: '', password: '' })
 
 // 下拉数据
 const roleList = ref<RoleVO[]>([])

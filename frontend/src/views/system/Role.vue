@@ -131,7 +131,7 @@ const menuVisible = ref(false)
 const menuLoading = ref(false)
 const menuTreeRef = ref()
 const menuTree = ref<MenuVO[]>([])
-const currentRoleId = ref(0)
+const currentRoleId = ref('')
 
 const formRules: FormRules = {
   roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
@@ -195,8 +195,8 @@ const openMenuDialog = async (row: RoleVO) => {
 }
 
 const handleAssignMenus = async () => {
-  const checked = menuTreeRef.value?.getCheckedKeys() as number[]
-  const halfChecked = menuTreeRef.value?.getHalfCheckedKeys() as number[]
+  const checked = menuTreeRef.value?.getCheckedKeys() as string[]
+  const halfChecked = menuTreeRef.value?.getHalfCheckedKeys() as string[]
   const ids = [...(checked || []), ...(halfChecked || [])]
   menuLoading.value = true
   try {

@@ -11,7 +11,7 @@ export interface LoginVO {
 
 /** 当前用户信息 */
 export interface UserInfoVO {
-  id: number
+  id: string
   username: string
   realName: string
   regionCode: string
@@ -23,8 +23,8 @@ export interface UserInfoVO {
 
 /** 菜单树节点 */
 export interface MenuVO {
-  id: number
-  parentId: number
+  id: string
+  parentId: string
   menuName: string
   menuType: string
   path: string
@@ -37,7 +37,7 @@ export interface MenuVO {
 
 /** 用户分页记录 */
 export interface UserVO {
-  id: number
+  id: string
   username: string
   realName: string
   regionCode: string
@@ -51,7 +51,7 @@ export interface UserVO {
 
 /** 用户保存入参 */
 export interface UserSaveDTO {
-  id?: number
+  id?: string
   username: string
   password?: string
   realName: string
@@ -59,12 +59,12 @@ export interface UserSaveDTO {
   phone?: string
   status?: number
   remark?: string
-  roleIds?: number[]
+  roleIds?: string[]
 }
 
 /** 角色分页记录 */
 export interface RoleVO {
-  id: number
+  id: string
   roleName: string
   roleKey: string
   dataScope: number
@@ -76,19 +76,19 @@ export interface RoleVO {
 
 /** 角色保存入参 */
 export interface RoleSaveDTO {
-  id?: number
+  id?: string
   roleName: string
   roleKey: string
   dataScope: number
   status?: number
   remark?: string
-  menuIds?: number[]
+  menuIds?: string[]
 }
 
 /** 菜单保存入参 */
 export interface MenuSaveDTO {
-  id?: number
-  parentId: number
+  id?: string
+  parentId: string
   menuName: string
   menuType: string
   path?: string
@@ -100,7 +100,7 @@ export interface MenuSaveDTO {
 
 /** 字典记录 */
 export interface DictVO {
-  id: number
+  id: string
   dictType: string
   description: string
   dictLabel: string
@@ -113,7 +113,7 @@ export interface DictVO {
 
 /** 字典保存入参 */
 export interface DictSaveDTO {
-  id?: number
+  id?: string
   dictType: string
   description?: string
   dictLabel: string
@@ -124,7 +124,7 @@ export interface DictSaveDTO {
 
 /** 操作日志分页记录 */
 export interface OperLogVO {
-  id: number
+  id: string
   module: string
   operation: string
   method: string
@@ -148,7 +148,7 @@ export interface RegionVO {
 
 /** 区划树节点（乡镇/村/组） */
 export interface VillageTreeVO {
-  id: number
+  id: string
   code: string
   name: string
   parentCode: string
@@ -164,7 +164,7 @@ export interface VillageTreeVO {
 
 /** 村委会区划记录 */
 export interface VillageVO {
-  id: number
+  id: string
   code: string
   name: string
   parentCode: string
@@ -194,8 +194,8 @@ export interface VillageSaveDTO {
 
 /** 设施附件 */
 export interface FacilityAttachmentVO {
-  id: number
-  facilityId: number
+  id: string
+  facilityId: string
   attachmentType: string
   fileName: string
   filePath: string
@@ -206,7 +206,7 @@ export interface FacilityAttachmentVO {
 
 /** 项目（简化版） */
 export interface ProjectVO {
-  id: number
+  id: string
   projectCode: string
   projectName: string
   projectType: string
@@ -293,4 +293,299 @@ export interface FacilitySaveDTO {
   unit?: string
   remark?: string
   attachments?: FacilityAttachmentSaveDTO[]
+}
+
+/** 物品信息记录 */
+export interface MaterialItemVO {
+  id: string
+  itemName: string
+  itemCategory?: string
+  warningQty: number
+  stockQty: number
+  unit?: string
+  remark?: string
+  createTime: string
+  updateTime: string
+}
+
+/** 物品信息保存入参 */
+export interface MaterialItemSaveDTO {
+  id?: string
+  itemName: string
+  itemCategory?: string
+  warningQty: number
+  unit?: string
+  remark?: string
+}
+
+/** 库房信息记录 */
+export interface MaterialWarehouseVO {
+  id: string
+  warehouseName: string
+  location?: string
+  manager?: string
+  phone?: string
+  createTime: string
+  updateTime: string
+}
+
+/** 库房信息保存入参 */
+export interface MaterialWarehouseSaveDTO {
+  id?: string
+  warehouseName: string
+  location?: string
+  manager?: string
+  phone?: string
+}
+
+/** 入库单明细记录 */
+export interface MaterialStockInItemVO {
+  id: string
+  orderId?: string
+  orderName?: string
+  warehouseId?: string
+  warehouseName?: string
+  itemId?: string
+  itemName: string
+  itemCategory?: string
+  quantity: number
+  inType?: string
+  inTime?: string
+  handler?: string
+  remark?: string
+}
+
+/** 入库单记录 */
+export interface MaterialStockInVO {
+  id: string
+  orderName: string
+  inDate?: string
+  handler?: string
+  remark?: string
+  createTime?: string
+}
+
+/** 入库单明细保存入参 */
+export interface MaterialStockInItemSaveDTO {
+  warehouseId?: string
+  itemId?: string
+  itemName: string
+  itemCategory?: string
+  quantity: number
+  inType: string
+  inTime: string
+  remark?: string
+}
+
+/** 入库单保存入参 */
+export interface MaterialStockInSaveDTO {
+  id?: string
+  orderName: string
+  remark?: string
+  items: MaterialStockInItemSaveDTO[]
+}
+
+/** 入库单详情 */
+export interface MaterialStockInDetailVO {
+  id: string
+  orderName: string
+  remark?: string
+  inDate?: string
+  handler?: string
+  createTime?: string
+  items: MaterialStockInItemVO[]
+}
+
+// ==================== 出库单 ====================
+
+/** 出库单明细记录 */
+export interface MaterialStockOutItemVO {
+  id: string
+  orderId?: string
+  orderName?: string
+  warehouseId?: string
+  warehouseName?: string
+  itemId?: string
+  itemName: string
+  itemCategory?: string
+  quantity: number
+  outType?: string
+  outTime?: string
+  handler?: string
+  remark?: string
+}
+
+/** 出库单记录 */
+export interface MaterialStockOutVO {
+  id: string
+  orderName: string
+  outDate?: string
+  handler?: string
+  remark?: string
+  createTime?: string
+}
+
+/** 出库单明细保存入参 */
+export interface MaterialStockOutItemSaveDTO {
+  warehouseId?: string
+  itemId?: string
+  itemName: string
+  itemCategory?: string
+  quantity: number
+  outType: string
+  outTime: string
+  remark?: string
+}
+
+/** 出库单保存入参 */
+export interface MaterialStockOutSaveDTO {
+  id?: string
+  orderName: string
+  remark?: string
+  items: MaterialStockOutItemSaveDTO[]
+}
+
+/** 出库单详情 */
+export interface MaterialStockOutDetailVO {
+  id: string
+  orderName: string
+  remark?: string
+  outDate?: string
+  handler?: string
+  createTime?: string
+  items: MaterialStockOutItemVO[]
+}
+
+// ==================== 统计表（盘点表/交接表/损毁表） ====================
+
+/** 报表类型枚举 */
+export type MaterialReportType = 'INVENTORY' | 'HANDOVER' | 'DAMAGE'
+
+/** 报表主记录 */
+export interface MaterialReportVO {
+  id: string
+  reportName: string
+  reportType: MaterialReportType
+  reportDate?: string
+  handler?: string
+  auditor?: string
+  createTime: string
+}
+
+/** 盘点表明细 */
+export interface MaterialInventoryItemVO {
+  id: string
+  reportId?: string
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  actualQty: number
+  profitQty: number
+  remark?: string
+}
+
+/** 交接表明细 */
+export interface MaterialHandoverItemVO {
+  id: string
+  reportId?: string
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  actualQty: number
+  profitQty: number
+  remark?: string
+}
+
+/** 损毁表明细 */
+export interface MaterialDamageItemVO {
+  id: string
+  reportId?: string
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  handler?: string
+  remark?: string
+}
+
+/** 盘点表保存入参 */
+export interface MaterialInventorySaveDTO {
+  id?: string
+  reportName: string
+  reportDate?: string
+  handler?: string
+  auditor?: string
+  department?: string
+  items: MaterialInventoryItemSaveDTO[]
+}
+
+/** 盘点表明细保存入参 */
+export interface MaterialInventoryItemSaveDTO {
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  actualQty: number
+  remark?: string
+}
+
+/** 交接表保存入参 */
+export interface MaterialHandoverSaveDTO {
+  id?: string
+  reportName: string
+  reportDate?: string
+  handler?: string
+  handoverPerson?: string
+  auditor?: string
+  department?: string
+  items: MaterialHandoverItemSaveDTO[]
+}
+
+/** 交接表明细保存入参 */
+export interface MaterialHandoverItemSaveDTO {
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  actualQty: number
+  remark?: string
+}
+
+/** 损毁表保存入参 */
+export interface MaterialDamageSaveDTO {
+  id?: string
+  reportName: string
+  reportDate?: string
+  handler?: string
+  auditor?: string
+  department?: string
+  items: MaterialDamageItemSaveDTO[]
+}
+
+/** 损毁表明细保存入参 */
+export interface MaterialDamageItemSaveDTO {
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  handler?: string
+  remark?: string
+}
+
+/** 报表详情 */
+export interface MaterialReportDetailVO {
+  id: string
+  reportName: string
+  reportType: MaterialReportType
+  reportDate?: string
+  handler?: string
+  auditor?: string
+  handoverPerson?: string
+  department?: string
+  createTime: string
+  inventoryItems?: MaterialInventoryItemVO[]
+  handoverItems?: MaterialHandoverItemVO[]
+  damageItems?: MaterialDamageItemVO[]
 }
