@@ -1,5 +1,7 @@
 package com.msjs.project.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.msjs.project.entity.SysMenu;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -14,6 +16,8 @@ import java.util.Set;
 @Schema(description = "当前登录用户信息")
 public class UserInfoVO {
 
+    /** 雪花ID超出JS安全整数范围（2^53-1），序列化为字符串，避免前端精度丢失 */
+    @JsonSerialize(using = ToStringSerializer.class)
     @Schema(description = "用户ID")
     private Long userId;
 

@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -20,10 +22,14 @@ import java.util.List;
 @Schema(description = "系统菜单")
 public class SysMenu implements Serializable {
 
+    /** 雪花ID超出JS安全整数范围（2^53-1），序列化为字符串，避免前端精度丢失 */
+    @JsonSerialize(using = ToStringSerializer.class)
     @TableId(type = IdType.ASSIGN_ID)
     @Schema(description = "主键（雪花ID）")
     private Long id;
 
+    /** 父菜单ID同为雪花ID，序列化为字符串 */
+    @JsonSerialize(using = ToStringSerializer.class)
     @Schema(description = "父菜单ID，0为根")
     private Long parentId;
 

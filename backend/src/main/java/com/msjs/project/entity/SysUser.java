@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -19,6 +21,8 @@ import java.time.LocalDateTime;
 @Schema(description = "系统用户")
 public class SysUser implements Serializable {
 
+    /** 雪花ID超出JS安全整数范围（2^53-1），序列化为字符串，避免前端精度丢失 */
+    @JsonSerialize(using = ToStringSerializer.class)
     @TableId(type = IdType.ASSIGN_ID)
     @Schema(description = "主键（雪花ID）")
     private Long id;

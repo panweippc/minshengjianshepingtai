@@ -18,6 +18,6 @@ export function updateMenu(data: MenuSaveDTO) {
 }
 
 /** 删除菜单 */
-export function deleteMenu(id: number) {
+export function deleteMenu(id: string) {
   return del<Result<void>>(`/api/system/menu/${id}`)
 }

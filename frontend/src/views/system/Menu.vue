@@ -105,7 +105,7 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const form = reactive<MenuSaveDTO>({ parentId: 0, menuName: '', menuType: 'C', path: '', perm: '', icon: '', sort: 0, status: 1 })
+const form = reactive<MenuSaveDTO>({ parentId: '0', menuName: '', menuType: 'C', path: '', perm: '', icon: '', sort: 0, status: 1 })
 const menuTree = ref<MenuVO[]>([])
 
 const formRules: FormRules = {
@@ -119,7 +119,7 @@ const loadData = async () => {
   try {
     const res = await getMenuTree()
     tableData.value = res.data
-    menuTree.value = [{ id: 0, menuName: '顶级菜单', parentId: -1, menuType: 'M', path: '', perm: '', icon: '', sort: 0, status: 1, children: res.data } as MenuVO]
+    menuTree.value = [{ id: '0', menuName: '顶级菜单', parentId: '-1', menuType: 'M', path: '', perm: '', icon: '', sort: 0, status: 1, children: res.data } as MenuVO]
   } finally {
     loading.value = false
   }
@@ -129,7 +129,7 @@ const openDialog = (row?: MenuVO) => {
   if (row) {
     Object.assign(form, { id: row.id, parentId: row.parentId, menuName: row.menuName, menuType: row.menuType, path: row.path, perm: row.perm, icon: row.icon, sort: row.sort, status: row.status })
   } else {
-    Object.assign(form, { id: undefined, parentId: 0, menuName: '', menuType: 'C', path: '', perm: '', icon: '', sort: 0, status: 1 })
+    Object.assign(form, { id: undefined, parentId: '0', menuName: '', menuType: 'C', path: '', perm: '', icon: '', sort: 0, status: 1 })
   }
   dialogVisible.value = true
 }
