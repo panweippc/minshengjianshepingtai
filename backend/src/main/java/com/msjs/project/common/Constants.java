@@ -72,6 +72,20 @@ public final class Constants {
     /** 立项审核状态：已驳回 */
     public static final String APPROVAL_STATUS_REJECTED = "REJECTED";
 
+    /** 资金节点类型：项目（一级资金登记） */
+    public static final String FUND_NODE_APPROVAL = "approval";
+    /** 资金节点类型：申报内容（二级下拨） */
+    public static final String FUND_NODE_DECLARE = "declare";
+    /** 资金节点类型：申报明细（三级下拨） */
+    public static final String FUND_NODE_DETAIL = "detail";
+
+    /** 资金层级：一级资金登记 */
+    public static final int FUND_LEVEL_APPROVAL = 1;
+    /** 资金层级：二级下拨 */
+    public static final int FUND_LEVEL_DECLARE = 2;
+    /** 资金层级：三级下拨 */
+    public static final int FUND_LEVEL_DETAIL = 3;
+
     /** 立项页签：全部 */
     public static final String APPROVAL_TAB_ALL = "all";
     /** 立项页签：待审核 */
