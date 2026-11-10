@@ -72,6 +72,36 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: 'SystemLog',
         component: () => import('@/views/system/Log.vue'),
         meta: { title: '操作日志', icon: 'Document' }
+      },
+      {
+        path: 'project/approval',
+        name: 'ProjectApproval',
+        component: () => import('@/views/project/Approval.vue'),
+        meta: { title: '立项管理', icon: 'Document' }
+      },
+      {
+        path: 'project/fund',
+        name: 'ProjectFund',
+        component: () => import('@/views/project/Fund.vue'),
+        meta: { title: '资金管理', icon: 'Money' }
+      },
+      {
+        path: 'project/construction',
+        name: 'ProjectConstruction',
+        component: () => import('@/views/project/Construction.vue'),
+        meta: { title: '施工管理', icon: 'Operation' }
+      },
+      {
+        path: 'project/acceptance',
+        name: 'ProjectAcceptance',
+        component: () => import('@/views/project/Acceptance.vue'),
+        meta: { title: '验收管理', icon: 'CircleCheck' }
+      },
+      {
+        path: 'archive',
+        name: 'Archive',
+        component: () => import('@/views/archive/Archive.vue'),
+        meta: { title: '档案管理', icon: 'Files' }
       }
     ]
   }

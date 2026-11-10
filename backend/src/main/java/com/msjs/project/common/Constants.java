@@ -64,4 +64,18 @@ public final class Constants {
     public static final int CHUNK_MAX_COUNT = 2000;
     /** 签名URL最大有效期（秒）：1小时，防止签名链接被长期复用 */
     public static final int MAX_PRESIGNED_EXPIRE = 3600;
+
+    /** 立项审核状态：待审核 */
+    public static final String APPROVAL_STATUS_PENDING = "PENDING";
+    /** 立项审核状态：已通过 */
+    public static final String APPROVAL_STATUS_APPROVED = "APPROVED";
+    /** 立项审核状态：已驳回 */
+    public static final String APPROVAL_STATUS_REJECTED = "REJECTED";
+
+    /** 立项页签：全部 */
+    public static final String APPROVAL_TAB_ALL = "all";
+    /** 立项页签：待审核 */
+    public static final String APPROVAL_TAB_PENDING = "pending";
+    /** 立项页签：已驳回 */
+    public static final String APPROVAL_TAB_REJECTED = "rejected";
 }
