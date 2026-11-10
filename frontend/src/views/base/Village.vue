@@ -98,14 +98,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="320" fixed="right">
+          <el-table-column label="操作" width="240" fixed="right">
             <template #default="{ row }">
-              <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
+              <el-button link type="primary" @click="openDetail(row)">查看</el-button>
               <el-button
                 v-if="store.hasPerm('base:village:edit')"
                 link
                 type="primary"
-                icon="Edit"
                 @click="openEdit(row)"
               >
                 编辑
@@ -114,7 +113,6 @@
                 v-if="store.hasPerm('base:village:add')"
                 link
                 type="success"
-                icon="Plus"
                 @click="openAdd(row)"
               >
                 添加下级
@@ -123,7 +121,6 @@
                 v-if="store.hasPerm('base:village:delete')"
                 link
                 type="danger"
-                icon="Delete"
                 @click="handleDelete(row)"
               >
                 删除

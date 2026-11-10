@@ -99,14 +99,13 @@
               {{ row.quantity ?? '—' }}<span v-if="row.unit"> {{ row.unit }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="210" fixed="right">
+          <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
-              <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
+              <el-button link type="primary" @click="openDetail(row)">查看</el-button>
               <el-button
                 v-if="store.hasPerm('base:facility:edit')"
                 link
                 type="primary"
-                icon="Edit"
                 @click="openEdit(row)"
               >
                 编辑
@@ -115,7 +114,6 @@
                 v-if="store.hasPerm('base:facility:delete')"
                 link
                 type="danger"
-                icon="Delete"
                 @click="handleDelete(row)"
               >
                 删除
