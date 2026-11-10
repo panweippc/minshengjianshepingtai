@@ -944,8 +944,8 @@ const handlePrint = async (row: MaterialReportVO) => {
       '<head>' +
       '<title>打印内容</title>' +
       '<style>' +
-      // 横向打印，贴合报表宽度；四周留窄边距
-      '@page { size: A4 landscape; margin: 8mm; }' +
+      // 不锁定 size，让浏览器打印面板里的「横向 / 纵向」切换生效
+      '@page { margin: 8mm; }' +
       'body { margin: 0; font-family: "SimSun", "宋体", serif; color: #000; }' +
       'table { width: 100%; border-collapse: collapse; table-layout: fixed; }' +
       'th, td { border: 1px solid #000; padding: 4px 6px; font-size: 12px; text-align: center; word-break: break-all; }' +
