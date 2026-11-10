@@ -76,17 +76,16 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" reserve-selection />
-        <el-table-column type="index" label="序号" width="70" align="center" :index="indexMethod" />
-        <el-table-column prop="itemName" label="物品名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="物品分类" width="120" align="center">
+        <el-table-column prop="itemName" label="物品名称" min-width="180" show-overflow-tooltip />
+        <el-table-column label="物品分类" min-width="110" align="center">
           <template #default="{ row }">{{ categoryLabel(row.itemCategory) }}</template>
         </el-table-column>
-        <el-table-column label="预警数量" width="110" align="center">
+        <el-table-column label="预警数量" min-width="100" align="center">
           <template #default="{ row }">
             {{ row.warningQty ?? 0 }}<span v-if="row.unit"> {{ row.unit }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="库存数量" width="120" align="center">
+        <el-table-column label="库存数量" min-width="110" align="center">
           <template #default="{ row }">
             <span :class="{ 'stock-warning': isLowWarning(row) }">
               {{ row.stockQty ?? 0 }}<span v-if="row.unit"> {{ row.unit }}</span>
@@ -96,17 +95,16 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.remark || '—' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
+            <el-button link type="primary" @click="openDetail(row)">查看</el-button>
             <el-button
               v-if="store.hasPerm('material:item:edit')"
               link
               type="primary"
-              icon="Edit"
               @click="openEdit(row)"
             >
               编辑
@@ -115,7 +113,6 @@
               v-if="store.hasPerm('material:item:delete')"
               link
               type="danger"
-              icon="Delete"
               @click="handleDelete(row)"
             >
               删除
@@ -274,9 +271,6 @@ const selectedRows = ref<MaterialItemVO[]>([])
 /** 库存是否低于预警 */
 const isLowWarning = (row: { stockQty?: number; warningQty?: number }) =>
   (row.stockQty ?? 0) < (row.warningQty ?? 0)
-
-/** 序号按分页连续递增 */
-const indexMethod = (index: number) => (query.pageNum - 1) * query.pageSize + index + 1
 
 const handleSelectionChange = (rows: MaterialItemVO[]) => {
   selectedRows.value = rows

@@ -35,6 +35,9 @@ public class MaterialInventorySaveDTO {
     @Schema(description = "部门")
     private String department;
 
+    @Schema(description = "报表备注")
+    private String remark;
+
     @NotEmpty(message = "请至少添加一条明细")
     @Valid
     @Schema(description = "盘点明细集合")

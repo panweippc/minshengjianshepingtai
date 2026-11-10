@@ -518,6 +518,8 @@ export interface MaterialInventorySaveDTO {
   handler?: string
   auditor?: string
   department?: string
+  /** 报表备注（表格纸底部备注行） */
+  remark?: string
   items: MaterialInventoryItemSaveDTO[]
 }
 
@@ -540,6 +542,7 @@ export interface MaterialHandoverSaveDTO {
   handoverPerson?: string
   auditor?: string
   department?: string
+  remark?: string
   items: MaterialHandoverItemSaveDTO[]
 }
 
@@ -561,6 +564,7 @@ export interface MaterialDamageSaveDTO {
   handler?: string
   auditor?: string
   department?: string
+  remark?: string
   items: MaterialDamageItemSaveDTO[]
 }
 
@@ -570,6 +574,20 @@ export interface MaterialDamageItemSaveDTO {
   itemName: string
   unit?: string
   bookQty: number
+  handler?: string
+  remark?: string
+}
+
+/** 报表明细（盘点/交接/损毁通用结构） */
+export interface MaterialReportDetailItemVO {
+  id: string
+  reportId?: string
+  warehouseName?: string
+  itemName: string
+  unit?: string
+  bookQty: number
+  actualQty?: number
+  profitQty?: number
   handler?: string
   remark?: string
 }
@@ -584,7 +602,11 @@ export interface MaterialReportDetailVO {
   auditor?: string
   handoverPerson?: string
   department?: string
+  /** 报表备注 */
+  remark?: string
   createTime: string
+  /** 后端统一返回的明细集合 */
+  items?: MaterialReportDetailItemVO[]
   inventoryItems?: MaterialInventoryItemVO[]
   handoverItems?: MaterialHandoverItemVO[]
   damageItems?: MaterialDamageItemVO[]

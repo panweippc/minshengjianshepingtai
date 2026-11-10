@@ -58,25 +58,23 @@
         </div>
       </template>
       <el-table v-loading="loading" :data="tableData" border stripe row-key="id">
-        <el-table-column type="index" label="序号" width="70" align="center" :index="indexMethod" />
-        <el-table-column prop="warehouseName" label="库房名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="location" label="库房位置" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="warehouseName" label="库房名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="location" label="库房位置" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.location || '—' }}</template>
         </el-table-column>
-        <el-table-column prop="manager" label="负责人" width="140" show-overflow-tooltip>
+        <el-table-column prop="manager" label="负责人" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ row.manager || '—' }}</template>
         </el-table-column>
-        <el-table-column prop="phone" label="联系电话" width="160">
+        <el-table-column prop="phone" label="联系电话" min-width="150">
           <template #default="{ row }">{{ row.phone || '—' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="170" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
+            <el-button link type="primary" @click="openDetail(row)">查看</el-button>
             <el-button
               v-if="store.hasPerm('material:warehouse:edit')"
               link
               type="primary"
-              icon="Edit"
               @click="openEdit(row)"
             >
               编辑
@@ -85,7 +83,6 @@
               v-if="store.hasPerm('material:warehouse:delete')"
               link
               type="danger"
-              icon="Delete"
               @click="handleDelete(row)"
             >
               删除
@@ -173,9 +170,6 @@ const query = reactive<MaterialWarehouseQuery>({
 const total = ref(0)
 const tableData = ref<MaterialWarehouseVO[]>([])
 const loading = ref(false)
-
-/** 序号按分页连续递增 */
-const indexMethod = (index: number) => (query.pageNum - 1) * query.pageSize + index + 1
 
 /** 加载列表数据 */
 const loadData = async () => {

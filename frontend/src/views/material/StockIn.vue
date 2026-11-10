@@ -97,7 +97,6 @@
             @selection-change="handleDetailSelectionChange"
           >
             <el-table-column type="selection" width="55" align="center" reserve-selection />
-            <el-table-column type="index" label="序号" width="70" align="center" :index="detailIndexMethod" />
             <el-table-column prop="orderName" label="入库单名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="itemName" label="物品名称" min-width="150" show-overflow-tooltip />
             <el-table-column prop="quantity" label="入库数量" width="100" align="center" />
@@ -156,10 +155,26 @@
 
           <div class="table-toolbar">
             <span class="table-title">入库单列表</span>
+            <el-button
+              type="success"
+              icon="Download"
+              :disabled="selectedOrderIds.length === 0"
+              @click="handleOrderExport"
+            >
+              导出选中（{{ selectedOrderIds.length }}）
+            </el-button>
           </div>
 
-          <el-table v-loading="orderLoading" :data="orderData" border stripe row-key="id">
-            <el-table-column type="index" label="序号" width="70" align="center" :index="orderIndexMethod" />
+          <el-table
+            ref="orderTableRef"
+            v-loading="orderLoading"
+            :data="orderData"
+            border
+            stripe
+            row-key="id"
+            @selection-change="handleOrderSelectionChange"
+          >
+            <el-table-column type="selection" width="55" align="center" reserve-selection />
             <el-table-column prop="orderName" label="入库单名称" min-width="200" show-overflow-tooltip />
             <el-table-column prop="inDate" label="入库日期" width="120" align="center">
               <template #default="{ row }">{{ row.inDate || '—' }}</template>
@@ -173,12 +188,11 @@
             <el-table-column label="操作" width="230" fixed="right" align="center">
               <template #default="{ row }">
                 <div class="op-buttons">
-                  <el-button link type="info" icon="View" @click="openView(row)">查看</el-button>
+                  <el-button link type="primary" @click="openView(row)">查看</el-button>
                   <el-button
                     v-if="store.hasPerm('material:stockin:edit')"
                     link
                     type="primary"
-                    icon="Edit"
                     @click="openEdit(row)"
                   >
                     编辑
@@ -187,7 +201,6 @@
                     v-if="store.hasPerm('material:stockin:delete')"
                     link
                     type="danger"
-                    icon="Delete"
                     @click="handleDelete(row)"
                   >
                     删除
@@ -372,7 +385,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance, FormRules, TableInstance } from 'element-plus'
 // ExcelJS 使用浏览器构建版本，避免 Node 内置模块导致 Vite 打包失败
 import type ExcelJSType from 'exceljs'
 import { useUserStore } from '@/stores/user'
@@ -458,9 +471,6 @@ const detailLoading = ref(false)
 const selectedDetailIds = ref<string[]>([])
 const selectedDetailRows = ref<MaterialStockInItemVO[]>([])
 
-const detailIndexMethod = (index: number) =>
-  (detailQuery.pageNum - 1) * detailQuery.pageSize + index + 1
-
 const handleDetailSelectionChange = (rows: MaterialStockInItemVO[]) => {
   selectedDetailRows.value = rows
   selectedDetailIds.value = rows.map((row) => row.id)
@@ -498,8 +508,14 @@ const orderQuery = reactive<MaterialStockInOrderQuery>({
 const orderTotal = ref(0)
 const orderData = ref<MaterialStockInVO[]>([])
 const orderLoading = ref(false)
+const selectedOrderIds = ref<string[]>([])
+const selectedOrderRows = ref<MaterialStockInVO[]>([])
+const orderTableRef = ref<TableInstance>()
 
-const orderIndexMethod = (index: number) => (orderQuery.pageNum - 1) * orderQuery.pageSize + index + 1
+const handleOrderSelectionChange = (rows: MaterialStockInVO[]) => {
+  selectedOrderRows.value = rows
+  selectedOrderIds.value = rows.map((row) => row.id)
+}
 
 const loadOrderData = async () => {
   orderLoading.value = true
@@ -737,6 +753,10 @@ const handleDelete = (row: MaterialStockInVO) => {
     .then(async () => {
       await deleteMaterialStockIn(row.id)
       ElMessage.success('删除成功')
+      // 清除已删除单据的勾选状态，避免导出时包含不存在的单据
+      orderTableRef.value?.clearSelection()
+      selectedOrderIds.value = []
+      selectedOrderRows.value = []
       await Promise.all([loadDetailData(), loadOrderData()])
     })
     .catch((err) => {
@@ -807,6 +827,59 @@ const handleExport = async () => {
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
     ElMessage.success(`已导出 ${rows.length} 条入库明细`)
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('导出失败，请重试')
+  }
+}
+
+/**
+ * 导出选中入库单为 Excel
+ * 导出列与「入库单」页签表单区列保持一致：入库单名称、入库日期、经办人、备注
+ */
+const handleOrderExport = async () => {
+  if (selectedOrderRows.value.length === 0) {
+    ElMessage.warning('请先勾选要导出的入库单')
+    return
+  }
+  try {
+    const ExcelJS = (await import('exceljs/dist/exceljs.min.js')) as unknown as typeof ExcelJSType
+    const rows = selectedOrderRows.value
+
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = '民生建设项目管理平台'
+    const sheet = workbook.addWorksheet('入库单')
+    sheet.columns = [
+      { header: '入库单名称', key: 'orderName', width: 28 },
+      { header: '入库日期', key: 'inDate', width: 16 },
+      { header: '经办人', key: 'handler', width: 14 },
+      { header: '备注', key: 'remark', width: 36 }
+    ]
+    sheet.getRow(1).font = { bold: true }
+    sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
+    for (const row of rows) {
+      sheet.addRow({
+        orderName: row.orderName || '',
+        inDate: row.inDate || '',
+        handler: row.handler || '',
+        remark: row.remark || ''
+      })
+    }
+    sheet.getColumn('inDate').alignment = { horizontal: 'center' }
+    sheet.getColumn('handler').alignment = { horizontal: 'center' }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `入库单_${todayStr()}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
+    ElMessage.success(`已导出 ${rows.length} 张入库单`)
   } catch (e) {
     console.error(e)
     ElMessage.error('导出失败，请重试')

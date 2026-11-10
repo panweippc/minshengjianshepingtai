@@ -46,25 +46,27 @@ public class ReportDataInitRunner implements ApplicationRunner {
     /**
      * 初始化报表类型字典（baobiao_leixing）
      * 三条记录：盘点表(INVENTORY)、交接表(HANDOVER)、损毁表(DAMAGE)
-     * 按 dict_type + dict_value 幂等判断，避免重复插入
+     * 按 dict_type + dict_value 幂等处理：已存在则恢复并更新，不存在则用最大ID+1插入
      */
     private void initDict() {
-        jdbcTemplate.update("""
-            INSERT INTO t_sys_dict (id, dict_type, description, dict_label, dict_value, sort)
-            SELECT 3301, 'baobiao_leixing', '报表类型', '盘点表', 'INVENTORY', 1
-            WHERE NOT EXISTS (SELECT 1 FROM t_sys_dict WHERE dict_type = 'baobiao_leixing' AND dict_value = 'INVENTORY' AND deleted = 0)
-        """);
-        jdbcTemplate.update("""
-            INSERT INTO t_sys_dict (id, dict_type, description, dict_label, dict_value, sort)
-            SELECT 3302, 'baobiao_leixing', '报表类型', '交接表', 'HANDOVER', 2
-            WHERE NOT EXISTS (SELECT 1 FROM t_sys_dict WHERE dict_type = 'baobiao_leixing' AND dict_value = 'HANDOVER' AND deleted = 0)
-        """);
-        jdbcTemplate.update("""
-            INSERT INTO t_sys_dict (id, dict_type, description, dict_label, dict_value, sort)
-            SELECT 3303, 'baobiao_leixing', '报表类型', '损毁表', 'DAMAGE', 3
-            WHERE NOT EXISTS (SELECT 1 FROM t_sys_dict WHERE dict_type = 'baobiao_leixing' AND dict_value = 'DAMAGE' AND deleted = 0)
-        """);
+        insertDictIfAbsent("盘点表", "INVENTORY", 1);
+        insertDictIfAbsent("交接表", "HANDOVER", 2);
+        insertDictIfAbsent("损毁表", "DAMAGE", 3);
         log.info("报表类型字典（baobiao_leixing）初始化完成");
+    }
+
+    private void insertDictIfAbsent(String label, String value, int sort) {
+        int updated = jdbcTemplate.update("""
+            UPDATE t_sys_dict SET deleted = 0, dict_label = ?, description = '报表类型', sort = ?
+            WHERE dict_type = 'baobiao_leixing' AND dict_value = ?
+        """, label, sort, value);
+        if (updated > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+            INSERT INTO t_sys_dict (id, dict_type, description, dict_label, dict_value, sort)
+            SELECT IFNULL(MAX(t.id), 0) + 1, 'baobiao_leixing', '报表类型', ?, ?, ? FROM t_sys_dict t
+        """, label, value, sort);
     }
 
     private void createTablesIfNotExist() {
@@ -78,6 +80,7 @@ public class ReportDataInitRunner implements ApplicationRunner {
                 handover_person  VARCHAR(32)  NULL COMMENT '交接人',
                 auditor          VARCHAR(32)  NULL COMMENT '审核人',
                 department       VARCHAR(64)  NULL COMMENT '部门',
+                remark           VARCHAR(255) NULL COMMENT '报表备注',
                 create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 deleted          TINYINT      NOT NULL DEFAULT 0,
@@ -108,7 +111,22 @@ public class ReportDataInitRunner implements ApplicationRunner {
                 KEY idx_report_item_warehouse (warehouse_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统计报表明细表'
         """);
+        // 已存在的旧表补充报表备注字段（幂等）
+        ensureColumn("t_material_report", "remark",
+                "ALTER TABLE t_material_report ADD COLUMN remark VARCHAR(255) NULL COMMENT '报表备注' AFTER department");
         log.info("统计报表模块表结构初始化完成");
+    }
+
+    /** 表字段不存在时自动补充 */
+    private void ensureColumn(String table, String column, String ddl) {
+        Integer count = jdbcTemplate.queryForObject("""
+            SELECT COUNT(1) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+        """, Integer.class, table, column);
+        if (count != null && count == 0) {
+            jdbcTemplate.execute(ddl);
+            log.info("已为表 {} 补充字段 {}", table, column);
+        }
     }
 
     private void initMenu() {
