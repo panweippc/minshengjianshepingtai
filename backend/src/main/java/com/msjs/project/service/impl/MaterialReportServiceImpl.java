@@ -1,6 +1,7 @@
 package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
@@ -19,6 +20,7 @@ import com.msjs.project.service.MaterialReportService;
 import com.msjs.project.vo.MaterialReportDetailVO;
 import com.msjs.project.vo.MaterialReportItemVO;
 import com.msjs.project.vo.MaterialReportVO;
+import com.msjs.project.vo.MaterialStockVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -88,6 +91,7 @@ public class MaterialReportServiceImpl implements MaterialReportService {
     public Long addInventory(MaterialInventorySaveDTO dto) {
         MaterialReport report = buildReportEntity(dto.getReportName(), "INVENTORY", dto.getReportDate(),
                 dto.getHandler(), null, dto.getAuditor(), dto.getDepartment());
+        report.setRemark(dto.getRemark());
         reportMapper.insert(report);
         saveItems(report.getId(), "INVENTORY", dto.getItems());
         return report.getId();
@@ -99,7 +103,8 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport exist = requireReport(dto.getId());
         updateReportEntity(exist, dto.getReportName(), "INVENTORY", dto.getReportDate(),
                 dto.getHandler(), null, dto.getAuditor(), dto.getDepartment());
-        reportMapper.updateById(exist);
+        exist.setRemark(dto.getRemark());
+        updateReport(exist);
         replaceItems(exist.getId(), "INVENTORY", dto.getItems());
     }
 
@@ -108,6 +113,7 @@ public class MaterialReportServiceImpl implements MaterialReportService {
     public Long addHandover(MaterialHandoverSaveDTO dto) {
         MaterialReport report = buildReportEntity(dto.getReportName(), "HANDOVER", dto.getReportDate(),
                 dto.getHandler(), dto.getHandoverPerson(), dto.getAuditor(), dto.getDepartment());
+        report.setRemark(dto.getRemark());
         reportMapper.insert(report);
         saveItems(report.getId(), "HANDOVER", dto.getItems());
         return report.getId();
@@ -119,7 +125,8 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport exist = requireReport(dto.getId());
         updateReportEntity(exist, dto.getReportName(), "HANDOVER", dto.getReportDate(),
                 dto.getHandler(), dto.getHandoverPerson(), dto.getAuditor(), dto.getDepartment());
-        reportMapper.updateById(exist);
+        exist.setRemark(dto.getRemark());
+        updateReport(exist);
         replaceItems(exist.getId(), "HANDOVER", dto.getItems());
     }
 
@@ -128,6 +135,7 @@ public class MaterialReportServiceImpl implements MaterialReportService {
     public Long addDamage(MaterialDamageSaveDTO dto) {
         MaterialReport report = buildReportEntity(dto.getReportName(), "DAMAGE", dto.getReportDate(),
                 dto.getHandler(), null, dto.getAuditor(), dto.getDepartment());
+        report.setRemark(dto.getRemark());
         reportMapper.insert(report);
         saveItems(report.getId(), "DAMAGE", dto.getItems());
         return report.getId();
@@ -139,7 +147,8 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport exist = requireReport(dto.getId());
         updateReportEntity(exist, dto.getReportName(), "DAMAGE", dto.getReportDate(),
                 dto.getHandler(), null, dto.getAuditor(), dto.getDepartment());
-        reportMapper.updateById(exist);
+        exist.setRemark(dto.getRemark());
+        updateReport(exist);
         replaceItems(exist.getId(), "DAMAGE", dto.getItems());
     }
 
@@ -157,6 +166,11 @@ public class MaterialReportServiceImpl implements MaterialReportService {
     }
 
     // ==================== 私有辅助方法 ====================
+
+    @Override
+    public List<MaterialStockVO> listStock(String itemName, String warehouseName, String itemCategory) {
+        return reportMapper.selectStockList(itemName, warehouseName, itemCategory);
+    }
 
     /** 构建主表实体（新增时使用） */
     private MaterialReport buildReportEntity(String reportName, String reportType, LocalDate reportDate,
@@ -178,15 +192,32 @@ public class MaterialReportServiceImpl implements MaterialReportService {
                                     String handler, String handoverPerson, String auditor, String department) {
         report.setReportName(reportName);
         report.setReportType(reportType);
-        report.setReportDate(reportDate != null ? reportDate : report.getReportDate());
-        if (StringUtils.hasText(handler)) {
-            report.setHandler(handler);
-        } else if (!StringUtils.hasText(report.getHandler())) {
-            report.setHandler(currentUserName());
-        }
+        // 编辑时允许清空审核日期，空值以 null 落库
+        report.setReportDate(reportDate);
+        // 编辑时允许清空经办人，空值以 null 落库
+        report.setHandler(StringUtils.hasText(handler) ? handler : null);
         report.setHandoverPerson(handoverPerson);
         report.setAuditor(auditor);
         report.setDepartment(department);
+    }
+
+    /**
+     * 显式更新主表（编辑时使用）
+     * MyBatis-Plus 默认忽略 null 字段，会导致编辑中删除的人员、部门、备注信息仍然保留，
+     * 因此这里统一使用 UpdateWrapper 逐字段 set，保证清空操作能够落库
+     */
+    private void updateReport(MaterialReport report) {
+        reportMapper.update(null, new LambdaUpdateWrapper<MaterialReport>()
+                .eq(MaterialReport::getId, report.getId())
+                .set(MaterialReport::getReportName, report.getReportName())
+                .set(MaterialReport::getReportType, report.getReportType())
+                .set(MaterialReport::getReportDate, report.getReportDate())
+                .set(MaterialReport::getHandler, report.getHandler())
+                .set(MaterialReport::getHandoverPerson, report.getHandoverPerson())
+                .set(MaterialReport::getAuditor, report.getAuditor())
+                .set(MaterialReport::getDepartment, report.getDepartment())
+                .set(MaterialReport::getRemark, report.getRemark())
+                .set(MaterialReport::getUpdateTime, LocalDateTime.now()));
     }
 
     /** 校验报表存在性并返回 */

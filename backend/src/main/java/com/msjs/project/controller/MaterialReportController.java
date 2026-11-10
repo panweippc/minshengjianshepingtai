@@ -10,6 +10,7 @@ import com.msjs.project.dto.MaterialInventorySaveDTO;
 import com.msjs.project.service.MaterialReportService;
 import com.msjs.project.vo.MaterialReportDetailVO;
 import com.msjs.project.vo.MaterialReportVO;
+import com.msjs.project.vo.MaterialStockVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 物资统计报表接口
@@ -60,6 +62,16 @@ public class MaterialReportController {
     @GetMapping("/{id}")
     public Result<MaterialReportDetailVO> detail(@PathVariable Long id) {
         return Result.ok(reportService.detail(id));
+    }
+
+    @Operation(summary = "盘点物品库房库存（自动带出库房与账面数量）")
+    @RequirePerm("material:report:list")
+    @GetMapping("/stock-list")
+    public Result<List<MaterialStockVO>> stockList(
+            @Parameter(description = "物品名称") @RequestParam(required = false) String itemName,
+            @Parameter(description = "库房名称") @RequestParam(required = false) String warehouseName,
+            @Parameter(description = "物品分类") @RequestParam(required = false) String itemCategory) {
+        return Result.ok(reportService.listStock(itemName, warehouseName, itemCategory));
     }
 
     // ==================== 盘点表 ====================

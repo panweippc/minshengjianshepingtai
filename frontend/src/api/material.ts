@@ -230,7 +230,24 @@ export function updateMaterialDamage(data: MaterialDamageSaveDTO) {
   return put<Result<void>>('/api/material/report/damage', data)
 }
 
+/** 物品库房库存（盘点带出） */
+export interface MaterialStockVO {
+  warehouseName: string
+  itemName: string
+  unit?: string
+  bookQty: number
+}
+
 /** 删除报表 */
 export function deleteMaterialReport(id: string) {
   return del<Result<void>>(`/api/material/report/${id}`)
+}
+
+/** 盘点物品库房库存（自动带出物品所在库房与账面数量） */
+export function getMaterialStockList(params: {
+  itemName?: string
+  warehouseName?: string
+  itemCategory?: string
+}) {
+  return get<Result<MaterialStockVO[]>>('/api/material/report/stock-list', { params })
 }

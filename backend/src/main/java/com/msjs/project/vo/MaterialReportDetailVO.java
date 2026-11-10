@@ -42,6 +42,9 @@ public class MaterialReportDetailVO implements Serializable {
     @Schema(description = "部门")
     private String department;
 
+    @Schema(description = "报表备注")
+    private String remark;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 

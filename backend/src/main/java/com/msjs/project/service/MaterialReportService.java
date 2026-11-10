@@ -6,8 +6,10 @@ import com.msjs.project.dto.MaterialHandoverSaveDTO;
 import com.msjs.project.dto.MaterialInventorySaveDTO;
 import com.msjs.project.vo.MaterialReportDetailVO;
 import com.msjs.project.vo.MaterialReportVO;
+import com.msjs.project.vo.MaterialStockVO;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 物资统计报表服务
@@ -51,4 +53,10 @@ public interface MaterialReportService {
 
     /** 删除统计报表（主表与明细同事务逻辑删除） */
     void delete(Long id);
+
+    /**
+     * 查询物品库房库存列表（按物品+库房汇总入库减出库）
+     * 用于盘点表自动带出物品所属库房与账面数量
+     */
+    List<MaterialStockVO> listStock(String itemName, String warehouseName, String itemCategory);
 }

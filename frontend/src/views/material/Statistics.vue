@@ -19,7 +19,6 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
             @change="handleDateChange"
           />
         </el-form-item>
@@ -28,7 +27,6 @@
             v-model="query.reportType"
             placeholder="请选择报表类型"
             clearable
-            style="width: 100%"
           >
             <el-option
               v-for="item in reportTypeOptions"
@@ -76,24 +74,23 @@
         </div>
       </template>
       <el-table v-loading="loading" :data="tableData" border stripe row-key="id">
-        <el-table-column type="index" label="序号" width="70" align="center" :index="indexMethod" />
-        <el-table-column prop="reportName" label="报表名称" min-width="200" show-overflow-tooltip />
-        <el-table-column label="时间" width="180" align="center">
+        <el-table-column prop="reportName" label="报表名称" min-width="260" show-overflow-tooltip />
+        <el-table-column label="时间" min-width="180" align="center">
           <template #default="{ row }">{{ row.reportDate || row.createTime?.slice(0, 10) || '—' }}</template>
         </el-table-column>
-        <el-table-column label="报表类型" width="120" align="center">
+        <el-table-column label="报表类型" min-width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="reportTypeTag(row.reportType)" effect="light">
               {{ reportTypeLabel(row.reportType) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right" align="center">
+        <el-table-column label="操作" min-width="260" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="info" icon="View" @click="openDetail(row)">查看</el-button>
-            <el-button link type="primary" icon="Edit" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="success" icon="Printer" @click="handlePrint(row)">打印</el-button>
-            <el-button link type="danger" icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" @click="openDetail(row)">查看</el-button>
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="success" @click="handlePrint(row)">打印</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -113,42 +110,11 @@
     <el-dialog
       v-model="editDialogVisible"
       :title="editDialogTitle"
-      width="1100px"
+      width="86%"
       top="5vh"
       destroy-on-close
       class="report-dialog"
     >
-      <!-- 弹窗头部：报表基本信息 -->
-      <el-form ref="headerFormRef" :model="headerForm" :rules="headerFormRules" label-width="90px" class="header-form">
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="报表名称" prop="reportName">
-              <el-input v-model="headerForm.reportName" placeholder="请输入报表名称" maxlength="128" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="时间" prop="reportDate">
-              <el-date-picker
-                v-model="headerForm.reportDate"
-                type="date"
-                placeholder="请选择日期"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="报表类型">
-              <el-select v-model="headerForm.reportType" disabled style="width: 100%">
-                <el-option label="盘点表" value="INVENTORY" />
-                <el-option label="交接表" value="HANDOVER" />
-                <el-option label="损毁表" value="DAMAGE" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-
       <!-- 明细筛选区 -->
       <el-card shadow="never" class="detail-query-card">
         <el-form :inline="true" :model="detailQuery" @submit.prevent>
@@ -159,6 +125,22 @@
               clearable
               @keyup.enter="handleDetailQuery"
             />
+          </el-form-item>
+          <el-form-item label="库房名称">
+            <el-select
+              v-model="detailQuery.warehouseName"
+              placeholder="请选择库房"
+              clearable
+              filterable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="w in warehouseOptions"
+                :key="w"
+                :label="w"
+                :value="w"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item v-if="editType !== 'DAMAGE'" label="物品分类">
             <el-select
@@ -175,28 +157,14 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="仓库名称">
-            <el-select
-              v-model="detailQuery.warehouseName"
-              placeholder="请选择仓库"
-              clearable
-              filterable
-              style="width: 100%"
-            >
-              <el-option
-                v-for="w in warehouseOptions"
-                :key="w"
-                :label="w"
-                :value="w"
-              />
-            </el-select>
-          </el-form-item>
+          <!-- 损毁表时间：系统自动带出当前时间，置灰不可修改 -->
           <el-form-item v-if="editType === 'DAMAGE'" label="时间">
             <el-date-picker
-              v-model="detailQuery.damageDate"
-              type="date"
-              placeholder="请选择日期"
-              value-format="YYYY-MM-DD"
+              v-model="detailQuery.damageTime"
+              type="datetime"
+              placeholder="系统自动带出"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              disabled
               style="width: 100%"
             />
           </el-form-item>
@@ -207,351 +175,214 @@
         </el-form>
       </el-card>
 
-      <!-- 明细表格区：盘点表 -->
-      <div v-if="editType === 'INVENTORY'" class="detail-table-wrapper">
+      <!-- 明细表格区：盘点表 / 交接表 / 损毁表（表格纸样式：名称+生成时间 → 明细 → 备注/签字/部门） -->
+      <div class="form-sheet">
+        <!-- 报表名称 + 生成时间 -->
+        <div class="sheet-head">
+          <el-input v-model="headerForm.reportName" placeholder="请输入名称" maxlength="128" class="sheet-name" />
+          <div class="sheet-time">{{ editType === 'DAMAGE' ? (detailQuery.damageTime || '—') : sheetTimeText }}</div>
+        </div>
+
+        <!-- 明细表格 -->
         <el-table
           v-loading="detailLoading"
-          :data="inventoryItems"
+          :data="sheetItems"
           border
-          stripe
-          height="320"
+          max-height="520"
+          class="sheet-table"
         >
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column label="物品名称" min-width="160" show-overflow-tooltip>
+          <el-table-column type="index" label="序号" width="64" align="center" />
+          <el-table-column
+            :label="editType === 'DAMAGE' ? '物品名' : '物品名称'"
+            min-width="170"
+            align="center"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.itemName }}</template>
           </el-table-column>
-          <el-table-column label="库房" width="140" align="center">
+          <el-table-column label="库房" min-width="170" align="center" show-overflow-tooltip>
             <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
           </el-table-column>
-          <el-table-column label="单位" width="80" align="center">
+          <template v-if="editType === 'DAMAGE'">
+            <el-table-column label="数量" min-width="130" align="center">
+              <template #default="{ row }">
+                <el-input-number v-model="row.bookQty" :min="0" :controls="false" size="small" class="cell-control" />
+              </template>
+            </el-table-column>
+          </template>
+          <el-table-column label="单位" min-width="100" align="center">
             <template #default="{ row }">{{ row.unit || '—' }}</template>
           </el-table-column>
-          <el-table-column label="账面数量" width="110" align="center">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.bookQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="盘点数量" width="110" align="center">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.actualQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="盘盈数量" width="110" align="center">
-            <template #default="{ row }">
-              <span :class="{ 'profit': calcProfit(row) > 0, 'loss': calcProfit(row) < 0 }">
-                {{ calcProfit(row) }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="请输入备注" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" align="center" fixed="right">
-            <template #default="{ $index }">
-              <el-button link type="danger" icon="Delete" @click="removeInventoryItem($index)">删除</el-button>
-            </template>
-          </el-table-column>
+          <template v-if="editType === 'DAMAGE'">
+            <el-table-column label="经办人" min-width="160" align="center">
+              <template #default="{ row }">
+                <el-input v-model="row.handler" placeholder="请输入" size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column label="备注" width="190" align="center">
+              <template #default="{ row }">
+                <el-input v-model="row.remark" placeholder="请输入" size="small" />
+              </template>
+            </el-table-column>
+          </template>
+          <template v-else>
+            <el-table-column label="账面数量" min-width="130" align="center">
+              <template #default="{ row }">{{ row.bookQty }}</template>
+            </el-table-column>
+            <el-table-column label="盘点数量" min-width="130" align="center">
+              <template #default="{ row }">
+                <el-input-number v-model="row.actualQty" :controls="false" size="small" class="cell-control" />
+              </template>
+            </el-table-column>
+            <el-table-column label="盈亏数量" width="190" align="center">
+              <template #default="{ row }">{{ calcProfit(row) }}</template>
+            </el-table-column>
+          </template>
         </el-table>
-        <div class="table-footer">
-          <el-button type="primary" icon="Plus" size="small" @click="addInventoryItem">添加行</el-button>
+
+        <!-- 备注 -->
+        <div class="sheet-line">
+          <div class="sheet-cell sheet-label">备注</div>
+          <div class="sheet-cell sheet-fill">
+            <el-input v-model="headerForm.remark" placeholder="请输入备注" maxlength="255" class="sheet-input" />
+          </div>
+        </div>
+
+        <!-- 经办人 / 交接人 / 审核人 / 审核日期 -->
+        <div class="sheet-line signature">
+          <div class="sheet-cell sheet-label">经办人</div>
+          <div class="sheet-cell sheet-fill">
+            <el-input v-model="footerForm.handler" placeholder="请输入" maxlength="32" class="sheet-input" />
+          </div>
+          <template v-if="editType === 'HANDOVER'">
+            <div class="sheet-cell sheet-label">交接人</div>
+            <div class="sheet-cell sheet-fill">
+              <el-input v-model="footerForm.handoverPerson" placeholder="请输入" maxlength="32" class="sheet-input" />
+            </div>
+          </template>
+          <div class="sheet-cell sheet-label">审核人</div>
+          <div class="sheet-cell sheet-fill">
+            <el-input v-model="footerForm.auditor" placeholder="请输入" maxlength="32" class="sheet-input" />
+          </div>
+          <div class="sheet-cell sheet-label">审核日期</div>
+          <div class="sheet-cell sheet-fill">
+            <el-date-picker
+              v-model="headerForm.reportDate"
+              type="date"
+              placeholder="请选择日期"
+              value-format="YYYY-MM-DD"
+              class="sheet-input"
+            />
+          </div>
+        </div>
+
+        <!-- 部门 -->
+        <div class="sheet-line">
+          <div class="sheet-cell sheet-label">部门</div>
+          <div class="sheet-cell sheet-fill">
+            <el-input v-model="footerForm.department" placeholder="请输入部门" maxlength="64" class="sheet-input" />
+          </div>
         </div>
       </div>
-
-      <!-- 明细表格区：交接表 -->
-      <div v-else-if="editType === 'HANDOVER'" class="detail-table-wrapper">
-        <el-table
-          v-loading="detailLoading"
-          :data="handoverItems"
-          border
-          stripe
-          height="320"
-        >
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column label="物品名称" min-width="160" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.itemName }}</template>
-          </el-table-column>
-          <el-table-column label="库房" width="140" align="center">
-            <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="单位" width="80" align="center">
-            <template #default="{ row }">{{ row.unit || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="账面数量" width="110" align="center">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.bookQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="盘点数量" width="110" align="center">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.actualQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="盘盈数量" width="110" align="center">
-            <template #default="{ row }">
-              <span :class="{ 'profit': calcProfit(row) > 0, 'loss': calcProfit(row) < 0 }">
-                {{ calcProfit(row) }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="请输入备注" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" align="center" fixed="right">
-            <template #default="{ $index }">
-              <el-button link type="danger" icon="Delete" @click="removeHandoverItem($index)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="table-footer">
-          <el-button type="primary" icon="Plus" size="small" @click="addHandoverItem">添加行</el-button>
-        </div>
-      </div>
-
-      <!-- 明细表格区：损毁表 -->
-      <div v-else-if="editType === 'DAMAGE'" class="detail-table-wrapper">
-        <el-table
-          v-loading="detailLoading"
-          :data="damageItems"
-          border
-          stripe
-          height="320"
-        >
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column label="物品名称" min-width="160" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.itemName }}</template>
-          </el-table-column>
-          <el-table-column label="库房" width="140" align="center">
-            <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="单位" width="80" align="center">
-            <template #default="{ row }">{{ row.unit || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="账面数量" width="110" align="center">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.bookQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="经办人" width="120" align="center">
-            <template #default="{ row }">
-              <el-input v-model="row.handler" placeholder="请输入经办人" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="请输入备注" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" align="center" fixed="right">
-            <template #default="{ $index }">
-              <el-button link type="danger" icon="Delete" @click="removeDamageItem($index)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="table-footer">
-          <el-button type="primary" icon="Plus" size="small" @click="addDamageItem">添加行</el-button>
-        </div>
-      </div>
-
-      <!-- 底部人员信息区（盘点表、交接表、损毁表通用） -->
-      <el-form ref="footerFormRef" :model="footerForm" label-width="90px" class="footer-form">
-        <el-row :gutter="16">
-          <template v-if="editType === 'INVENTORY'">
-            <el-col :span="8">
-              <el-form-item label="部门">
-                <el-input v-model="footerForm.department" placeholder="请输入部门" maxlength="64" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="经办人">
-                <el-input v-model="footerForm.handler" placeholder="请输入经办人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="审核人">
-                <el-input v-model="footerForm.auditor" placeholder="请输入审核人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-          </template>
-          <template v-else-if="editType === 'HANDOVER'">
-            <el-col :span="6">
-              <el-form-item label="部门">
-                <el-input v-model="footerForm.department" placeholder="请输入部门" maxlength="64" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="6">
-              <el-form-item label="经办人">
-                <el-input v-model="footerForm.handler" placeholder="请输入经办人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="6">
-              <el-form-item label="交接人">
-                <el-input v-model="footerForm.handoverPerson" placeholder="请输入交接人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="6">
-              <el-form-item label="审核人">
-                <el-input v-model="footerForm.auditor" placeholder="请输入审核人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-          </template>
-          <template v-else-if="editType === 'DAMAGE'">
-            <el-col :span="8">
-              <el-form-item label="部门">
-                <el-input v-model="footerForm.department" placeholder="请输入部门" maxlength="64" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="经办人">
-                <el-input v-model="footerForm.handler" placeholder="请输入经办人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="审核人">
-                <el-input v-model="footerForm.auditor" placeholder="请输入审核人" maxlength="32" />
-              </el-form-item>
-            </el-col>
-          </template>
-        </el-row>
-      </el-form>
 
       <template #footer>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
 
     <!-- ==================== 查看弹窗 ==================== -->
     <el-dialog
       v-model="detailDialogVisible"
-      :title="'查看 - ' + (detail?.reportName || '')"
-      width="1100px"
+      title="详情数据"
+      width="86%"
       top="5vh"
       destroy-on-close
       class="report-dialog"
     >
-      <!-- 基本信息 -->
-      <el-descriptions v-if="detail" :column="3" border class="detail-desc">
-        <el-descriptions-item label="报表名称">{{ detail.reportName }}</el-descriptions-item>
-        <el-descriptions-item label="报表类型">
-          <el-tag :type="reportTypeTag(detail.reportType)" effect="light">
-            {{ reportTypeLabel(detail.reportType) }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="时间">{{ detail.reportDate || detail.createTime?.slice(0, 10) || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="经办人">{{ detail.handler || '—' }}</el-descriptions-item>
-        <el-descriptions-item v-if="detail.reportType === 'HANDOVER'" label="交接人">{{ detail.handoverPerson || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="审核人">{{ detail.auditor || '—' }}</el-descriptions-item>
-      </el-descriptions>
+      <div v-if="detail" class="view-sheet">
+        <!-- 打印按钮（表格纸右上角） -->
+        <div class="view-print-bar">
+          <el-button type="primary" size="small" icon="Printer" @click="handlePrint(detail as MaterialReportDetailVO)">
+            打印
+          </el-button>
+        </div>
 
-      <!-- 盘点表明细 -->
-      <template v-if="detail?.reportType === 'INVENTORY'">
-        <h4 class="section-title">盘点明细</h4>
-        <el-table :data="detail.inventoryItems || []" border stripe height="320">
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column prop="itemName" label="物品名称" min-width="160" />
-          <el-table-column prop="warehouseName" label="库房" width="140" align="center">
-            <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80" align="center">
-            <template #default="{ row }">{{ row.unit || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="bookQty" label="账面数量" width="110" align="center" />
-          <el-table-column prop="actualQty" label="盘点数量" width="110" align="center" />
-          <el-table-column label="盘盈数量" width="110" align="center">
-            <template #default="{ row }">
-              <span :class="{ 'profit': row.profitQty > 0, 'loss': row.profitQty < 0 }">
-                {{ row.profitQty }}
-              </span>
+        <div class="form-sheet">
+          <!-- 报表名称 + 时间 -->
+          <div class="sheet-head">
+            <div class="sheet-name-text" :title="detail.reportName">{{ detail.reportName || '—' }}</div>
+            <div class="sheet-time">{{ viewTimeText }}</div>
+          </div>
+
+          <!-- 明细表格 -->
+          <el-table :data="detail.items || []" border class="sheet-table view-table">
+            <el-table-column type="index" label="序号" width="64" align="center" />
+            <el-table-column
+              :label="detail.reportType === 'DAMAGE' ? '物品名' : '物品名称'"
+              min-width="170"
+              align="center"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">{{ row.itemName }}</template>
+            </el-table-column>
+            <el-table-column label="库房" min-width="170" align="center" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="单位" min-width="100" align="center">
+              <template #default="{ row }">{{ row.unit || '—' }}</template>
+            </el-table-column>
+            <template v-if="detail.reportType === 'DAMAGE'">
+              <el-table-column label="数量" min-width="130" align="center">
+                <template #default="{ row }">{{ row.bookQty }}</template>
+              </el-table-column>
+              <el-table-column label="经办人" min-width="160" align="center">
+                <template #default="{ row }">{{ row.handler || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="备注" width="190" align="center">
+                <template #default="{ row }">{{ row.remark || '—' }}</template>
+              </el-table-column>
             </template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160">
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
-          </el-table-column>
-        </el-table>
-      </template>
-
-      <!-- 交接表明细 -->
-      <template v-else-if="detail?.reportType === 'HANDOVER'">
-        <h4 class="section-title">交接明细</h4>
-        <el-table :data="detail.handoverItems || []" border stripe height="320">
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column prop="itemName" label="物品名称" min-width="160" />
-          <el-table-column prop="warehouseName" label="库房" width="140" align="center">
-            <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80" align="center">
-            <template #default="{ row }">{{ row.unit || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="bookQty" label="账面数量" width="110" align="center" />
-          <el-table-column prop="actualQty" label="盘点数量" width="110" align="center" />
-          <el-table-column label="盘盈数量" width="110" align="center">
-            <template #default="{ row }">
-              <span :class="{ 'profit': row.profitQty > 0, 'loss': row.profitQty < 0 }">
-                {{ row.profitQty }}
-              </span>
+            <template v-else>
+              <el-table-column label="账面数量" min-width="130" align="center">
+                <template #default="{ row }">{{ row.bookQty }}</template>
+              </el-table-column>
+              <el-table-column label="盘点数量" min-width="130" align="center">
+                <template #default="{ row }">{{ row.actualQty }}</template>
+              </el-table-column>
+              <el-table-column label="盈亏数量" width="190" align="center">
+                <template #default="{ row }">{{ (row.actualQty || 0) - (row.bookQty || 0) }}</template>
+              </el-table-column>
             </template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160">
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
-          </el-table-column>
-        </el-table>
-      </template>
+          </el-table>
 
-      <!-- 损毁表明细 -->
-      <template v-else-if="detail?.reportType === 'DAMAGE'">
-        <h4 class="section-title">损毁明细</h4>
-        <el-table :data="detail.damageItems || []" border stripe height="320">
-          <el-table-column type="index" label="序号" width="70" align="center" />
-          <el-table-column prop="itemName" label="物品名称" min-width="160" />
-          <el-table-column prop="warehouseName" label="库房" width="140" align="center">
-            <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80" align="center">
-            <template #default="{ row }">{{ row.unit || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="bookQty" label="账面数量" width="110" align="center" />
-          <el-table-column prop="handler" label="经办人" width="140" align="center">
-            <template #default="{ row }">{{ row.handler || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="200">
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
-          </el-table-column>
-        </el-table>
-      </template>
+          <!-- 备注 -->
+          <div class="sheet-line remark">
+            <div class="sheet-cell sheet-label">备注</div>
+            <div class="sheet-cell sheet-fill">{{ detail.remark || '' }}</div>
+          </div>
+
+          <!-- 经办人 / 交接人 / 审核人 / 审核日期 -->
+          <div class="sheet-line signature">
+            <div class="sheet-cell sheet-label">经办人</div>
+            <div class="sheet-cell sheet-fill">{{ detail.handler || '' }}</div>
+            <template v-if="detail.reportType === 'HANDOVER'">
+              <div class="sheet-cell sheet-label">交接人</div>
+              <div class="sheet-cell sheet-fill">{{ detail.handoverPerson || '' }}</div>
+            </template>
+            <div class="sheet-cell sheet-label">审核人</div>
+            <div class="sheet-cell sheet-fill">{{ detail.auditor || '' }}</div>
+            <div class="sheet-cell sheet-label">审核日期</div>
+            <div class="sheet-cell sheet-fill">{{ detail.reportDate || '' }}</div>
+          </div>
+
+          <!-- 部门 -->
+          <div class="sheet-line">
+            <div class="sheet-cell sheet-label">部门</div>
+            <div class="sheet-cell sheet-fill">{{ detail.department || '' }}</div>
+          </div>
+        </div>
+      </div>
 
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -563,9 +394,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
 import { getDictByType } from '@/api/dict'
 import {
+  getMaterialStockList,
+  getMaterialWarehousePage,
   getMaterialReportPage,
   getMaterialReportDetail,
   createMaterialInventory,
@@ -610,7 +442,6 @@ const dateRange = ref<string[]>([])
 const total = ref(0)
 const tableData = ref<MaterialReportVO[]>([])
 const loading = ref(false)
-const indexMethod = (index: number) => (query.pageNum - 1) * query.pageSize + index + 1
 
 const loadData = async () => {
   loading.value = true
@@ -647,7 +478,7 @@ const resetQuery = () => {
   handleQuery()
 }
 
-// ==================== 字典和仓库选项 ====================
+// ==================== 字典和库房选项 ====================
 /** 报表类型字典（baobiao_leixing）—— 字典缺失时兜底选项 */
 const DEFAULT_REPORT_TYPES = [
   { label: '盘点表', value: 'INVENTORY' },
@@ -690,20 +521,14 @@ const loadDict = async () => {
 
 const loadWarehouseOptions = async () => {
   try {
-    // 尝试从仓库接口加载，失败则使用默认
-    const res = await fetch('/api/material/warehouse/simple')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.data) {
-        warehouseOptions.value = data.data.map((w: any) => w.warehouseName)
-        return
-      }
-    }
+    // 联动库房信息模块，取已维护的库房名称
+    const res = await getMaterialWarehousePage({ pageNum: 1, pageSize: 500 })
+    warehouseOptions.value = (res.data.records || [])
+      .map((w) => w.warehouseName)
+      .filter(Boolean)
   } catch {
-    // 忽略错误
+    warehouseOptions.value = []
   }
-  // 默认仓库选项
-  warehouseOptions.value = ['主仓库', '一号库房', '二号库房', '三号库房']
 }
 
 // ==================== 新增/编辑弹窗 ====================
@@ -712,26 +537,29 @@ const editType = ref<MaterialReportType>('INVENTORY')
 const editMode = ref<'add' | 'edit'>('add')
 const editDialogTitle = computed(() => {
   const typeLabel = reportTypeLabel(editType.value)
-  return `${editMode.value === 'edit' ? '编辑' : '新增'}${typeLabel}`
+  return `${editMode.value === 'edit' ? '编辑' : '添加'}${typeLabel}`
 })
 
 const submitLoading = ref(false)
-const headerFormRef = ref<FormInstance>()
-const footerFormRef = ref<FormInstance>()
 
 // 头部表单
 const headerForm = reactive({
   reportName: '',
   reportDate: '',
-  reportType: 'INVENTORY' as MaterialReportType
+  reportType: 'INVENTORY' as MaterialReportType,
+  remark: ''
 })
 
-const headerFormRules: FormRules = {
-  reportName: [{ required: true, message: '请输入报表名称', trigger: 'blur' }],
-  reportDate: [{ required: true, message: '请选择日期', trigger: 'change' }]
+/** 表格纸右上角生成时间（新增取当前时间，编辑取创建时间） */
+const sheetTimeText = ref(formatNow())
+
+function formatNow() {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-// 底部表单（三种类型共用不同字段）
+// 备注等字段（三类报表共用）
 const footerForm = reactive({
   handler: '',
   auditor: '',
@@ -744,18 +572,76 @@ const detailQuery = reactive({
   itemName: '',
   itemCategory: '',
   warehouseName: '',
-  damageDate: ''
+  // 损毁表时间（系统自动带出，只读）
+  damageTime: ''
 })
 
+/** 查看弹窗首行时间文案：优先展示创建时间，其次报表日期 */
+const viewTimeText = computed(() => {
+  const createTime = detail.value?.createTime
+  if (createTime) return String(createTime).replace('T', ' ').slice(0, 19)
+  return detail.value?.reportDate || '—'
+})
+
+
+/** 从入库/出库按物品+库房汇总库存，自动带出库房与账面数量 */
+const loadInventorySourceItems = async () => {
+  detailLoading.value = true
+  try {
+    const res = await getMaterialStockList({
+      itemName: detailQuery.itemName || undefined,
+      itemCategory: detailQuery.itemCategory || undefined,
+      warehouseName: detailQuery.warehouseName || undefined
+    })
+    const list = res.data || []
+    inventoryItems.value = list.map((it) => ({
+      _tempId: Date.now() + Math.random(),
+      warehouseName: it.warehouseName || '',
+      itemName: it.itemName,
+      unit: it.unit || '',
+      bookQty: it.bookQty ?? 0,
+      actualQty: it.bookQty ?? 0,
+      remark: ''
+    }))
+    handoverItems.value = list.map((it) => ({
+      _tempId: Date.now() + Math.random(),
+      warehouseName: it.warehouseName || '',
+      itemName: it.itemName,
+      unit: it.unit || '',
+      bookQty: it.bookQty ?? 0,
+      actualQty: it.bookQty ?? 0,
+      remark: ''
+    }))
+    damageItems.value = list.map((it) => ({
+      _tempId: Date.now() + Math.random(),
+      warehouseName: it.warehouseName || '',
+      itemName: it.itemName,
+      unit: it.unit || '',
+      bookQty: it.bookQty ?? 0,
+      handler: '',
+      remark: ''
+    }))
+    if (!list.length) {
+      ElMessage.info('未查询到物品库存数据')
+    }
+  } finally {
+    detailLoading.value = false
+  }
+}
+
 const handleDetailQuery = () => {
-  // 前端筛选明细数据
+  loadInventorySourceItems()
 }
 
 const resetDetailQuery = () => {
   detailQuery.itemName = ''
   detailQuery.itemCategory = ''
   detailQuery.warehouseName = ''
-  detailQuery.damageDate = ''
+  // 损毁表时间自动带出当前时间，不可修改
+  detailQuery.damageTime = editType.value === 'DAMAGE' ? (sheetTimeText.value || formatNow()) : ''
+  if (editMode.value === 'add') {
+    loadInventorySourceItems()
+  }
 }
 
 // 盘点表明细
@@ -764,23 +650,7 @@ interface InventoryRow extends MaterialInventoryItemSaveDTO {
 }
 const inventoryItems = ref<InventoryRow[]>([])
 
-const addInventoryItem = () => {
-  inventoryItems.value.push({
-    _tempId: Date.now() + Math.random(),
-    warehouseName: '',
-    itemName: '',
-    unit: '',
-    bookQty: 0,
-    actualQty: 0,
-    remark: ''
-  })
-}
-
-const removeInventoryItem = (index: number) => {
-  inventoryItems.value.splice(index, 1)
-}
-
-const calcProfit = (row: { bookQty: number; actualQty: number }) => {
+const calcProfit = (row: { bookQty: number; actualQty?: number }) => {
   return (row.actualQty || 0) - (row.bookQty || 0)
 }
 
@@ -790,21 +660,12 @@ interface HandoverRow extends MaterialHandoverItemSaveDTO {
 }
 const handoverItems = ref<HandoverRow[]>([])
 
-const addHandoverItem = () => {
-  handoverItems.value.push({
-    _tempId: Date.now() + Math.random(),
-    warehouseName: '',
-    itemName: '',
-    unit: '',
-    bookQty: 0,
-    actualQty: 0,
-    remark: ''
-  })
-}
-
-const removeHandoverItem = (index: number) => {
-  handoverItems.value.splice(index, 1)
-}
+/** 表格纸模式下的明细数据源：盘点表 / 交接表 / 损毁表共用同一套表格结构 */
+const sheetItems = computed<InventoryRow[] | HandoverRow[] | DamageRow[]>(() => {
+  if (editType.value === 'HANDOVER') return handoverItems.value
+  if (editType.value === 'DAMAGE') return damageItems.value
+  return inventoryItems.value
+})
 
 // 损毁表明细
 interface DamageRow extends MaterialDamageItemSaveDTO {
@@ -812,32 +673,20 @@ interface DamageRow extends MaterialDamageItemSaveDTO {
 }
 const damageItems = ref<DamageRow[]>([])
 
-const addDamageItem = () => {
-  damageItems.value.push({
-    _tempId: Date.now() + Math.random(),
-    warehouseName: '',
-    itemName: '',
-    unit: '',
-    bookQty: 0,
-    handler: '',
-    remark: ''
-  })
-}
-
-const removeDamageItem = (index: number) => {
-  damageItems.value.splice(index, 1)
-}
-
 const detailLoading = ref(false)
+/** 当前编辑的报表ID（编辑时用于提交主键） */
+const editId = ref<string>()
 
 // 打开新增
 const openAdd = (type: MaterialReportType) => {
   editMode.value = 'add'
   editType.value = type
+  editId.value = undefined
   Object.assign(headerForm, {
     reportName: '',
     reportDate: new Date().toISOString().slice(0, 10),
-    reportType: type
+    reportType: type,
+    remark: ''
   })
   Object.assign(footerForm, {
     handler: '',
@@ -845,6 +694,7 @@ const openAdd = (type: MaterialReportType) => {
     handoverPerson: '',
     department: ''
   })
+  sheetTimeText.value = formatNow()
   inventoryItems.value = []
   handoverItems.value = []
   damageItems.value = []
@@ -856,14 +706,17 @@ const openAdd = (type: MaterialReportType) => {
 const openEdit = async (row: MaterialReportVO) => {
   editMode.value = 'edit'
   editType.value = row.reportType
+  editId.value = row.id
   detailLoading.value = true
   try {
     const res = await getMaterialReportDetail(row.id)
     const d = res.data
+    const detailItems = (d as any).items || []
     Object.assign(headerForm, {
       reportName: d.reportName,
       reportDate: d.reportDate || '',
-      reportType: d.reportType
+      reportType: d.reportType,
+      remark: (d as any).remark || ''
     })
     Object.assign(footerForm, {
       handler: d.handler || '',
@@ -871,9 +724,10 @@ const openEdit = async (row: MaterialReportVO) => {
       handoverPerson: (d as any).handoverPerson || '',
       department: (d as any).department || ''
     })
+    sheetTimeText.value = d.createTime ? String(d.createTime).replace('T', ' ').slice(0, 19) : formatNow()
 
-    if (d.reportType === 'INVENTORY' && d.inventoryItems) {
-      inventoryItems.value = d.inventoryItems.map((it: any) => ({
+    if (d.reportType === 'INVENTORY') {
+      inventoryItems.value = detailItems.map((it: any) => ({
         _tempId: it.id || Date.now() + Math.random(),
         warehouseName: it.warehouseName || '',
         itemName: it.itemName,
@@ -882,8 +736,8 @@ const openEdit = async (row: MaterialReportVO) => {
         actualQty: it.actualQty,
         remark: it.remark || ''
       }))
-    } else if (d.reportType === 'HANDOVER' && d.handoverItems) {
-      handoverItems.value = d.handoverItems.map((it: any) => ({
+    } else if (d.reportType === 'HANDOVER') {
+      handoverItems.value = detailItems.map((it: any) => ({
         _tempId: it.id || Date.now() + Math.random(),
         warehouseName: it.warehouseName || '',
         itemName: it.itemName,
@@ -892,8 +746,8 @@ const openEdit = async (row: MaterialReportVO) => {
         actualQty: it.actualQty,
         remark: it.remark || ''
       }))
-    } else if (d.reportType === 'DAMAGE' && d.damageItems) {
-      damageItems.value = d.damageItems.map((it: any) => ({
+    } else if (d.reportType === 'DAMAGE') {
+      damageItems.value = detailItems.map((it: any) => ({
         _tempId: it.id || Date.now() + Math.random(),
         warehouseName: it.warehouseName || '',
         itemName: it.itemName,
@@ -902,6 +756,8 @@ const openEdit = async (row: MaterialReportVO) => {
         handler: it.handler || '',
         remark: it.remark || ''
       }))
+      // 编辑时回显报表生成时间（只读展示）
+      detailQuery.damageTime = sheetTimeText.value
     }
     editDialogVisible.value = true
   } finally {
@@ -911,8 +767,11 @@ const openEdit = async (row: MaterialReportVO) => {
 
 // 提交保存
 const handleSubmit = async () => {
-  const valid = await headerFormRef.value?.validate().catch(() => false)
-  if (!valid) return
+  // 三类报表均为表格纸布局，报表名称与明细在此统一校验
+  if (!headerForm.reportName.trim()) {
+    ElMessage.warning('请输入报表名称')
+    return
+  }
 
   // 校验明细：至少有一行且物品名称不为空
   let items: any[] = []
@@ -932,12 +791,13 @@ const handleSubmit = async () => {
   try {
     if (editType.value === 'INVENTORY') {
       const payload = {
-        id: editMode.value === 'edit' ? (headerForm as any).id : undefined,
+        id: editId.value,
         reportName: headerForm.reportName,
-        reportDate: headerForm.reportDate,
+        reportDate: headerForm.reportDate || undefined,
         handler: footerForm.handler || undefined,
         auditor: footerForm.auditor || undefined,
         department: footerForm.department || undefined,
+        remark: headerForm.remark || undefined,
         items: items.map(({ _tempId, ...rest }) => rest)
       }
       if (editMode.value === 'edit') {
@@ -947,13 +807,14 @@ const handleSubmit = async () => {
       }
     } else if (editType.value === 'HANDOVER') {
       const payload = {
-        id: editMode.value === 'edit' ? (headerForm as any).id : undefined,
+        id: editId.value,
         reportName: headerForm.reportName,
         reportDate: headerForm.reportDate,
         handler: footerForm.handler || undefined,
         handoverPerson: footerForm.handoverPerson || undefined,
         auditor: footerForm.auditor || undefined,
         department: footerForm.department || undefined,
+        remark: headerForm.remark || undefined,
         items: items.map(({ _tempId, ...rest }) => rest)
       }
       if (editMode.value === 'edit') {
@@ -963,12 +824,13 @@ const handleSubmit = async () => {
       }
     } else if (editType.value === 'DAMAGE') {
       const payload = {
-        id: editMode.value === 'edit' ? (headerForm as any).id : undefined,
+        id: editId.value,
         reportName: headerForm.reportName,
         reportDate: headerForm.reportDate,
         handler: footerForm.handler || undefined,
         auditor: footerForm.auditor || undefined,
         department: footerForm.department || undefined,
+        remark: headerForm.remark || undefined,
         items: items.map(({ _tempId, ...rest }) => rest)
       }
       if (editMode.value === 'edit') {
@@ -1007,102 +869,116 @@ const handlePrint = async (row: MaterialReportVO) => {
       return
     }
 
-    const typeLabel = reportTypeLabel(d.reportType)
-    let tableHtml = ''
-    let detailFields = ''
+    const isDamage = d.reportType === 'DAMAGE'
+    const headers = isDamage
+      ? ['序号', '物品名', '库房', '单位', '数量', '经办人', '备注']
+      : ['序号', '物品名称', '库房', '单位', '账面数量', '盘点数量', '盈亏数量']
 
-    if (d.reportType === 'INVENTORY' && d.inventoryItems) {
-      detailFields = `
-        <tr><th>序号</th><th>物品名称</th><th>库房</th><th>单位</th><th>账面数量</th><th>盘点数量</th><th>盘盈数量</th><th>备注</th></tr>
-      `
-      d.inventoryItems.forEach((it, i) => {
-        const profit = (it.actualQty || 0) - (it.bookQty || 0)
-        detailFields += `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${it.itemName}</td>
-            <td>${it.warehouseName || ''}</td>
-            <td>${it.unit || ''}</td>
-            <td>${it.bookQty}</td>
-            <td>${it.actualQty}</td>
-            <td style="color:${profit > 0 ? '#67c23a' : profit < 0 ? '#f56c6c' : ''}">${profit}</td>
-            <td>${it.remark || ''}</td>
-          </tr>
-        `
-      })
-      tableHtml = `<table>${detailFields}</table>`
-    } else if (d.reportType === 'HANDOVER' && d.handoverItems) {
-      detailFields = `
-        <tr><th>序号</th><th>物品名称</th><th>库房</th><th>单位</th><th>账面数量</th><th>盘点数量</th><th>盘盈数量</th><th>备注</th></tr>
-      `
-      d.handoverItems.forEach((it, i) => {
-        const profit = (it.actualQty || 0) - (it.bookQty || 0)
-        detailFields += `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${it.itemName}</td>
-            <td>${it.warehouseName || ''}</td>
-            <td>${it.unit || ''}</td>
-            <td>${it.bookQty}</td>
-            <td>${it.actualQty}</td>
-            <td style="color:${profit > 0 ? '#67c23a' : profit < 0 ? '#f56c6c' : ''}">${profit}</td>
-            <td>${it.remark || ''}</td>
-          </tr>
-        `
-      })
-      tableHtml = `<table>${detailFields}</table>`
-    } else if (d.reportType === 'DAMAGE' && d.damageItems) {
-      detailFields = `
-        <tr><th>序号</th><th>物品名称</th><th>库房</th><th>单位</th><th>账面数量</th><th>经办人</th><th>备注</th></tr>
-      `
-      d.damageItems.forEach((it, i) => {
-        detailFields += `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${it.itemName}</td>
-            <td>${it.warehouseName || ''}</td>
-            <td>${it.unit || ''}</td>
-            <td>${it.bookQty}</td>
-            <td>${it.handler || ''}</td>
-            <td>${it.remark || ''}</td>
-          </tr>
-        `
-      })
-      tableHtml = `<table>${detailFields}</table>`
-    }
+    const bodyRows = (d.items || []).map((it, i) => {
+      const cells = isDamage
+        ? [i + 1, it.itemName, it.warehouseName || '', it.unit || '', it.bookQty ?? '', it.handler || '', it.remark || '']
+        : [
+            i + 1,
+            it.itemName,
+            it.warehouseName || '',
+            it.unit || '',
+            it.bookQty ?? '',
+            it.actualQty ?? '',
+            (it.actualQty || 0) - (it.bookQty || 0)
+          ]
+      return '<tr>' + cells.map((c) => `<td>${c}</td>`).join('') + '</tr>'
+    }).join('')
+
+    // 列宽显式固定：两张表共用同一套 colgroup，保证标题行与明细表竖线严格对齐
+    const colWidths = isDamage
+      ? ['8%', '20%', '16%', '9%', '11%', '16%', '20%']
+      : ['8%', '20%', '18%', '9%', '15%', '15%', '15%']
+    const colGroup = '<colgroup>' + colWidths.map((w) => `<col style="width:${w}">`).join('') + '</colgroup>'
+
+    // 首行：报表名称 + 右侧时间（与查看弹窗一致：优先创建时间，其次报表日期），单独一张表，仅第一页显示
+    const createTimeText = d.createTime ? String(d.createTime).replace('T', ' ').slice(0, 19) : ''
+    const headTimeText = createTimeText || d.reportDate || ''
+    const headTable =
+      '<table class="head-table">' + colGroup +
+      '<tbody><tr>' +
+      `<td class="title" colspan="6">${d.reportName || ''}</td>` +
+      `<td class="date-cell">${headTimeText}</td>` +
+      '</tr></tbody></table>'
+
+    const headerRow = '<tr class="col-head">' + headers.map((h) => `<th>${h}</th>`).join('') + '</tr>'
+
+    // 签字行：交接表多一个「交接人」
+    const signRow = d.reportType === 'HANDOVER'
+      ? '<tr class="sign-row">' +
+        `<td colspan="2" class="sign-cell">经办人${d.handler ? '　' + d.handler : ''}</td>` +
+        `<td colspan="2" class="sign-cell">交接人${d.handoverPerson ? '　' + d.handoverPerson : ''}</td>` +
+        `<td colspan="2" class="sign-cell">审核人${d.auditor ? '　' + d.auditor : ''}</td>` +
+        `<td class="sign-cell">审核日期${d.reportDate ? '　' + d.reportDate : ''}</td>` +
+        '</tr>'
+      : '<tr class="sign-row">' +
+        `<td colspan="2" class="sign-cell">经办人${d.handler ? '　' + d.handler : ''}</td>` +
+        `<td colspan="3" class="sign-cell">审核人${d.auditor ? '　' + d.auditor : ''}</td>` +
+        `<td colspan="2" class="sign-cell">审核日期${d.reportDate ? '　' + d.reportDate : ''}</td>` +
+        '</tr>'
+
+    const remarkRow =
+      '<tr class="remark-row">' +
+      '<td colspan="7" class="label-cell">' +
+      '<span class="row-label">备注</span>' +
+      `<span class="row-value">${d.remark || ''}</span>` +
+      '</td>' +
+      '</tr>'
+
+    const deptRow =
+      '<tr class="dept-row">' +
+      '<td colspan="7" class="label-cell">' +
+      '<span class="row-label">部门</span>' +
+      `<span class="row-value">${d.department || ''}</span>` +
+      '</td>' +
+      '</tr>'
 
     const scriptTag = '<scr' + 'ipt>window.onload = function() { window.print(); window.close(); }</scr' + 'ipt>'
-    const extraSign = d.reportType === 'HANDOVER'
-      ? '<div class="sign-item"><div class="label">交接人</div><div>________________</div></div>'
-      : ''
 
     win.document.write(
       '<html>' +
       '<head>' +
-      '<title>' + d.reportName + ' - ' + typeLabel + '</title>' +
+      '<title>打印内容</title>' +
       '<style>' +
-      'body { font-family: SimSun, sans-serif; padding: 30px; }' +
-      'h1 { text-align: center; margin-bottom: 10px; }' +
-      '.meta { text-align: center; color: #666; margin-bottom: 20px; }' +
-      'table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }' +
-      'th, td { border: 1px solid #000; padding: 8px; text-align: center; font-size: 14px; }' +
-      'th { background: #f5f5f5; }' +
-      '.sign-area { display: flex; justify-content: space-between; margin-top: 40px; font-size: 14px; }' +
-      '.sign-item { text-align: center; }' +
-      '.sign-item .label { margin-bottom: 30px; }' +
+      // 横向打印，贴合报表宽度；四周留窄边距
+      '@page { size: A4 landscape; margin: 8mm; }' +
+      'body { margin: 0; font-family: "SimSun", "宋体", serif; color: #000; }' +
+      'table { width: 100%; border-collapse: collapse; table-layout: fixed; }' +
+      'th, td { border: 1px solid #000; padding: 4px 6px; font-size: 12px; text-align: center; word-break: break-all; }' +
+      'tr { page-break-inside: avoid; }' +
+      // 表名行单独成表，避免随表头每页重复；并保证与表头不拆页
+      '.head-table { page-break-after: avoid; break-after: avoid; }' +
+      '.head-table td { border-bottom: none; height: 40px; }' +
+      '.head-table .title { font-size: 18px; font-weight: 700; letter-spacing: 1px; }' +
+      '.head-table .date-cell { font-size: 12px; line-height: 1.5; }' +
+      // 明细表头每页自动重复，多页打印时连续输出
+      '.main-table thead { display: table-header-group; }' +
+      '.col-head th { height: 26px; font-weight: 700; }' +
+      '.remark-row td, .sign-row td, .dept-row td { height: 30px; }' +
+      // 备注、签字、部门行去掉中间竖线，仅保留整表左右外框
+      '.remark-row td, .sign-row td, .dept-row td { border-left: none; border-right: none; }' +
+      '.remark-row td:first-child, .sign-row td:first-child, .dept-row td:first-child { border-left: 1px solid #000; }' +
+      '.remark-row td:last-child, .sign-row td:last-child, .dept-row td:last-child { border-right: 1px solid #000; }' +
+      '.label-cell, .sign-cell { text-align: left; }' +
+      '.value-cell { text-align: left; }' +
+      // 备注、部门标签与内容紧邻显示
+      '.row-label { display: inline-block; width: 56px; }' +
+      '.row-value { padding-left: 4px; }' +
       '</style>' +
       '</head>' +
       '<body>' +
-      '<h1>' + d.reportName + '</h1>' +
-      '<div class="meta">报表类型：' + typeLabel + '　　日期：' + (d.reportDate || d.createTime?.slice(0, 10) || '') + '</div>' +
-      tableHtml +
-      '<div class="sign-area">' +
-      '<div class="sign-item"><div class="label">部门</div><div>________________</div></div>' +
-      '<div class="sign-item"><div class="label">经办人</div><div>________________</div></div>' +
-      extraSign +
-      '<div class="sign-item"><div class="label">审核人</div><div>________________</div></div>' +
-      '<div class="sign-item"><div class="label">审核日期</div><div>________________</div></div>' +
-      '</div>' +
+      headTable +
+      '<table class="main-table">' +
+      colGroup +
+      '<thead>' + headerRow + '</thead>' +
+      '<tbody>' +
+      bodyRows + remarkRow + signRow + deptRow +
+      '</tbody>' +
+      '</table>' +
       scriptTag +
       '</body>' +
       '</html>'
@@ -1147,14 +1023,29 @@ onMounted(() => {
   align-items: center;
 }
 .query-card :deep(.el-form-item) {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
-  margin-right: 16px;
+  margin-right: 12px;
   margin-bottom: 0;
 }
 .query-card :deep(.el-form-item__content) {
   flex: 1;
   min-width: 0;
+}
+/* 报表名称 */
+.query-card :deep(.el-form-item:nth-child(1)) {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+/* 生成时间（日期范围需要更宽） */
+.query-card :deep(.el-form-item:nth-child(2)) {
+  flex: 1.8 1 0;
+  min-width: 260px;
+}
+/* 报表类型 */
+.query-card :deep(.el-form-item:nth-child(3)) {
+  flex: 1 1 0;
+  min-width: 170px;
 }
 .query-card :deep(.el-input),
 .query-card :deep(.el-select),
@@ -1192,19 +1083,135 @@ onMounted(() => {
 }
 
 .detail-query-card {
-  margin-bottom: 12px;
+  margin: 14px 0 16px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.detail-query-card :deep(.el-card__body) {
+  padding: 0 0 8px;
 }
 .detail-query-card :deep(.el-form--inline) {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
 }
 .detail-query-card :deep(.el-form-item) {
-  margin-bottom: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-right: 12px;
+  margin-bottom: 0;
+}
+.detail-query-card :deep(.el-form-item__content) {
+  flex: 1;
+  min-width: 0;
+}
+.detail-query-card :deep(.el-input),
+.detail-query-card :deep(.el-select),
+.detail-query-card :deep(.el-date-editor) {
+  width: 100%;
+}
+/* 查询/重置按钮不参与拉伸 */
+.detail-query-card :deep(.el-form-item:last-child) {
+  flex: 0 0 auto;
+  margin-right: 0;
 }
 
 .detail-table-wrapper {
   margin-bottom: 12px;
+}
+
+/* ==================== 盘点表：表格纸样式 ==================== */
+.form-sheet {
+  border: 1px solid #dcdfe6;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #dcdfe6;
+}
+.sheet-head .sheet-name {
+  flex: 1;
+}
+.sheet-head .sheet-name :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: #fff;
+}
+.sheet-time {
+  box-sizing: border-box;
+  width: 190px;
+  flex: 0 0 190px;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #303133;
+  border-left: 1px solid #dcdfe6;
+}
+.sheet-table {
+  width: 100%;
+}
+.sheet-table :deep(.el-table__header th) {
+  background: #f5f7fa;
+  color: #303133;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.sheet-table :deep(.el-table__cell) {
+  padding: 4px 0;
+}
+.sheet-table :deep(.el-input-number) {
+  width: 100%;
+}
+.sheet-table :deep(.el-select .el-select__wrapper) {
+  box-shadow: none;
+  background: transparent;
+}
+.sheet-line {
+  display: flex;
+  align-items: center;
+  padding: 3px 0;
+  border-top: 1px solid #dcdfe6;
+  background: #fff;
+}
+/* 与表格直接相连的首行不再重复描边，避免出现双线 */
+.sheet-table + .sheet-line {
+  border-top: none;
+}
+.sheet-cell {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+.sheet-label {
+  flex: 0 0 78px;
+  justify-content: flex-start;
+  padding-left: 12px;
+  background: transparent;
+  font-size: 13px;
+  color: #303133;
+}
+.sheet-fill {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 8px 0 0;
+}
+/* 行内输入框：保留描边，与图中表单一致 */
+.sheet-fill :deep(.el-input__wrapper),
+.sheet-fill :deep(.el-select__wrapper) {
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+  background: #fff;
+  border-radius: 3px;
+}
+.sheet-fill :deep(.el-date-editor) {
+  width: 100%;
+}
+/* 签字行：输入框保持紧凑宽度，右侧留白 */
+.signature .sheet-fill :deep(.el-input),
+.signature .sheet-fill :deep(.el-input-number) {
+  width: 120px;
+}
+.signature .sheet-fill :deep(.el-date-editor) {
+  width: 150px;
 }
 .table-footer {
   margin-top: 8px;
@@ -1217,27 +1224,28 @@ onMounted(() => {
   border-top: 1px solid #ebeef5;
 }
 
-/* 盘盈盘亏样式 */
-.profit {
-  color: #67c23a;
-  font-weight: 600;
-}
-.loss {
-  color: #f56c6c;
-  font-weight: 600;
-}
-
 /* 查看弹窗 */
-.detail-desc {
-  margin-bottom: 16px;
+.view-print-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
 }
-.detail-desc :deep(.el-descriptions__label) {
-  width: 90px;
-}
-.section-title {
-  margin: 16px 0 8px;
-  font-size: 15px;
+.sheet-name-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  line-height: 32px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 报表名称输入框：字号加大、加粗、居中 */
+.sheet-name :deep(.el-input__inner) {
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
 }
 </style>
