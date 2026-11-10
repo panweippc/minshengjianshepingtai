@@ -91,16 +91,32 @@ const handleCommand = (cmd: string) => {
 </script>
 
 <style scoped>
+/* ========== 布局骨架 ========== */
+/* flex 链关键：每一层都加 min-height:0 防止子项撑开 */
 .layout-container {
   height: 100vh;
+  display: flex;
+  overflow: hidden;
 }
+/* el-aside */
 .aside {
   background-color: #001529;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   height: 100%;
 }
+/* 右侧 el-container（Element Plus 自带 flex-direction: row→column 覆盖） */
+.layout-container > :deep(.el-container) {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ========== 侧边栏 ========== */
 .logo {
   height: 60px;
   flex-shrink: 0;
@@ -131,6 +147,8 @@ const handleCommand = (cmd: string) => {
 .menu::-webkit-scrollbar-track {
   background-color: transparent;
 }
+
+/* ========== 顶部栏 ========== */
 .header {
   display: flex;
   align-items: center;
@@ -138,6 +156,7 @@ const handleCommand = (cmd: string) => {
   border-bottom: 1px solid #e4e7ed;
   background-color: #fff;
   padding: 0 20px;
+  flex-shrink: 0;
 }
 .user-name {
   cursor: pointer;
@@ -146,8 +165,27 @@ const handleCommand = (cmd: string) => {
   gap: 4px;
   color: #303133;
 }
+
+/* ========== 主内容区（关键修复） ========== */
+/* 之前缺 flex:1 / min-height:0 / overflow:auto，导致内容超过视口时被截断 */
 .main {
+  flex: 1;
+  min-height: 0;
   background-color: #f5f7fa;
   padding: 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* 主区域滚动条美化 */
+.main::-webkit-scrollbar {
+  width: 8px;
+}
+.main::-webkit-scrollbar-thumb {
+  background-color: #c0c4cc;
+  border-radius: 4px;
+}
+.main::-webkit-scrollbar-thumb:hover {
+  background-color: #909399;
 }
 </style>

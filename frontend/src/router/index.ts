@@ -102,6 +102,36 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: 'MaterialStatistics',
         component: () => import('@/views/material/Statistics.vue'),
         meta: { title: '统计表', icon: 'DataAnalysis' }
+      },
+      {
+        path: 'project/approval',
+        name: 'ProjectApproval',
+        component: () => import('@/views/project/Approval.vue'),
+        meta: { title: '立项管理', icon: 'Document' }
+      },
+      {
+        path: 'project/fund',
+        name: 'ProjectFund',
+        component: () => import('@/views/project/Fund.vue'),
+        meta: { title: '资金管理', icon: 'Money' }
+      },
+      {
+        path: 'project/construction',
+        name: 'ProjectConstruction',
+        component: () => import('@/views/project/Construction.vue'),
+        meta: { title: '施工管理', icon: 'Operation' }
+      },
+      {
+        path: 'project/acceptance',
+        name: 'ProjectAcceptance',
+        component: () => import('@/views/project/Acceptance.vue'),
+        meta: { title: '验收管理', icon: 'CircleCheck' }
+      },
+      {
+        path: 'archive',
+        name: 'Archive',
+        component: () => import('@/views/archive/Archive.vue'),
+        meta: { title: '档案管理', icon: 'Files' }
       }
     ]
   }

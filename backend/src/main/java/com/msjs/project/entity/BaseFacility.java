@@ -21,8 +21,8 @@ import java.time.LocalDateTime;
 @Schema(description = "公共基础设施")
 public class BaseFacility implements Serializable {
 
-    @TableId(type = IdType.ASSIGN_ID)
     @JsonSerialize(using = ToStringSerializer.class)
+    @TableId(type = IdType.ASSIGN_ID)
     @Schema(description = "主键（雪花ID）")
     private Long id;
 
