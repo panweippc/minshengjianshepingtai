@@ -97,21 +97,19 @@
           <el-table-column label="户类型" width="110" align="center">
             <template #default="{ row }">{{ dictLabel('hu_lei_xing', row.householdType) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
+          <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" icon="View" @click="openDetail(row)">查看</el-button>
+              <el-button link type="primary" @click="openDetail(row)">查看</el-button>
               <el-button
                 v-if="store.hasPerm('base:household:edit')"
                 link
                 type="primary"
-                icon="Edit"
                 @click="openEdit(row)"
               >编辑</el-button>
               <el-button
                 v-if="store.hasPerm('base:household:delete')"
                 link
                 type="danger"
-                icon="Delete"
                 @click="handleDelete(row)"
               >删除</el-button>
             </template>
@@ -191,7 +189,7 @@
               <el-table-column prop="approvalYear" label="立项年度" width="90" />
               <el-table-column label="操作" width="80" fixed="right">
                 <template #default>
-                  <el-button link type="primary" icon="View">查看</el-button>
+                  <el-button link type="primary">查看</el-button>
                 </template>
               </el-table-column>
             </el-table>

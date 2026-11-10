@@ -270,7 +270,7 @@ export interface FacilityDetailVO {
 
 /** 设施附件保存入参 */
 export interface FacilityAttachmentSaveDTO {
-  id?: number
+  id?: string
   attachmentType?: string
   fileName?: string
   filePath?: string
