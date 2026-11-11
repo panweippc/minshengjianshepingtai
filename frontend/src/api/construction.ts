@@ -11,18 +11,26 @@ export const CONSTRUCTION_STATUS_COMPLETED = 'COMPLETED'
 /** 施工日志/巡检记录 */
 export interface ConstructionLogVO {
   id: string
+  /** 明细ID（三级施工记录） */
+  detailId?: string
+  /** 关联项目名称 */
+  projectName?: string
+  /** 农户/设施名称 */
+  detailName?: string
   /** 日志编号 */
   logCode?: string
-  /** 施工日期 */
+  /** 记录日期（施工日期） */
   constructionDate?: string
   /** 巡检人 */
   inspector?: string
-  /** 巡检状态：PASS合格 FAIL不合格 */
+  /** 巡检状态：PASS合格 FAIL整改 */
   inspectionStatus?: string
   /** 施工状态：NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工 */
   constructionStatus?: string
-  /** 施工内容 */
+  /** 施工内容描述 */
   content?: string
+  /** 施工记录附件（三级查看） */
+  attachments?: ConstructionAttachmentVO[]
 }
 
 /** 施工资料附件（回显） */
@@ -81,6 +89,8 @@ export interface ConstructionNodeVO {
   canAccept: boolean
   /** 三级节点施工状态原始值 */
   buildStatus?: string
+  /** 最新一条施工记录的施工内容（二级查看明细使用） */
+  latestContent?: string
   /** 施工单位（一级节点，即施工队名称） */
   builder?: string
   /** 承包人姓名 */
@@ -161,6 +171,24 @@ export interface ConstructionEditDTO {
   remark?: string
 }
 
+/** 三级施工记录编辑入参（关联项目只读，由后端按明细反查） */
+export interface ConstructionLogEditDTO {
+  approvalId: string
+  detailId: string
+  /** 记录日期 */
+  constructionDate: string
+  /** 巡检人 */
+  inspector?: string
+  /** 巡检状态：PASS合格 FAIL整改 */
+  inspectionStatus: string
+  /** 施工状态 */
+  constructionStatus: string
+  /** 施工内容描述 */
+  content?: string
+  /** 施工记录附件（未传则不修改） */
+  attachments?: ConstructionAttachmentItem[]
+}
+
 /** 施工分页查询 */
 export function getConstructionPage(params: ConstructionQuery) {
   return get<Result<PageVO<ConstructionNodeVO>>>('/api/project/construction/page', { params })
@@ -171,7 +199,22 @@ export function getConstructionDetail(approvalId: string) {
   return get<Result<ConstructionNodeVO>>(`/api/project/construction/${approvalId}`)
 }
 
-/** 编辑施工信息（一级：施工单位/工期；三级：施工状态/工期） */
+/** 编辑施工信息（一级：施工单位；三级：施工状态/工期） */
 export function updateConstruction(data: ConstructionEditDTO) {
   return put<Result<void>>('/api/project/construction', data)
+}
+
+/** 三级施工记录详情（关联项目、记录日期、巡检人、巡检状态、施工状态、施工内容及附件） */
+export function getDetailLog(detailId: string) {
+  return get<Result<ConstructionLogVO>>(`/api/project/construction/detail/${detailId}/log`)
+}
+
+/** 三级施工记录历史（每次编辑留痕，倒序） */
+export function getDetailLogHistory(detailId: string) {
+  return get<Result<ConstructionLogVO[]>>(`/api/project/construction/detail/${detailId}/log/history`)
+}
+
+/** 保存三级施工记录（含附件，并同步明细施工状态） */
+export function saveDetailLog(data: ConstructionLogEditDTO) {
+  return put<Result<void>>('/api/project/construction/detail/log', data)
 }

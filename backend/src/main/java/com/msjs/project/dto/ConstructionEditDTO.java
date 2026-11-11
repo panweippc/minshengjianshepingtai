@@ -34,24 +34,24 @@ public class ConstructionEditDTO implements Serializable {
     @Schema(description = "施工状态：NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工（三级节点必填）")
     private String buildStatus;
 
-    @Size(max = 128, message = "施工队名称长度不能超过128个字符")
-    @Schema(description = "施工队名称（一级节点使用）")
+    @Size(max = 128, message = "施工单位名称长度不能超过128个字符")
+    @Schema(description = "施工单位名称（一级节点必填）")
     private String builder;
 
     @Size(max = 64, message = "承包人姓名长度不能超过64个字符")
-    @Schema(description = "承包人姓名（一级节点使用）")
+    @Schema(description = "承包人姓名（一级节点必填）")
     private String contractorName;
 
     @Size(max = 32, message = "承包人联系电话长度不能超过32个字符")
-    @Schema(description = "承包人联系电话（一级节点使用）")
+    @Schema(description = "承包人联系电话（一级节点必填）")
     private String contractorPhone;
 
     @Size(max = 64, message = "负责人姓名长度不能超过64个字符")
-    @Schema(description = "负责人姓名（一级节点使用）")
+    @Schema(description = "负责人姓名（一级节点必填）")
     private String leaderName;
 
     @Size(max = 32, message = "负责人联系电话长度不能超过32个字符")
-    @Schema(description = "负责人联系电话（一级节点使用）")
+    @Schema(description = "负责人联系电话（一级节点必填）")
     private String leaderPhone;
 
     @Schema(description = "施工资料附件（一级节点使用，未传则不修改）")

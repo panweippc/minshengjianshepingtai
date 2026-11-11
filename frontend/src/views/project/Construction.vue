@@ -149,112 +149,140 @@
     <!-- 查看弹窗 -->
     <el-dialog v-model="viewVisible" :title="viewTitle" width="1000px" destroy-on-close class="construction-view-dialog">
       <template v-if="viewNode">
-        <!-- 一级：施工名称 + 总体情况卡片 + 施工记录 + 申报明细施工情况 -->
+        <!-- 一级：两个页签 -->
         <template v-if="viewNode.nodeType === 'project'">
-          <div v-loading="viewLoading" class="project-view">
-            <!-- 施工名称：标题 + 类别/类型/编号 + 状态标签 -->
-            <div class="construction-name">
-              <div class="construction-name__main">
-                <div class="construction-name__title">{{ projectView?.name || '-' }}</div>
-                <div class="construction-name__meta">
-                  <span>{{ projectView ? categoryLabel(projectView) : '-' }}</span>
-                  <span class="construction-name__dot">·</span>
-                  <span>{{ projectView ? sourceLabel(projectView) : '-' }}</span>
-                  <span class="construction-name__dot">·</span>
-                  <span>{{ projectView?.code || '-' }}</span>
-                </div>
-              </div>
-              <div class="construction-name__tags">
-                <span class="construction-name__tag construction-name__tag--approved">立项已通过</span>
-                <span class="construction-name__tag" :class="`construction-name__tag--${projectView?.status}`">
-                  {{ statusLabel(projectView?.status) }}
-                </span>
-              </div>
-            </div>
+          <div v-loading="viewLoading">
+            <el-tabs v-model="viewActiveTab">
+              <!-- 页签 1：施工详情 -->
+              <el-tab-pane label="施工详情" name="detail">
+                <el-descriptions :column="2" border label-width="130px">
+                  <el-descriptions-item label="项目编码">{{ projectView?.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目名称">{{ projectView?.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目类别">{{ categoryLabel(projectView) }}</el-descriptions-item>
+                  <el-descriptions-item label="项目来源">{{ sourceLabel(projectView) }}</el-descriptions-item>
+                  <el-descriptions-item label="状态" :span="2">
+                    <span class="status-tag" :class="`status-tag--${projectView?.status}`">{{ statusLabel(projectView?.status) }}</span>
+                  </el-descriptions-item>
+                </el-descriptions>
 
-            <!-- 该项目施工记录 -->
-            <div class="section-header">
-              <span class="section-header__title">该项目施工记录</span>
-              <span class="section-header__extra">共 {{ projectView?.logCount ?? 0 }} 条</span>
-            </div>
-            <el-empty v-if="!projectView?.logs?.length" description="暂无施工记录" :image-size="60" />
-            <el-table
-              v-else
-              :data="projectView?.logs || []"
-              border
-              size="small"
-              class="construction-view-table"
-            >
-              <el-table-column prop="logCode" label="日志编号" width="160" />
-              <el-table-column prop="constructionDate" label="施工日期" width="120" />
-              <el-table-column label="巡检人" width="120">
-                <template #default="{ row }">{{ row.inspector || '-' }}</template>
-              </el-table-column>
-              <el-table-column label="巡检状态" width="110">
-                <template #default="{ row }">
-                  <span class="status-tag" :class="`status-tag--${row.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`">
-                    {{ inspectionLabel(row.inspectionStatus) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="施工状态" width="110">
-                <template #default="{ row }">
-                  <!-- 巡检状态为整改时，施工状态同步展示为暂停施工 -->
-                  <span
-                    class="status-tag"
-                    :class="row.inspectionStatus === 'FAIL' ? 'status-tag--SUSPENDED' : `status-tag--${row.constructionStatus}`"
-                  >
-                    {{ row.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.constructionStatus) }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="施工内容" min-width="240" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.content || '-' }}</template>
-              </el-table-column>
-            </el-table>
+                <el-divider content-position="left">明细进度</el-divider>
+                <el-empty v-if="!projectDetails.length" description="暂无农户/设施明细" :image-size="60" />
+                <el-table v-else :data="projectDetails" border size="small" class="construction-view-table">
+                  <el-table-column label="类型" width="130">
+                    <template #default="{ row }">{{ detailTypeLabel(row.detailType) }}</template>
+                  </el-table-column>
+                  <el-table-column label="农户/设施名称" min-width="160">
+                    <template #default="{ row }">{{ row.name || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="户号/编码" width="150">
+                    <template #default="{ row }">{{ row.code || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="所属区划" width="130">
+                    <template #default="{ row }">{{ row.source || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="巡检状态" width="100" align="center">
+                    <template #default="{ row }">
+                      <span
+                        v-if="row.detailLogSnapshot?.inspectionStatus"
+                        class="status-tag"
+                        :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
+                      >{{ inspectionLabel(row.detailLogSnapshot.inspectionStatus) }}</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="施工状态" width="110" align="center">
+                    <template #default="{ row }">
+                      <span
+                        v-if="row.detailLogSnapshot?.constructionStatus"
+                        class="status-tag"
+                        :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'FAIL' ? 'SUSPENDED' : row.detailLogSnapshot.constructionStatus}`"
+                      >{{ row.detailLogSnapshot.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.detailLogSnapshot.constructionStatus) }}</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="巡检日期" width="120">
+                    <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="附件" min-width="200">
+                    <template #default="{ row }">
+                      <template v-if="row.detailLogSnapshot?.attachments?.length">
+                        <div
+                          v-for="file in row.detailLogSnapshot.attachments"
+                          :key="file.id"
+                          class="attachment-cell-line"
+                        >
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            class="attachment-name"
+                            @click="previewAttachment(file)"
+                          >{{ file.fileName }}</el-link>
+                          <el-icon class="attachment-download" @click="downloadAttachment(file)">
+                            <Download />
+                          </el-icon>
+                        </div>
+                      </template>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
 
-            <!-- 申报明细施工情况 -->
-            <div class="section-header section-header--inline">
-              <span class="section-header__title">申报明细施工情况</span>
-              <span class="section-header__extra">
-                （共 {{ projectView?.children?.length ?? 0 }} 条申报）
-              </span>
-            </div>
-            <el-empty v-if="!projectView?.children?.length" description="暂无申报明细" :image-size="60" />
-            <el-table
-              v-else
-              :data="projectView.children"
-              border
-              class="declare-detail-table"
-            >
-              <el-table-column label="申报编码" width="150">
-                <template #default="{ row }">{{ row.code || '-' }}</template>
-              </el-table-column>
-              <el-table-column label="申报标题" min-width="200" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.name || '-' }}</template>
-              </el-table-column>
-              <el-table-column label="申报类型" width="130">
-                <template #default="{ row }">{{ sourceLabel(row) }}</template>
-              </el-table-column>
-              <el-table-column label="申报类别" width="130">
-                <template #default="{ row }">{{ categoryLabel(row) }}</template>
-              </el-table-column>
-              <el-table-column label="申报金额（元）" width="150" align="right">
-                <template #default="{ row }">
-                  {{ row.amount ? formatMoney(row.amount) : '-' }}
-                </template>
-              </el-table-column>
-              <!-- 施工内容展示该项目施工记录中最新一条记录的施工内容 -->
-              <el-table-column label="施工内容" min-width="260">
-                <template #default>{{ latestLogContent || '-' }}</template>
-              </el-table-column>
-            </el-table>
+              <!-- 页签 2：施工单位信息 -->
+              <el-tab-pane label="施工单位信息" name="builder">
+                <el-descriptions :column="2" border label-width="130px">
+                  <el-descriptions-item label="施工单位名称">{{ projectView?.builder || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="承包人姓名">{{ projectView?.contractorName || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="承包人联系电话">{{ projectView?.contractorPhone || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="负责人姓名">{{ projectView?.leaderName || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="负责人联系电话" :span="2">{{ projectView?.leaderPhone || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">施工资料附件</el-divider>
+                <el-empty v-if="!projectView?.attachments?.length" description="暂无施工资料" :image-size="60" />
+                <el-table
+                  v-else
+                  :data="projectView.attachments"
+                  border
+                  size="small"
+                  class="construction-view-table"
+                >
+                  <el-table-column label="附件类型" width="180">
+                    <template #default="{ row }">
+                      {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || row.attachmentType || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名" min-width="240">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon class="attachment-download" @click="downloadAttachment(row)">
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="大小" width="110" align="right">
+                    <template #default="{ row }">{{ row.fileSize ? formatFileSize(row.fileSize) : '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="备注" min-width="160">
+                    <template #default="{ row }">{{ row.remark || '-' }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
           </div>
         </template>
 
         <!-- 二级：申报信息 + 明细进度 -->
         <template v-else-if="viewNode.nodeType === 'declare'">
-          <el-descriptions :column="2" border>
+          <div v-loading="viewLoading">
+            <el-descriptions :column="2" border>
             <el-descriptions-item label="申报编号">{{ viewNode.code || '-' }}</el-descriptions-item>
             <el-descriptions-item label="申报标题">{{ viewNode.name || '-' }}</el-descriptions-item>
             <el-descriptions-item label="申报类别">{{ categoryLabel(viewNode) }}</el-descriptions-item>
@@ -280,39 +308,170 @@
             <el-table-column label="所属区划" width="130">
               <template #default="{ row }">{{ row.source || '-' }}</template>
             </el-table-column>
-            <el-table-column label="施工状态" width="220">
+            <el-table-column label="巡检状态" width="100" align="center">
               <template #default="{ row }">
-                <div class="status-cell">
-                  <span class="status-tag" :class="`status-tag--${row.status}`">{{ statusLabel(row.status) }}</span>
-                  <el-progress
-                    class="status-progress"
-                    :percentage="row.percent"
-                    :stroke-width="5"
-                    :show-text="false"
-                    :color="progressColor(row.status)"
-                  />
-                  <span class="status-fraction">{{ row.numerator }}/{{ row.totalCount }}</span>
-                </div>
+                <span
+                  v-if="row.detailLogSnapshot?.inspectionStatus"
+                  class="status-tag"
+                  :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
+                >{{ inspectionLabel(row.detailLogSnapshot.inspectionStatus) }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="施工状态" width="110" align="center">
+              <template #default="{ row }">
+                <span
+                  v-if="row.detailLogSnapshot?.constructionStatus"
+                  class="status-tag"
+                  :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'FAIL' ? 'SUSPENDED' : row.detailLogSnapshot.constructionStatus}`"
+                >{{ row.detailLogSnapshot.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.detailLogSnapshot.constructionStatus) }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="巡检日期" width="120">
+              <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="附件" min-width="200">
+              <template #default="{ row }">
+                <template v-if="row.detailLogSnapshot?.attachments?.length">
+                  <div
+                    v-for="file in row.detailLogSnapshot.attachments"
+                    :key="file.id"
+                    class="attachment-cell-line"
+                  >
+                    <el-link
+                      type="primary"
+                      :underline="false"
+                      class="attachment-name"
+                      @click="previewAttachment(file)"
+                    >{{ file.fileName }}</el-link>
+                    <el-icon class="attachment-download" @click="downloadAttachment(file)">
+                      <Download />
+                    </el-icon>
+                  </div>
+                </template>
+                <span v-else>-</span>
               </template>
             </el-table-column>
           </el-table>
+          </div>
         </template>
 
-        <!-- 三级：明细信息 -->
+        <!-- 三级：施工记录 -->
         <template v-else>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="明细类型">{{ detailTypeLabel(viewNode.detailType) }}</el-descriptions-item>
-            <el-descriptions-item label="农户/设施名称">{{ viewNode.name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="户号/编码">{{ viewNode.code || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="所属区划">{{ viewNode.source || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="施工状态">
-              <span class="status-tag" :class="`status-tag--${viewNode.status}`">{{ statusLabel(viewNode.status) }}</span>
-              <span class="status-fraction status-fraction--inline">{{ viewNode.numerator }}/{{ viewNode.totalCount }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="开工日期">{{ viewNode.startDate || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="完工日期">{{ viewNode.completeDate || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="备注">{{ viewNode.remark || '-' }}</el-descriptions-item>
-          </el-descriptions>
+          <div v-loading="detailLogLoading">
+            <el-tabs v-model="detailActiveTab">
+              <el-tab-pane label="详情" name="detail">
+                <el-descriptions :column="2" border label-width="110px">
+                  <el-descriptions-item label="记录日期">{{ detailLog?.constructionDate || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="巡检人">{{ detailLog?.inspector || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="巡检状态">
+                    <span
+                      v-if="detailLog?.inspectionStatus"
+                      class="status-tag"
+                      :class="`status-tag--${detailLog.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
+                    >{{ inspectionLabel(detailLog.inspectionStatus) }}</span>
+                    <span v-else>-</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="施工状态">
+                    <span
+                      class="status-tag"
+                      :class="detailLog?.inspectionStatus === 'FAIL' ? 'status-tag--SUSPENDED' : `status-tag--${detailStatus}`"
+                    >{{ detailLog?.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(detailStatus) }}</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="施工内容描述" :span="2">
+                    {{ detailLog?.content || '-' }}
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <div class="section-header section-header--inline attachment-header">
+                  <span class="section-header__title">附件</span>
+                  <span class="section-header__extra">（共 {{ detailLog?.attachments?.length ?? 0 }} 个）</span>
+                </div>
+                <el-empty v-if="!detailLog?.attachments?.length" description="暂无附件" :image-size="50" />
+                <el-table v-else :data="detailLog.attachments" border size="small">
+                  <el-table-column label="附件类型" width="180">
+                    <template #default="{ row }">
+                      {{ dictLabel('shi_gong_fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="附件" min-width="220">
+                    <template #default="{ row }">
+                      <template v-if="row.fileKey">
+                        <el-link type="primary" :underline="false" @click="previewAttachment(row)">
+                          {{ row.fileName || '查看附件' }}
+                        </el-link>
+                        <el-icon
+                          class="attachment-download"
+                          title="下载"
+                          @click.stop="downloadAttachment(row)"
+                        >
+                          <Download />
+                        </el-icon>
+                      </template>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="备注" min-width="180">
+                    <template #default="{ row }">{{ row.remark || '-' }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane :label="`明细（${detailLogHistory.length}）`" name="history">
+                <el-empty v-if="!detailLogHistory.length" description="暂无施工记录" :image-size="50" />
+                <el-table v-else :data="detailLogHistory" border size="small">
+                  <el-table-column label="记录日期" width="110">
+                    <template #default="{ row }">{{ row.constructionDate || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="巡检人" width="100">
+                    <template #default="{ row }">{{ row.inspector || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="巡检状态" width="90" align="center">
+                    <template #default="{ row }">
+                      <span
+                        class="status-tag"
+                        :class="`status-tag--${row.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
+                      >{{ inspectionLabel(row.inspectionStatus) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="施工状态" width="110">
+                    <template #default="{ row }">
+                      <!-- 巡检状态为整改时，施工状态同步展示为暂停施工 -->
+                      <span
+                        class="status-tag"
+                        :class="row.inspectionStatus === 'FAIL' ? 'status-tag--SUSPENDED' : `status-tag--${row.constructionStatus}`"
+                      >{{ row.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.constructionStatus) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.content || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="附件" min-width="200">
+                    <template #default="{ row }">
+                      <template v-if="row.attachments?.length">
+                        <div v-for="file in row.attachments" :key="file.id" class="attachment-cell-line">
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            class="attachment-name"
+                            @click="previewAttachment(file)"
+                          >{{ file.fileName }}</el-link>
+                          <el-icon class="attachment-download" title="下载" @click="downloadAttachment(file)">
+                            <Download />
+                          </el-icon>
+                        </div>
+                      </template>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
         </template>
       </template>
 
@@ -321,16 +480,33 @@
       </template>
     </el-dialog>
 
+    <!-- 附件图片预览 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewName || '附件预览'"
+      width="820px"
+      destroy-on-close
+      @closed="previewFile = null"
+    >
+      <div class="attachment-preview-body">
+        <img v-if="previewUrl" :src="previewUrl" class="attachment-preview-image" alt="附件预览" />
+      </div>
+      <template #footer>
+        <el-button v-if="previewFile" type="primary" @click="downloadAttachment(previewFile)">下载</el-button>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 编辑弹窗 -->
     <el-dialog v-model="editVisible" :title="editTitle" width="900px" destroy-on-close>
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="130px">
-        <!-- 一级：施工队信息 + 施工资料上传 -->
+        <!-- 一级：施工单位信息 + 施工资料上传 -->
         <template v-if="editForm.nodeLevel === 1">
-          <el-divider content-position="left">施工队信息</el-divider>
+          <el-divider content-position="left">施工单位信息</el-divider>
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="施工队名称" prop="builder">
-                <el-input v-model="editForm.builder" placeholder="请输入施工队名称" maxlength="128" />
+              <el-form-item label="施工单位名称" prop="builder">
+                <el-input v-model="editForm.builder" placeholder="请输入施工单位名称" maxlength="128" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -355,102 +531,135 @@
             </el-col>
           </el-row>
 
-          <el-divider content-position="left">施工资料上传</el-divider>
-          <div class="attachment-list">
-            <div class="attachment-row attachment-row--header">
-              <span class="attachment-col--type">附件类型</span>
-              <span class="attachment-col--file">上传附件</span>
-              <span class="attachment-col--remark">备注</span>
-              <span class="attachment-col--action">操作</span>
-            </div>
-            <div v-for="(item, index) in attachmentRows" :key="index" class="attachment-row">
+        </template>
+
+        <!-- 三级：施工记录 -->
+        <template v-else>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="记录日期" prop="constructionDate">
+                <el-date-picker
+                  v-model="editForm.constructionDate"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  placeholder="请选择记录日期"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="巡检人" prop="inspector">
+                <el-input v-model="editForm.inspector" placeholder="请输入巡检人" maxlength="64" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="巡检状态" prop="inspectionStatus">
+                <el-select v-model="editForm.inspectionStatus" placeholder="请选择巡检状态" style="width: 100%">
+                  <el-option
+                    v-for="item in dictOptions('xun_jian_zhuang_tai')"
+                    :key="item.dictValue"
+                    :label="item.dictLabel"
+                    :value="item.dictValue"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="施工状态" prop="buildStatus">
+                <el-select v-model="editForm.buildStatus" placeholder="请选择施工状态" style="width: 100%">
+                  <el-option
+                    v-for="item in buildStatusOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="施工内容描述" prop="content">
+            <el-input
+              v-model="editForm.content"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入施工内容描述"
+              maxlength="1000"
+              show-word-limit
+            />
+          </el-form-item>
+        </template>
+
+        <!-- 施工资料附件：一级/三级共用卡片样式 -->
+        <div class="attach-divider">
+          <span class="attach-divider__line attach-divider__line--short" />
+          <span class="attach-divider__title">附件列表</span>
+          <el-button link type="primary" icon="Plus" @click="addAttachmentRow">添加附件</el-button>
+          <span class="attach-divider__line" />
+        </div>
+        <div v-for="(item, index) in attachmentRows" :key="index" class="attach-card">
+          <div class="attach-card__head">
+            <span class="attach-card__index">{{ index + 1 }}</span>
+            <span class="attach-card__name">附件 #{{ index + 1 }}</span>
+            <el-button
+              link
+              type="danger"
+              icon="Delete"
+              class="attach-card__remove"
+              @click="removeAttachmentRow(index)"
+            >删除</el-button>
+          </div>
+          <div class="attach-card__body">
+            <div class="attach-field">
+              <div class="attach-field__label">附件类型</div>
               <el-select
                 v-model="item.attachmentType"
-                placeholder="请选择附件类型"
-                class="attachment-col--type"
+                placeholder="请选择类型..."
                 clearable
               >
                 <el-option
-                  v-for="opt in dictOptions('shi_gong_fu_jian_lei_xing')"
+                  v-for="opt in dictOptions(attachmentDictKey)"
                   :key="opt.dictValue"
                   :label="opt.dictLabel"
                   :value="opt.dictValue"
                 />
               </el-select>
-              <div class="attachment-col--file">
-                <template v-if="item.fileName">
-                  <el-link type="primary" :underline="false" @click="previewAttachment(item)">
-                    {{ item.fileName }}
-                  </el-link>
-                  <el-button link type="info" size="small" @click="clearAttachmentFile(item)">重新上传</el-button>
-                </template>
-                <el-upload
-                  v-else
-                  :auto-upload="false"
-                  :show-file-list="false"
-                  @change="(file: UploadFile) => handleAttachmentChange(item, file)"
-                >
-                  <el-button size="small" :loading="item.uploading" icon="Upload">点击上传</el-button>
-                </el-upload>
-              </div>
-              <el-input
-                v-model="item.remark"
-                placeholder="请输入备注"
-                maxlength="128"
-                class="attachment-col--remark"
-              />
-              <div class="attachment-col--action">
-                <el-button link type="danger" icon="Delete" @click="removeAttachmentRow(index)">删除</el-button>
+            </div>
+            <div class="attach-field">
+              <div class="attach-field__label">上传附件</div>
+              <el-upload
+                :auto-upload="false"
+                :show-file-list="false"
+                class="attach-upload"
+                @change="(file: UploadFile) => handleAttachmentChange(item, file)"
+              >
+                <div class="attach-upload__inner">
+                  <el-icon><Upload /></el-icon>
+                  <span>{{ item.uploading ? '上传中...' : '点击选择文件...' }}</span>
+                </div>
+              </el-upload>
+              <!-- 已上传文件：缩略图标 + 文件名 + 移除 -->
+              <div v-if="item.fileName" class="attach-file-chip">
+                <el-icon class="attach-file-chip__icon"><Document /></el-icon>
+                <span
+                  class="attach-file-chip__name"
+                  :title="item.fileName"
+                  @click="previewAttachment(item)"
+                >{{ item.fileName }}</span>
+                <el-icon class="attach-file-chip__download" title="下载" @click.stop="downloadAttachment(item)">
+                  <Download />
+                </el-icon>
+                <el-icon class="attach-file-chip__close" title="移除" @click.stop="clearAttachmentFile(item)">
+                  <Close />
+                </el-icon>
               </div>
             </div>
-            <el-empty v-if="!attachmentRows.length" description="暂无施工资料" :image-size="50" />
-            <el-button link type="primary" icon="Plus" class="attachment-add" @click="addAttachmentRow">
-              添加附件
-            </el-button>
+            <div class="attach-field">
+              <div class="attach-field__label">备注</div>
+              <el-input v-model="item.remark" placeholder="选填" maxlength="128" />
+            </div>
           </div>
-        </template>
-
-        <!-- 三级：施工进度 -->
-        <template v-else>
-          <el-form-item label="施工状态" prop="buildStatus">
-            <el-select v-model="editForm.buildStatus" placeholder="请选择施工状态" style="width: 100%">
-              <el-option
-                v-for="item in buildStatusOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="开工日期" prop="startDate">
-            <el-date-picker
-              v-model="editForm.startDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="请选择开工日期"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="完工日期" prop="completeDate">
-            <el-date-picker
-              v-model="editForm.completeDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="请选择完工日期"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="备注" prop="remark">
-            <el-input
-              v-model="editForm.remark"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入备注"
-              maxlength="512"
-              show-word-limit
-            />
-          </el-form-item>
-        </template>
+        </div>
+        <div v-if="!attachmentRows.length" class="attach-empty">暂无附件，请点击上方「添加附件」</div>
       </el-form>
 
       <template #footer>
@@ -476,8 +685,12 @@ import {
   CONSTRUCTION_STATUS_IN_PROGRESS,
   CONSTRUCTION_STATUS_COMPLETED,
   getConstructionDetail,
+  getDetailLog,
+  getDetailLogHistory,
+  saveDetailLog,
   type ConstructionNodeVO,
   type ConstructionEditDTO,
+  type ConstructionLogVO,
   type ConstructionAttachmentItem
 } from '@/api/construction'
 import { uploadFile, getPresignUrl } from '@/api/file'
@@ -496,13 +709,18 @@ const canEdit = computed(() => userStore.hasPerm('project:construction:edit'))
 
 /* ============ 字典 ============ */
 const dictMap = ref<Record<string, DictVO[]>>({})
-const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing']
+const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'xun_jian_zhuang_tai']
 const dictOptions = (type: string): DictVO[] => dictMap.value[type] || []
 const dictLabel = (type: string, value?: string): string => {
   if (!value) return ''
   const hit = dictOptions(type).find((item) => item.dictValue === value)
   return hit?.dictLabel || value
 }
+
+/** 附件类型字典 key：一级编辑用通用附件字典 fu_jian_lei_xing，三级编辑用施工附件字典 shi_gong_fu_jian_lei_xing */
+const attachmentDictKey = computed(() =>
+  editForm.nodeLevel === 1 ? 'fu_jian_lei_xing' : 'shi_gong_fu_jian_lei_xing'
+)
 
 const loadDicts = async () => {
   const results = await Promise.all(DICT_TYPES.map((type) => getDictByType(type)))
@@ -520,14 +738,16 @@ const detailTypeLabel = (value?: string): string => {
 }
 
 /** 类别列：一级取项目类别字典，二级取申报类别字典，三级取明细类型 */
-const categoryLabel = (row: ConstructionNodeVO): string => {
+const categoryLabel = (row?: ConstructionNodeVO | null): string => {
+  if (!row) return '-'
   if (row.nodeType === 'project') return dictLabel('xiang_mu_lei_bie', row.category) || '-'
   if (row.nodeType === 'declare') return dictLabel('shen_bao_lei_bie', row.category) || '-'
   return detailTypeLabel(row.detailType || row.category)
 }
 
 /** 来源列：一级取项目类型字典，二级取申报类型字典，三级取所属区划 */
-const sourceLabel = (row: ConstructionNodeVO): string => {
+const sourceLabel = (row?: ConstructionNodeVO | null): string => {
+  if (!row) return '-'
   if (row.nodeType === 'project') return dictLabel('xiang_mu_lei_xing', row.source) || '-'
   if (row.nodeType === 'declare') return dictLabel('shen_bao_lei_xing', row.source) || '-'
   return row.source || '-'
@@ -637,10 +857,20 @@ const inspectionLabel = (status?: string): string => {
   return '-'
 }
 
-/** 金额展示：千分位 + 两位小数（元） */
-const formatMoney = (amount?: number): string => {
-  if (amount === null || amount === undefined) return '-'
-  return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** 库内 PASS/FAIL 转为字典值（xun_jian_zhuang_tai：1合格 2整改） */
+const toInspectionDictValue = (status?: string): string => (status === 'FAIL' ? '2' : '1')
+
+/** 字典值转回库内 PASS/FAIL */
+const toInspectionStatus = (dictValue?: string): string => (dictValue === '2' ? 'FAIL' : 'PASS')
+
+/** 文件大小展示：B / KB / MB / GB */
+const formatFileSize = (bytes?: number): string => {
+  if (!bytes || bytes <= 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let idx = 0
+  let size = bytes
+  while (size >= 1024 && idx < units.length - 1) { size /= 1024; idx++ }
+  return `${size.toFixed(2)} ${units[idx]}`
 }
 
 /* ============ 查看弹窗 ============ */
@@ -648,6 +878,23 @@ const viewVisible = ref(false)
 const viewNode = ref<ConstructionNodeVO | null>(null)
 const viewDetail = ref<ConstructionNodeVO | null>(null)
 const viewLoading = ref(false)
+/** 三级施工记录（关联项目、巡检、施工内容与附件） */
+const detailLog = ref<ConstructionLogVO | null>(null)
+const detailLogLoading = ref(false)
+/** 三级查看：详情/明细页签，明细为历次编辑记录 */
+const detailActiveTab = ref<'detail' | 'history'>('detail')
+const detailLogHistory = ref<ConstructionLogVO[]>([])
+
+/* ============ 附件预览 ============ */
+/** 图片类后缀：图片弹窗预览，其余类型直接下载 */
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewName = ref('')
+const previewFile = ref<{ bucket?: string; fileKey?: string; fileName?: string } | null>(null)
+
+/** 三级查看的施工状态：优先取施工记录，其次取列表行状态 */
+const detailStatus = computed(() => detailLog.value?.constructionStatus || viewNode.value?.buildStatus || '')
 
 const viewTitle = computed(() => {
   if (viewNode.value?.nodeType === 'declare') return '申报施工详情'
@@ -658,12 +905,19 @@ const viewTitle = computed(() => {
 /** 一级查看使用详情接口数据（含日志、巡检合格率、附件），加载完成前回退到列表行数据 */
 const projectView = computed(() => viewDetail.value || viewNode.value)
 
-/** 最新一条施工记录的施工内容（日志已按施工日期倒序，取第一条） */
-const latestLogContent = computed(() => projectView.value?.logs?.[0]?.content || '')
+/** 一级查看当前页签 */
+const viewActiveTab = ref<'detail' | 'builder'>('detail')
+/** 一级查看：把所有申报下的三级明细展平，一户一条 */
+const projectDetails = computed(() => {
+  if (!projectView.value?.children?.length) return []
+  return projectView.value.children.flatMap((declare) => declare.children || [])
+})
 
 const openView = async (row: DisplayRow) => {
   viewNode.value = row.raw
   viewDetail.value = null
+  detailLog.value = null
+  viewActiveTab.value = 'detail'
   viewVisible.value = true
   if (row.nodeType === 'project') {
     viewLoading.value = true
@@ -672,6 +926,33 @@ const openView = async (row: DisplayRow) => {
       viewDetail.value = res.data
     } finally {
       viewLoading.value = false
+    }
+  } else if (row.nodeType === 'declare') {
+    // 二级查看需展示各三级最新施工内容/巡检状态/施工状态/附件，重新拉取项目详情（后端一次性聚合）
+    viewLoading.value = true
+    try {
+      const res = await getConstructionDetail(row.approvalId)
+      viewDetail.value = res.data
+      const fetched = res.data.children?.find((item) => item.declareId === row.declareId)
+      if (fetched) {
+        viewNode.value = fetched
+      }
+    } finally {
+      viewLoading.value = false
+    }
+  } else if (row.nodeType === 'detail' && row.detailId) {
+    detailLogLoading.value = true
+    detailActiveTab.value = 'detail'
+    detailLogHistory.value = []
+    try {
+      const [detailRes, historyRes] = await Promise.all([
+        getDetailLog(row.detailId),
+        getDetailLogHistory(row.detailId).catch(() => null)
+      ])
+      detailLog.value = detailRes.data
+      detailLogHistory.value = historyRes?.data || []
+    } finally {
+      detailLogLoading.value = false
     }
   }
 }
@@ -696,9 +977,14 @@ interface EditForm {
   contractorPhone: string
   leaderName: string
   leaderPhone: string
-  startDate: string
-  completeDate: string
-  remark: string
+  /** 三级：记录日期 */
+  constructionDate: string
+  /** 三级：巡检人 */
+  inspector: string
+  /** 三级：巡检状态 PASS合格 FAIL整改 */
+  inspectionStatus: string
+  /** 三级：施工内容描述 */
+  content: string
 }
 
 /** 施工资料附件行：一行对应一条附件 */
@@ -734,14 +1020,39 @@ const editForm = reactive<EditForm>({
   contractorPhone: '',
   leaderName: '',
   leaderPhone: '',
-  startDate: '',
-  completeDate: '',
-  remark: ''
+  constructionDate: '',
+  inspector: '',
+  inspectionStatus: 'PASS',
+  content: ''
 })
 
-const editTitle = computed(() => (editForm.nodeLevel === 1 ? '编辑施工信息' : '编辑施工进度'))
+const editTitle = computed(() => (editForm.nodeLevel === 1 ? '编辑施工信息' : '编辑施工记录'))
 
 const editRules = computed<FormRules>(() => ({
+  builder: editForm.nodeLevel === 1
+    ? [{ required: true, message: '请输入施工单位名称', trigger: 'blur' }]
+    : [],
+  contractorName: editForm.nodeLevel === 1
+    ? [{ required: true, message: '请输入承包人姓名', trigger: 'blur' }]
+    : [],
+  contractorPhone: editForm.nodeLevel === 1
+    ? [{ required: true, message: '请输入承包人联系电话', trigger: 'blur' }]
+    : [],
+  leaderName: editForm.nodeLevel === 1
+    ? [{ required: true, message: '请输入负责人姓名', trigger: 'blur' }]
+    : [],
+  leaderPhone: editForm.nodeLevel === 1
+    ? [{ required: true, message: '请输入负责人联系电话', trigger: 'blur' }]
+    : [],
+  constructionDate: editForm.nodeLevel === 3
+    ? [{ required: true, message: '请选择记录日期', trigger: 'change' }]
+    : [],
+  inspectionStatus: editForm.nodeLevel === 3
+    ? [{ required: true, message: '请选择巡检状态', trigger: 'change' }]
+    : [],
+  inspector: editForm.nodeLevel === 3
+    ? [{ required: true, message: '请输入巡检人', trigger: 'blur' }]
+    : [],
   buildStatus: editForm.nodeLevel === 3
     ? [{ required: true, message: '请选择施工状态', trigger: 'change' }]
     : []
@@ -759,12 +1070,14 @@ const openEdit = async (row: DisplayRow) => {
     contractorPhone: row.contractorPhone || '',
     leaderName: row.leaderName || '',
     leaderPhone: row.leaderPhone || '',
-    startDate: row.startDate || '',
-    completeDate: row.completeDate || '',
-    remark: row.remark || ''
+    constructionDate: '',
+    inspector: '',
+    inspectionStatus: 'PASS',
+    content: ''
   })
   attachmentRows.value = []
-  // 一级编辑需要回显施工队信息与已上传资料，先拉取项目施工详情
+  detailLog.value = null
+  // 一级编辑回显施工队信息与已上传资料
   if (row.nodeType === 'project') {
     try {
       const res = await getConstructionDetail(row.approvalId)
@@ -777,6 +1090,33 @@ const openEdit = async (row: DisplayRow) => {
         leaderPhone: detail.leaderPhone || ''
       })
       attachmentRows.value = (detail.attachments || []).map((item) => ({
+        id: item.id,
+        attachmentType: item.attachmentType || '',
+        remark: item.remark || '',
+        fileName: item.fileName || '',
+        fileKey: item.fileKey || '',
+        bucket: item.bucket || '',
+        fileSize: item.fileSize,
+        uploading: false
+      }))
+    } catch {
+      return
+    }
+  }
+  // 三级编辑回显施工记录：关联项目只读、记录日期/巡检/施工内容/附件
+  if (row.nodeType === 'detail' && row.detailId) {
+    try {
+      const res = await getDetailLog(row.detailId)
+      const log = res.data
+      detailLog.value = log
+      Object.assign(editForm, {
+        buildStatus: log.constructionStatus || CONSTRUCTION_STATUS_NOT_STARTED,
+        constructionDate: log.constructionDate || '',
+        inspector: log.inspector || '',
+        inspectionStatus: toInspectionDictValue(log.inspectionStatus),
+        content: log.content || ''
+      })
+      attachmentRows.value = (log.attachments || []).map((item) => ({
         id: item.id,
         attachmentType: item.attachmentType || '',
         remark: item.remark || '',
@@ -831,13 +1171,35 @@ const handleAttachmentChange = async (item: AttachmentRow, file: UploadFile) => 
 }
 
 /** 使用时效签名URL预览附件，禁止永久直链 */
-const previewAttachment = async (item: AttachmentRow) => {
+const previewAttachment = async (item: { bucket?: string; fileKey?: string; fileName?: string }) => {
+  if (!item.bucket || !item.fileKey) return
+  const ext = (item.fileName || '').split('.').pop()?.toLowerCase() || ''
+  const isImage = IMAGE_EXTENSIONS.includes(ext)
+  // 图片弹窗预览；PDF 新窗口预览；其余类型直接下载
+  const res = await getPresignUrl({
+    bucket: item.bucket,
+    fileKey: item.fileKey,
+    fileName: item.fileName,
+    download: !isImage && ext !== 'pdf'
+  })
+  if (isImage) {
+    previewUrl.value = res.data
+    previewName.value = item.fileName || '附件预览'
+    previewFile.value = item
+    previewVisible.value = true
+    return
+  }
+  window.open(res.data, '_blank')
+}
+
+/** 下载附件：由后端生成强制下载的时效签名地址 */
+const downloadAttachment = async (item: { bucket?: string; fileKey?: string; fileName?: string }) => {
   if (!item.bucket || !item.fileKey) return
   const res = await getPresignUrl({
     bucket: item.bucket,
     fileKey: item.fileKey,
     fileName: item.fileName,
-    download: false
+    download: true
   })
   window.open(res.data, '_blank')
 }
@@ -847,38 +1209,43 @@ const handleSubmit = async () => {
   const valid = await editFormRef.value.validate().catch(() => false)
   if (!valid) return
   const isProject = editForm.nodeLevel === 1
-  const attachments: ConstructionAttachmentItem[] | undefined = isProject
-    ? attachmentRows.value
-        .filter((item) => !!item.fileKey)
-        .map((item) => ({
-          id: item.id,
-          attachmentType: item.attachmentType || undefined,
-          fileName: item.fileName,
-          fileKey: item.fileKey,
-          bucket: item.bucket,
-          fileSize: item.fileSize,
-          remark: item.remark || undefined
-        }))
-    : undefined
-  const payload: ConstructionEditDTO = {
-    approvalId: editForm.approvalId,
-    declareId: isProject ? undefined : editForm.declareId,
-    detailId: isProject ? undefined : editForm.detailId,
-    nodeLevel: editForm.nodeLevel,
-    buildStatus: isProject ? undefined : editForm.buildStatus,
-    builder: isProject ? editForm.builder : undefined,
-    contractorName: isProject ? editForm.contractorName : undefined,
-    contractorPhone: isProject ? editForm.contractorPhone : undefined,
-    leaderName: isProject ? editForm.leaderName : undefined,
-    leaderPhone: isProject ? editForm.leaderPhone : undefined,
-    attachments,
-    startDate: isProject ? undefined : editForm.startDate || undefined,
-    completeDate: isProject ? undefined : editForm.completeDate || undefined,
-    remark: isProject ? undefined : editForm.remark || undefined
-  }
+  const attachments: ConstructionAttachmentItem[] = attachmentRows.value
+    .filter((item) => !!item.fileKey)
+    .map((item) => ({
+      id: item.id,
+      attachmentType: item.attachmentType || undefined,
+      fileName: item.fileName,
+      fileKey: item.fileKey,
+      bucket: item.bucket,
+      fileSize: item.fileSize,
+      remark: item.remark || undefined
+    }))
   submitLoading.value = true
   try {
-    await updateConstruction(payload)
+    if (isProject) {
+      const payload: ConstructionEditDTO = {
+        approvalId: editForm.approvalId,
+        nodeLevel: 1,
+        builder: editForm.builder,
+        contractorName: editForm.contractorName,
+        contractorPhone: editForm.contractorPhone,
+        leaderName: editForm.leaderName,
+        leaderPhone: editForm.leaderPhone,
+        attachments
+      }
+      await updateConstruction(payload)
+    } else {
+      await saveDetailLog({
+        approvalId: editForm.approvalId,
+        detailId: editForm.detailId,
+        constructionDate: editForm.constructionDate,
+        inspector: editForm.inspector || undefined,
+        inspectionStatus: toInspectionStatus(editForm.inspectionStatus),
+        constructionStatus: editForm.buildStatus,
+        content: editForm.content || undefined,
+        attachments
+      })
+    }
     ElMessage.success('保存成功')
     editVisible.value = false
     loadData()
@@ -1203,6 +1570,11 @@ onMounted(async () => {
   font-size: 12px;
 }
 
+/* 三级查看附件区与基础信息之间的间距 */
+.attachment-header {
+  margin-top: 16px;
+}
+
 /* 标题与说明文字同行展示（申报明细施工情况） */
 .section-header--inline {
   justify-content: flex-start;
@@ -1292,26 +1664,255 @@ onMounted(async () => {
 .attachment-add {
   align-self: flex-start;
 }
+
+/* ============ 三级编辑：附件列表分割线 ============ */
+.attach-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.attach-divider__line {
+  flex: 1;
+  height: 1px;
+  background: #ebeef5;
+}
+
+.attach-divider__line--short {
+  flex: none;
+  width: 24px;
+}
+
+.attach-divider__title {
+  color: #303133;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* 与标题保持同一水平线，去掉按钮默认高度与内边距带来的偏移 */
+.attach-divider :deep(.el-button) {
+  height: 20px;
+  margin-left: 0;
+  padding: 0;
+  line-height: 20px;
+}
+
+.attach-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border-radius: 4px;
+  background: #f7f8fa;
+  color: #909399;
+  font-size: 13px;
+}
+
+.attach-card {
+  margin-bottom: 12px;
+  padding: 12px 16px 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.attach-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.attach-card__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ecf5ff;
+  color: #409eff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.attach-card__name {
+  color: #303133;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attach-card__remove {
+  margin-left: auto;
+}
+
+.attach-card__body {
+  display: grid;
+  /* 附件类型列收窄，上传与备注均分剩余宽度 */
+  grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.attach-field {
+  min-width: 0;
+}
+
+.attach-field__label {
+  margin-bottom: 6px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.attach-field :deep(.el-select),
+.attach-field :deep(.el-input) {
+  width: 100%;
+}
+
+.attach-field :deep(.el-select__wrapper),
+.attach-field :deep(.el-input__wrapper) {
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.attach-upload {
+  display: block;
+  width: 100%;
+}
+
+.attach-upload :deep(.el-upload) {
+  display: block;
+  width: 100%;
+}
+
+/* 已上传文件展示：浅灰圆角条，含图标、文件名与移除按钮 */
+.attach-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f5f7fa;
+}
+
+.attach-file-chip__icon {
+  flex: none;
+  color: #909399;
+  font-size: 14px;
+}
+
+.attach-file-chip__name {
+  flex: 1;
+  overflow: hidden;
+  color: #909399;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.attach-file-chip__name:hover {
+  color: #409eff;
+}
+
+.attach-file-chip__download,
+.attach-file-chip__close {
+  flex: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.attach-file-chip__download {
+  color: #409eff;
+}
+
+.attach-file-chip__close {
+  color: #909399;
+}
+
+/* 二级查看附件列：每行一个文件，名称可预览、箭头可下载 */
+.attachment-cell-line {
+  display: flex;
+  align-items: center;
+  line-height: 20px;
+}
+
+.attachment-cell-line .attachment-download {
+  margin-left: 6px;
+}
+
+/* 三级查看附件表格中的下载箭头 */
+.attachment-download {
+  margin-left: 8px;
+  color: #409eff;
+  font-size: 13px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.attachment-download:hover {
+  color: #337ecc;
+}
+
+/* 附件图片预览弹窗 */
+.attachment-preview-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.attachment-preview-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.attach-file-chip__download:hover {
+  color: #337ecc;
+}
+
+.attach-file-chip__close:hover {
+  color: #606266;
+}
+
+.attach-upload__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px dashed #dcdfe6;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #909399;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.attach-upload__inner:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
 </style>
 
 <style>
-/* 查看弹窗固定高度：弹窗被 teleport 到 body，需使用非 scoped 样式 */
+/* 查看弹窗高度自适应：内容少时紧凑贴合，内容多时正文内部滚动 */
 .construction-view-dialog {
-  height: 80vh;
   margin-top: 8vh;
   margin-bottom: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.construction-view-dialog .el-dialog__header,
-.construction-view-dialog .el-dialog__footer {
-  flex: none;
 }
 
 .construction-view-dialog .el-dialog__body {
-  flex: 1;
-  min-height: 0;
+  max-height: 68vh;
   overflow-y: auto;
 }
 </style>

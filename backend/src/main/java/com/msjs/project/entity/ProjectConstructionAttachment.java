@@ -29,6 +29,14 @@ public class ProjectConstructionAttachment implements Serializable {
     @Schema(description = "立项ID（关联 t_project_approval.id）")
     private Long approvalId;
 
+    @JsonSerialize(using = ToStringSerializer.class)
+    @Schema(description = "明细ID（关联 t_project_approval_detail.id，为空表示项目级附件）")
+    private Long detailId;
+
+    @JsonSerialize(using = ToStringSerializer.class)
+    @Schema(description = "施工记录ID（关联 t_project_construction_log.id，按记录留痕）")
+    private Long logId;
+
     @Schema(description = "附件类型（字典 shi_gong_fu_jian_lei_xing）")
     private String attachmentType;
 

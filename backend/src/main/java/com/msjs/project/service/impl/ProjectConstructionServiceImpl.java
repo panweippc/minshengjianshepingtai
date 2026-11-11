@@ -8,6 +8,7 @@ import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.ConstructionEditDTO;
+import com.msjs.project.dto.ConstructionLogEditDTO;
 import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.ProjectApprovalDeclare;
 import com.msjs.project.entity.ProjectApprovalDetail;
@@ -31,8 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +102,76 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                         .orderByDesc(ProjectConstructionLog::getId));
         node.setLogs(logs.stream().map(this::toLogVO).toList());
         node.setLogCount(logs.size());
+
+        // 二级查看明细进度：为每个三级明细构建 detailLogSnapshot
+        // 与三级查看详情页签完全同源（同样的取最新日志排序 + 无日志回退 buildStatus + 附件按 log_id 留痕）
+        List<Long> allDetailIds = node.getChildren() == null ? List.of() : node.getChildren().stream()
+                .filter(c -> c.getChildren() != null)
+                .flatMap(c -> c.getChildren().stream())
+                .map(ConstructionNodeVO::getDetailId)
+                .filter(java.util.Objects::nonNull)
+                .distinct().toList();
+        // 1) 从已查日志（constructionDate DESC, id DESC）中按 detailId 取最新一条
+        Map<Long, ProjectConstructionLog> latestLogByDetailId = new HashMap<>();
+        for (ProjectConstructionLog log : logs) {
+            if (log.getDetailId() != null && !latestLogByDetailId.containsKey(log.getDetailId())) {
+                latestLogByDetailId.put(log.getDetailId(), log);
+            }
+        }
+        // 2) 无日志的 detailId：批量查 ProjectConstruction 回退 buildStatus
+        List<Long> noLogDetailIds = allDetailIds.stream()
+                .filter(dId -> !latestLogByDetailId.containsKey(dId)).toList();
+        Map<Long, ProjectConstruction> constructionByDetailId = new HashMap<>();
+        if (!noLogDetailIds.isEmpty()) {
+            constructionByDetailId = constructionMapper.selectList(
+                    new LambdaQueryWrapper<ProjectConstruction>()
+                            .in(ProjectConstruction::getDetailId, noLogDetailIds))
+                    .stream().collect(Collectors.toMap(ProjectConstruction::getDetailId, c -> c, (a, b) -> a));
+        }
+        // 3) 批量查最新日志的附件（按 log_id，id ASC）
+        Map<Long, List<ProjectConstructionAttachment>> attachmentsByLogId = new HashMap<>();
+        List<Long> latestLogIds = latestLogByDetailId.values().stream().map(ProjectConstructionLog::getId).distinct().toList();
+        if (!latestLogIds.isEmpty()) {
+            List<ProjectConstructionAttachment> allAtts = constructionAttachmentMapper.selectList(
+                    new LambdaQueryWrapper<ProjectConstructionAttachment>()
+                            .in(ProjectConstructionAttachment::getLogId, latestLogIds)
+                            .orderByAsc(ProjectConstructionAttachment::getId));
+            attachmentsByLogId = allAtts.stream()
+                    .collect(Collectors.groupingBy(ProjectConstructionAttachment::getLogId));
+        }
+        // 4) 组装 detailLogSnapshot 回填到每个 detailNode
+        if (node.getChildren() != null) {
+            for (ConstructionNodeVO declareNode : node.getChildren()) {
+                if (declareNode.getChildren() == null) {
+                    continue;
+                }
+                for (ConstructionNodeVO detailNode : declareNode.getChildren()) {
+                    Long dId = detailNode.getDetailId();
+                    if (dId == null) {
+                        continue;
+                    }
+                    ConstructionLogVO snapshot;
+                    ProjectConstructionLog latestLog = latestLogByDetailId.get(dId);
+                    if (latestLog != null) {
+                        snapshot = toLogVO(latestLog);
+                        List<ConstructionAttachmentVO> atts = attachmentsByLogId
+                                .getOrDefault(latestLog.getId(), Collections.emptyList())
+                                .stream().map(this::toAttachmentVO).toList();
+                        snapshot.setAttachments(atts);
+                    } else {
+                        // 尚未录入施工记录：回退 buildStatus，其余字段留空
+                        snapshot = new ConstructionLogVO();
+                        ProjectConstruction construction = constructionByDetailId.get(dId);
+                        String buildStatus = construction == null ? null : trimToNull(construction.getBuildStatus());
+                        snapshot.setConstructionStatus(buildStatus == null
+                                ? Constants.CONSTRUCTION_STATUS_NOT_STARTED : buildStatus);
+                        snapshot.setAttachments(Collections.emptyList());
+                    }
+                    snapshot.setDetailId(dId);
+                    detailNode.setDetailLogSnapshot(snapshot);
+                }
+            }
+        }
         node.setInspectionCount(logs.size());
         long passCount = logs.stream()
                 .filter(item -> Constants.CONSTRUCTION_INSPECTION_PASS.equals(item.getInspectionStatus()))
@@ -107,12 +180,191 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         node.setInspectionPassRate(logs.isEmpty() ? 0
                 : (int) Math.round(passCount * 100.0 / logs.size()));
 
+        // 项目级施工资料附件：仅 detailId 为空、logId 为空的通用附件
         List<ProjectConstructionAttachment> attachments = constructionAttachmentMapper.selectList(
                 new LambdaQueryWrapper<ProjectConstructionAttachment>()
                         .eq(ProjectConstructionAttachment::getApprovalId, approvalId)
+                        .isNull(ProjectConstructionAttachment::getDetailId)
+                        .isNull(ProjectConstructionAttachment::getLogId)
                         .orderByAsc(ProjectConstructionAttachment::getId));
         node.setAttachments(attachments.stream().map(this::toAttachmentVO).toList());
         return node;
+    }
+
+    @Override
+    public ConstructionLogVO detailLog(Long detailId) {
+        ProjectApprovalDetail detail = detailMapper.selectById(detailId);
+        if (detail == null) {
+            throw new BizException("施工明细不存在或已被删除");
+        }
+        ProjectApprovalDeclare declare = declareMapper.selectById(detail.getDeclareId());
+        if (declare == null) {
+            throw new BizException("施工明细所属申报不存在");
+        }
+        ProjectApproval approval = approvalMapper.selectById(declare.getApprovalId());
+        if (approval == null || !Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
+            throw new BizException("仅审核通过的立项可查看施工记录");
+        }
+
+        // 与二级查看明细进度同源：最新施工记录快照
+        ConstructionLogVO vo = buildLatestLogSnapshot(detailId);
+        vo.setProjectName(approval.getProjectName());
+        vo.setDetailName(detail.getTargetName());
+        return vo;
+    }
+
+    /**
+     * 最新施工记录快照：与三级查看详情页签完全同源
+     * <ol>
+     *   <li>按 detailId 取最新一条日志（constructionDate DESC, id DESC）</li>
+     *   <li>无日志时回退到 ProjectConstruction.buildStatus，其余字段留空</li>
+     *   <li>附件取该日志按 log_id 绑定的留痕快照（id ASC）</li>
+     * </ol>
+     */
+    private ConstructionLogVO buildLatestLogSnapshot(Long detailId) {
+        ProjectConstructionLog log = constructionLogMapper.selectOne(
+                new LambdaQueryWrapper<ProjectConstructionLog>()
+                        .eq(ProjectConstructionLog::getDetailId, detailId)
+                        .orderByDesc(ProjectConstructionLog::getConstructionDate)
+                        .orderByDesc(ProjectConstructionLog::getId)
+                        .last("LIMIT 1"));
+        ConstructionLogVO vo;
+        if (log != null) {
+            vo = toLogVO(log);
+        } else {
+            // 尚未录入施工记录的明细：回显当前施工状态，其余字段留空
+            vo = new ConstructionLogVO();
+            ProjectConstruction construction = constructionMapper.selectOne(
+                    new LambdaQueryWrapper<ProjectConstruction>()
+                            .eq(ProjectConstruction::getDetailId, detailId)
+                            .last("LIMIT 1"));
+            String buildStatus = construction == null ? null : trimToNull(construction.getBuildStatus());
+            vo.setConstructionStatus(buildStatus == null
+                    ? Constants.CONSTRUCTION_STATUS_NOT_STARTED : buildStatus);
+        }
+        vo.setDetailId(detailId);
+
+        // 附件取最新一条施工记录留痕的附件（无日志时为空）
+        List<ProjectConstructionAttachment> attachments = log == null
+                ? List.of()
+                : constructionAttachmentMapper.selectList(
+                        new LambdaQueryWrapper<ProjectConstructionAttachment>()
+                                .eq(ProjectConstructionAttachment::getLogId, log.getId())
+                                .orderByAsc(ProjectConstructionAttachment::getId));
+        vo.setAttachments(attachments.stream().map(this::toAttachmentVO).toList());
+        return vo;
+    }
+
+    @Override
+    public List<ConstructionLogVO> detailLogHistory(Long detailId) {
+        ProjectApprovalDetail detail = detailMapper.selectById(detailId);
+        if (detail == null) {
+            throw new BizException("施工明细不存在或已被删除");
+        }
+        List<ProjectConstructionLog> logs = constructionLogMapper.selectList(
+                new LambdaQueryWrapper<ProjectConstructionLog>()
+                        .eq(ProjectConstructionLog::getDetailId, detailId)
+                        .orderByDesc(ProjectConstructionLog::getConstructionDate)
+                        .orderByDesc(ProjectConstructionLog::getId));
+        // 批量加载各历史记录留痕的附件
+        Map<Long, List<ProjectConstructionAttachment>> attachmentMap = Map.of();
+        if (!logs.isEmpty()) {
+            List<Long> logIds = logs.stream().map(ProjectConstructionLog::getId).toList();
+            attachmentMap = constructionAttachmentMapper.selectList(
+                            new LambdaQueryWrapper<ProjectConstructionAttachment>()
+                                    .in(ProjectConstructionAttachment::getLogId, logIds)
+                                    .orderByAsc(ProjectConstructionAttachment::getId))
+                    .stream()
+                    .collect(Collectors.groupingBy(ProjectConstructionAttachment::getLogId));
+        }
+        List<ConstructionLogVO> result = new ArrayList<>(logs.size());
+        for (ProjectConstructionLog log : logs) {
+            ConstructionLogVO vo = toLogVO(log);
+            List<ProjectConstructionAttachment> files = attachmentMap.getOrDefault(log.getId(), List.of());
+            vo.setAttachments(files.stream().map(this::toAttachmentVO).toList());
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveDetailLog(ConstructionLogEditDTO dto) {
+        ProjectApproval approval = approvalMapper.selectById(dto.getApprovalId());
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+        if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
+            throw new BizException("仅审核通过的立项可维护施工信息");
+        }
+        ProjectApprovalDetail detail = detailMapper.selectById(dto.getDetailId());
+        if (detail == null) {
+            throw new BizException("施工明细不存在或已被删除");
+        }
+        ProjectApprovalDeclare declare = declareMapper.selectById(detail.getDeclareId());
+        if (declare == null || !dto.getApprovalId().equals(declare.getApprovalId())) {
+            throw new BizException("施工明细不属于该立项");
+        }
+
+        String inspectionStatus = trimToNull(dto.getInspectionStatus());
+        if (!Constants.CONSTRUCTION_INSPECTION_PASS.equals(inspectionStatus)
+                && !Constants.CONSTRUCTION_INSPECTION_FAIL.equals(inspectionStatus)) {
+            throw new BizException("巡检状态不合法");
+        }
+        String buildStatus = trimToNull(dto.getConstructionStatus());
+        Set<String> allowed = Set.of(Constants.CONSTRUCTION_STATUS_NOT_STARTED,
+                Constants.CONSTRUCTION_STATUS_IN_PROGRESS, Constants.CONSTRUCTION_STATUS_COMPLETED);
+        if (buildStatus == null || !allowed.contains(buildStatus)) {
+            throw new BizException("施工状态不合法");
+        }
+
+        // 每次编辑新增一条施工记录，保留历史留痕；最新一条作为详情展示
+        ProjectConstructionLog log = new ProjectConstructionLog();
+        log.setApprovalId(approval.getId());
+        log.setDetailId(detail.getId());
+        log.setConstructionDate(dto.getConstructionDate());
+        log.setInspector(trimToNull(dto.getInspector()));
+        log.setInspectionStatus(inspectionStatus);
+        log.setConstructionStatus(buildStatus);
+        log.setContent(trimToNull(dto.getContent()));
+        log.setLogCode("SG" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")));
+        log.setCreateBy(currentUser());
+        log.setCreateTime(LocalDateTime.now());
+        log.setDeleted(0);
+        constructionLogMapper.insert(log);
+        // 同步明细施工状态与日期，保证列表进度与一级聚合一致
+        syncDetailConstruction(approval.getId(), detail, buildStatus, dto.getConstructionDate());
+        // 附件按本次记录留痕保存，历史记录的附件不受影响
+        saveLogAttachments(approval.getId(), detail.getId(), log.getId(), dto.getAttachments());
+    }
+
+    /** 同步三级明细施工状态：施工中回填开工日期，已完工回填完工日期 */
+    private void syncDetailConstruction(Long approvalId, ProjectApprovalDetail detail, String buildStatus,
+                                        LocalDate recordDate) {
+        ProjectConstruction exist = constructionMapper.selectOne(new LambdaQueryWrapper<ProjectConstruction>()
+                .eq(ProjectConstruction::getDetailId, detail.getId())
+                .last("LIMIT 1"));
+        ProjectConstruction entity = exist == null ? new ProjectConstruction() : exist;
+        entity.setApprovalId(approvalId);
+        entity.setDeclareId(detail.getDeclareId());
+        entity.setDetailId(detail.getId());
+        entity.setNodeLevel(Constants.CONSTRUCTION_LEVEL_DETAIL);
+        entity.setBuildStatus(buildStatus);
+        if (Constants.CONSTRUCTION_STATUS_IN_PROGRESS.equals(buildStatus)) {
+            if (entity.getStartDate() == null) {
+                entity.setStartDate(recordDate);
+            }
+            entity.setCompleteDate(null);
+        } else if (Constants.CONSTRUCTION_STATUS_COMPLETED.equals(buildStatus)) {
+            if (entity.getStartDate() == null) {
+                entity.setStartDate(recordDate);
+            }
+            entity.setCompleteDate(recordDate);
+        } else {
+            entity.setStartDate(null);
+            entity.setCompleteDate(null);
+        }
+        saveEntity(entity, exist == null);
     }
 
     @Override
@@ -139,6 +391,23 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
 
     /** 保存一级（项目）施工信息：施工单位、工期、备注 */
     private void saveProjectNode(Long approvalId, ConstructionEditDTO dto) {
+        // 一级节点施工单位信息全部必填
+        if (trimToNull(dto.getBuilder()) == null) {
+            throw new BizException("施工单位名称不能为空");
+        }
+        if (trimToNull(dto.getContractorName()) == null) {
+            throw new BizException("承包人姓名不能为空");
+        }
+        if (trimToNull(dto.getContractorPhone()) == null) {
+            throw new BizException("承包人联系电话不能为空");
+        }
+        if (trimToNull(dto.getLeaderName()) == null) {
+            throw new BizException("负责人姓名不能为空");
+        }
+        if (trimToNull(dto.getLeaderPhone()) == null) {
+            throw new BizException("负责人联系电话不能为空");
+        }
+
         ProjectConstruction exist = constructionMapper.selectOne(new LambdaQueryWrapper<ProjectConstruction>()
                 .eq(ProjectConstruction::getApprovalId, approvalId)
                 .eq(ProjectConstruction::getNodeLevel, Constants.CONSTRUCTION_LEVEL_PROJECT)
@@ -162,7 +431,7 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
             entity.setRemark(trimToNull(dto.getRemark()));
         }
         saveEntity(entity, exist == null);
-        saveAttachments(approvalId, dto.getAttachments());
+        saveAttachments(approvalId, null, dto.getAttachments());
     }
 
     /** 保存三级（农户/设施明细）施工状态与工期 */
@@ -406,14 +675,20 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
      * 保存施工资料附件：
      * 已存在附件按ID差异更新，本次未提交的已有附件逻辑删除，新增附件直接插入
      */
-    private void saveAttachments(Long approvalId, List<ConstructionEditDTO.AttachmentItem> attachments) {
+    private void saveAttachments(Long approvalId, Long detailId,
+                                 List<ConstructionEditDTO.AttachmentItem> attachments) {
         if (attachments == null) {
             // 未传附件列表视为不修改附件
             return;
         }
-        List<ProjectConstructionAttachment> existList = constructionAttachmentMapper.selectList(
-                new LambdaQueryWrapper<ProjectConstructionAttachment>()
-                        .eq(ProjectConstructionAttachment::getApprovalId, approvalId));
+        LambdaQueryWrapper<ProjectConstructionAttachment> scope = new LambdaQueryWrapper<ProjectConstructionAttachment>()
+                .eq(ProjectConstructionAttachment::getApprovalId, approvalId);
+        if (detailId == null) {
+            scope.isNull(ProjectConstructionAttachment::getDetailId);
+        } else {
+            scope.eq(ProjectConstructionAttachment::getDetailId, detailId);
+        }
+        List<ProjectConstructionAttachment> existList = constructionAttachmentMapper.selectList(scope);
         Set<Long> inputIds = new HashSet<>();
         for (ConstructionEditDTO.AttachmentItem item : attachments) {
             if (item.getId() != null) {
@@ -429,7 +704,11 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
             if (item.getId() != null) {
                 ProjectConstructionAttachment att = constructionAttachmentMapper.selectById(item.getId());
                 if (att == null || !approvalId.equals(att.getApprovalId())) {
-                    throw new BizException("施工资料附件不存在或不属于该项目");
+                    throw new BizException("施工资料附件不存在或不属于当前施工记录");
+                }
+                // 三级日志留痕附件（logId 非空）不属于项目/节点级范围，保留不动但前端不应回显它
+                if (att.getLogId() != null) {
+                    continue;
                 }
                 fillAttachment(att, item);
                 constructionAttachmentMapper.updateById(att);
@@ -437,7 +716,44 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
             }
             ProjectConstructionAttachment att = new ProjectConstructionAttachment();
             att.setApprovalId(approvalId);
+            att.setDetailId(detailId);
             fillAttachment(att, item);
+            att.setCreateBy(currentUser());
+            att.setCreateTime(LocalDateTime.now());
+            att.setDeleted(0);
+            constructionAttachmentMapper.insert(att);
+        }
+    }
+
+    /**
+     * 三级施工记录附件留痕保存：本次提交的附件全部复制为新记录，历史记录附件保持不变。
+     * 已有附件仅作为文件信息（名称/key/桶/大小）来源，避免历史记录被覆盖。
+     */
+    private void saveLogAttachments(Long approvalId, Long detailId, Long logId,
+                                    List<ConstructionEditDTO.AttachmentItem> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return;
+        }
+        for (ConstructionEditDTO.AttachmentItem item : attachments) {
+            ProjectConstructionAttachment att = new ProjectConstructionAttachment();
+            if (item.getId() != null) {
+                ProjectConstructionAttachment source = constructionAttachmentMapper.selectById(item.getId());
+                if (source == null || !approvalId.equals(source.getApprovalId())
+                        || !java.util.Objects.equals(detailId, source.getDetailId())) {
+                    throw new BizException("施工资料附件不存在或不属于当前施工记录");
+                }
+                att.setFileName(source.getFileName());
+                att.setFileKey(source.getFileKey());
+                att.setBucket(source.getBucket());
+                att.setFileSize(source.getFileSize());
+            }
+            att.setApprovalId(approvalId);
+            att.setDetailId(detailId);
+            att.setLogId(logId);
+            fillAttachment(att, item);
+            if (att.getFileKey() == null) {
+                continue;
+            }
             att.setCreateBy(currentUser());
             att.setCreateTime(LocalDateTime.now());
             att.setDeleted(0);
@@ -457,6 +773,7 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
     private ConstructionLogVO toLogVO(ProjectConstructionLog log) {
         ConstructionLogVO vo = new ConstructionLogVO();
         vo.setId(log.getId());
+        vo.setDetailId(log.getDetailId());
         vo.setLogCode(log.getLogCode());
         vo.setConstructionDate(log.getConstructionDate());
         vo.setInspector(log.getInspector());

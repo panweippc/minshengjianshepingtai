@@ -30,6 +30,10 @@ public class ProjectConstructionLog implements Serializable {
     @Schema(description = "立项ID（关联 t_project_approval.id）")
     private Long approvalId;
 
+    @JsonSerialize(using = ToStringSerializer.class)
+    @Schema(description = "明细ID（关联 t_project_approval_detail.id，为空表示项目级日志）")
+    private Long detailId;
+
     @Schema(description = "日志编号")
     private String logCode;
 
