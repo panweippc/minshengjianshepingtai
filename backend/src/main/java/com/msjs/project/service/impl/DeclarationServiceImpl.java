@@ -280,9 +280,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (exist == null) {
             throw new BizException("申报单不存在或已被删除");
         }
-        // 仅已通过/已驳回的申报单不允许编辑
-        if ("approved".equals(exist.getStatus()) || "rejected".equals(exist.getStatus())) {
-            throw new BizException("已通过/已驳回的申报单不允许编辑");
+        // 仅已通过的申报单不允许编辑（已驳回的允许：用户修改驳回内容后重新提交）
+        if ("approved".equals(exist.getStatus())) {
+            throw new BizException("已通过的申报单不允许编辑");
         }
 
         // 乡镇不可修改
@@ -398,6 +398,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         if ("submitted".equals(status)) targetAuditStatuses = Collections.singletonList("pending");
         else if ("approved".equals(status)) targetAuditStatuses = Collections.singletonList("approved");
         else if ("rejected".equals(status)) targetAuditStatuses = Collections.singletonList("rejected");
+        // 已立项：established 是明细级状态（父单 status 仍为 approved），必须走明细 audit_status 匹配，
+        // 不能落到下面 targetAuditStatuses==null 的父单 status='established' 分支（父单无此状态会查空）
+        else if ("established".equals(status)) targetAuditStatuses = Collections.singletonList("established");
 
         Page<Declaration> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<Declaration>()
@@ -534,29 +537,29 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         Long declarationId;
         String auditRemark = trimToNull(dto.getRemark());
-        // 1. 把目标明细置回 pending + 清空审核痕迹
+        // 1. 撤销该条明细的审核结论：audit_status 置回 pending，并清空审核痕迹。
+        //    必须用 LambdaUpdateWrapper.set(field, null) 显式置空——MyBatis-Plus updateById 默认
+        //    NOT_NULL 策略会跳过 null 字段，导致 audit_by / audit_time 清不掉。
         if ("household".equals(dto.getDetailKind())) {
             DeclarationHousehold hh = householdMapper.selectById(dto.getDetailId());
             if (hh == null) throw new BizException("农户明细不存在或已删除");
             declarationId = hh.getDeclarationId();
-            DeclarationHousehold update = new DeclarationHousehold();
-            update.setId(hh.getId());
-            update.setAuditStatus("pending");
-            update.setAuditBy(null);
-            update.setAuditTime(null);
-            update.setAuditRemark(auditRemark);   // 退回原因留痕，给申报人看
-            householdMapper.updateById(update);
+            householdMapper.update(null, new LambdaUpdateWrapper<DeclarationHousehold>()
+                    .eq(DeclarationHousehold::getId, hh.getId())
+                    .set(DeclarationHousehold::getAuditStatus, "pending")
+                    .set(DeclarationHousehold::getAuditBy, null)
+                    .set(DeclarationHousehold::getAuditTime, null)
+                    .set(DeclarationHousehold::getAuditRemark, auditRemark));   // 撤销备注留痕，重新审核时会被覆盖
         } else {
             DeclarationPublicFacility pf = facilityMapper.selectById(dto.getDetailId());
             if (pf == null) throw new BizException("公建设施明细不存在或已删除");
             declarationId = pf.getDeclarationId();
-            DeclarationPublicFacility update = new DeclarationPublicFacility();
-            update.setId(pf.getId());
-            update.setAuditStatus("pending");
-            update.setAuditBy(null);
-            update.setAuditTime(null);
-            update.setAuditRemark(auditRemark);
-            facilityMapper.updateById(update);
+            facilityMapper.update(null, new LambdaUpdateWrapper<DeclarationPublicFacility>()
+                    .eq(DeclarationPublicFacility::getId, pf.getId())
+                    .set(DeclarationPublicFacility::getAuditStatus, "pending")
+                    .set(DeclarationPublicFacility::getAuditBy, null)
+                    .set(DeclarationPublicFacility::getAuditTime, null)
+                    .set(DeclarationPublicFacility::getAuditRemark, auditRemark));
         }
 
         // 2. 父申报单存在性校验
@@ -564,19 +567,20 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (parent == null) throw new BizException("所属申报单不存在");
         // 注：不再强校验 recipient_user_id 必须等于当前登录人——"已通过/已驳回"页签里
         // 的单本身已经在 receivedPage 里按 recipient_user_id = me.getUserId() 过滤过了，
-        // 二次校验是多余的；同时也方便管理员兜底退回。
+        // 二次校验是多余的；同时也方便管理员兜底撤销。
 
-        // 3. 父申报单回滚到 draft，清掉 recipient_user_id（让申报人能重新编辑、再次提交）
-        Declaration parentUpdate = new Declaration();
-        parentUpdate.setId(parent.getId());
-        parentUpdate.setStatus("draft");
-        parentUpdate.setRecipientUserId(null);
-        parentUpdate.setAuditBy(null);
-        parentUpdate.setAuditTime(null);
-        parentUpdate.setAuditRemark(auditRemark != null ? ("明细退回：" + auditRemark) : "明细退回，退回到未提交");
-        parentUpdate.setUpdateBy(currentUser());
-        parentUpdate.setUpdateTime(LocalDateTime.now());
-        declarationMapper.updateById(parentUpdate);
+        // 3. 撤销审核结论：父申报单回到 submitted（待审核），【保留】recipient_user_id 审核指派，
+        //    仅清空父单上一次的审核结论字段。这样该单会同时回到：
+        //      ① 申报审核-待审核页签：审核人可重新做 通过/驳回；
+        //      ② 申报管理-待审核页签：明细显示"待审核"，且因处于审核中（submitted）申报人不可编辑、不可重复提交。
+        declarationMapper.update(null, new LambdaUpdateWrapper<Declaration>()
+                .eq(Declaration::getId, parent.getId())
+                .set(Declaration::getStatus, "submitted")
+                .set(Declaration::getAuditBy, null)
+                .set(Declaration::getAuditTime, null)
+                .set(Declaration::getAuditRemark, auditRemark != null ? ("明细撤销：" + auditRemark) : "明细撤销，回到待审核")
+                .set(Declaration::getUpdateBy, currentUser())
+                .set(Declaration::getUpdateTime, LocalDateTime.now()));
     }
 
     /**
@@ -676,20 +680,23 @@ public class DeclarationServiceImpl implements DeclarationService {
      */
     private Set<Long> collectDeclIdsByAuditStatus(List<String> targetAuditStatuses) {
         Set<Long> result = new HashSet<>();
-        // household 明细
+        // household 明细：把 IN(...) OR audit_status IS NULL 包在同一子分组里，
+        // 避免全局 OR 把 deleted=0 之外的条件切断导致匹配扩散。
         LambdaQueryWrapper<DeclarationHousehold> hw = new LambdaQueryWrapper<>();
         hw.select(DeclarationHousehold::getDeclarationId)
-          .inSql(DeclarationHousehold::getAuditStatus, buildInExpr(targetAuditStatuses))
-          .or(h -> h.isNull(DeclarationHousehold::getAuditStatus))
+          .and(w -> w
+              .inSql(DeclarationHousehold::getAuditStatus, buildInExpr(targetAuditStatuses))
+              .or(h -> h.isNull(DeclarationHousehold::getAuditStatus)))
           .eq(DeclarationHousehold::getDeleted, 0);
         for (DeclarationHousehold h : householdMapper.selectList(hw)) {
             if (h.getDeclarationId() != null) result.add(h.getDeclarationId());
         }
-        // public_facility 明细
+        // public_facility 明细：同样用子分组包住 IN(...) OR audit_status IS NULL
         LambdaQueryWrapper<DeclarationPublicFacility> fw = new LambdaQueryWrapper<>();
         fw.select(DeclarationPublicFacility::getDeclarationId)
-          .inSql(DeclarationPublicFacility::getAuditStatus, buildInExpr(targetAuditStatuses))
-          .or(f -> f.isNull(DeclarationPublicFacility::getAuditStatus))
+          .and(w -> w
+              .inSql(DeclarationPublicFacility::getAuditStatus, buildInExpr(targetAuditStatuses))
+              .or(f -> f.isNull(DeclarationPublicFacility::getAuditStatus)))
           .eq(DeclarationPublicFacility::getDeleted, 0);
         for (DeclarationPublicFacility f : facilityMapper.selectList(fw)) {
             if (f.getDeclarationId() != null) result.add(f.getDeclarationId());

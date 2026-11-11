@@ -136,9 +136,9 @@ public class DeclarationController {
         return Result.ok();
     }
 
-    @Operation(summary = "明细退回（单条明细退回未提交，父申报单回滚到 draft，清掉接收审核人）")
+    @Operation(summary = "明细撤销（收回审核结论，明细回到待审核 pending，父申报单回到 submitted 并保留审核指派）")
     @RequirePerm("declaration:audit")
-    @OperLog(module = "事项申报", operation = "明细退回")
+    @OperLog(module = "事项申报", operation = "明细撤销")
     @PostMapping("/revert-detail")
     public Result<Void> revertDetail(@Valid @RequestBody DeclarationDetailRevertDTO dto) {
         declarationService.revertDetail(dto);

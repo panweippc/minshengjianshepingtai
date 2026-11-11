@@ -15,6 +15,6 @@ public interface DeclarationPublicFacilityMapper extends BaseMapper<DeclarationP
     /**
      * 按申报单ID逻辑删除全部明细
      */
-    @Update("UPDATE t_declaration_public_facility SET deleted = id WHERE declaration_id = #{declarationId} AND deleted = 0")
+    @Update("UPDATE t_declaration_public_facility SET deleted = 1 WHERE declaration_id = #{declarationId} AND deleted = 0")
     int logicDeleteByDeclarationId(@Param("declarationId") Long declarationId);
 }

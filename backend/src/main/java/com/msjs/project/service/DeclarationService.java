@@ -69,9 +69,9 @@ public interface DeclarationService {
     void auditDetail(DeclarationDetailAuditDTO dto);
 
     /**
-     * 明细退回：把某条明细 audit_status 置回 pending，同时强制父申报单回滚到 draft，
-     * 清掉 recipient_user_id，让申报人可以重新编辑后再提交。
-     * 仅当前被指派的审核人（recipient_user_id）能退回自己正在审核的申报单。
+     * 明细撤销：收回某条明细已做出的审核结论，把 audit_status 置回 pending 并清空审核痕迹，
+     * 同时父申报单回到 submitted（待审核）、保留 recipient_user_id 审核指派。
+     * 撤销后该单回到"申报审核-待审核"页签可重新通过/驳回，申报管理侧显示"待审核"且不可编辑。
      */
     void revertDetail(DeclarationDetailRevertDTO dto);
 
