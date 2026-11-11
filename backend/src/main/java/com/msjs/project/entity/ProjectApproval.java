@@ -54,6 +54,15 @@ public class ProjectApproval implements Serializable {
     /** 立项状态：pending / approved / rejected / returned */
     private String status;
 
+    /** 验收状态：NONE未发起 APPLYING验收中 ARCHIVED已归档 */
+    private String acceptStatus;
+
+    /** 发起验收时间 */
+    private LocalDateTime acceptApplyTime;
+
+    /** 发起验收人 */
+    private String acceptApplyBy;
+
     /** 所属乡镇 code */
     private String regionCode;
 
