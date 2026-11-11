@@ -586,7 +586,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         pd.setHouseholdId(hh.getId());
         pd.setTargetId(hh.getHouseholdId());
         pd.setTargetName(hh.getSnapshotHeadName());
-        pd.setTargetCode(hh.getSnapshotHeadIdCard());
+        // 农户明细编号使用户号（业务编码），而非户主身份证号
+        pd.setTargetCode(hh.getSnapshotHouseholdNo());
         pd.setRegionName(hh.getSnapshotRegionName());
         pd.setAmount(hh.getAmount() != null ? hh.getAmount() : BigDecimal.ZERO);
         pd.setCreateTime(LocalDateTime.now());

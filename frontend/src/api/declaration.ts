@@ -112,6 +112,7 @@ export interface DeclarationHouseholdDetail {
   id: string                         // 明细ID（t_declaration_household.id）
   householdId?: string               // 农户档案ID
   snapshotHeadName?: string          // 快照-户主姓名
+  snapshotHouseholdNo?: string      // 快照-户号（业务编码）
   snapshotHeadIdCard?: string
   snapshotContactPhone?: string
   snapshotHouseholdType?: string
