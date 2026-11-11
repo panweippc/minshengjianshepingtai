@@ -1,4 +1,4 @@
-﻿package com.msjs.project.service.impl;
+package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
