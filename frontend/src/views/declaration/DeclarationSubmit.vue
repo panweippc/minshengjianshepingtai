@@ -174,7 +174,7 @@
                 link type="primary" size="small" @click="openFacilityDetailView(row)"
               >查看</el-button>
               <el-button
-                v-if="activeStatusTab !== 'submitted' && activeStatusTab !== 'approved' && activeStatusTab !== 'established' && (row._parentStatus === 'draft' || row.auditStatus === 'rejected')"
+                v-if="activeStatusTab !== 'approved' && activeStatusTab !== 'established' && (row._parentStatus === 'draft' || row.auditStatus === 'rejected')"
                 link type="primary" size="small" @click="openDetailEdit(row._detailKind as any, row._parentRef, row)"
               >编辑</el-button>
             </template>
@@ -202,64 +202,110 @@
       append-to-body
       @open="onDialogOpen"
     >
-      <!-- 详情模式：展示树形结构 -->
+      <!-- 详情模式：展示树形结构 + Tab 切换基本信息 / 明细审核记录 -->
       <div v-if="dialogMode === 'detail'" class="detail-mode">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="申报编号">{{ detailData.businessCode || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="申报标题">{{ detailData.title || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="所属乡镇">{{ detailData.townName || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="所属村组">{{ detailData.villageGroupName || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="申报类型">{{ dictLabel('shen_bao_lei_xing', detailData.declarationType) }}</el-descriptions-item>
-          <el-descriptions-item label="申报类别">{{ dictLabel('shen_bao_lei_bie', detailData.declarationCategory) }}</el-descriptions-item>
-          <el-descriptions-item label="申报金额">¥ {{ detailData.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="statusTagType(detailData.status)">{{ dictLabel('declaration_status', detailData.status) }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="备注说明" :span="2">{{ detailData.remark || '—' }}</el-descriptions-item>
-        </el-descriptions>
+        <el-tabs v-model="detailTab" class="detail-tabs">
+          <!-- ============ Tab 1：基本信息 ============ -->
+          <el-tab-pane label="基本信息" name="info">
+            <el-descriptions :column="2" border>
+              <el-descriptions-item label="申报编号">{{ detailData.businessCode || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="申报标题">{{ detailData.title || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="所属乡镇">{{ detailData.townName || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="所属村组">{{ detailData.villageGroupName || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="申报类型">{{ dictLabel('shen_bao_lei_xing', detailData.declarationType) }}</el-descriptions-item>
+              <el-descriptions-item label="申报类别">{{ dictLabel('shen_bao_lei_bie', detailData.declarationCategory) }}</el-descriptions-item>
+              <el-descriptions-item label="申报金额">¥ {{ detailData.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</el-descriptions-item>
+              <el-descriptions-item label="状态">
+                <el-tag :type="statusTagType(detailData.status)">{{ dictLabel('declaration_status', detailData.status) }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="备注说明" :span="2">{{ detailData.remark || '—' }}</el-descriptions-item>
+            </el-descriptions>
 
-        <!-- 申报单级附件 -->
-        <div class="detail-section">
-          <div class="detail-section-title">📎 申报单级附件（{{ detailData.attachments?.length || 0 }}）</div>
-          <el-table :data="detailData.attachments || []" border size="small" empty-text="暂无附件">
-            <el-table-column label="附件类型" width="140">
-              <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) }}</template>
-            </el-table-column>
-            <el-table-column label="文件名" min-width="200">
-              <template #default="{ row }">
-                <el-link v-if="row.fileKey" type="primary" @click="openAttachmentFile(row, true)">{{ row.fileName }}</el-link>
-                <span v-else>{{ row.fileName }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="备注" min-width="150"><template #default="{ row }">{{ row.remark || '—' }}</template></el-table-column>
-          </el-table>
-        </div>
+            <!-- 申报单级附件 -->
+            <div class="detail-section">
+              <div class="detail-section-title">📎 申报单级附件（{{ detailData.attachments?.length || 0 }}）</div>
+              <el-table :data="detailData.attachments || []" border size="small" empty-text="暂无附件">
+                <el-table-column label="附件类型" width="140">
+                  <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) }}</template>
+                </el-table-column>
+                <el-table-column label="文件名" min-width="200">
+                  <template #default="{ row }">
+                    <el-link v-if="row.fileKey" type="primary" @click="openAttachmentFile(row, true)">{{ row.fileName }}</el-link>
+                    <span v-else>{{ row.fileName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="备注" min-width="150"><template #default="{ row }">{{ row.remark || '—' }}</template></el-table-column>
+              </el-table>
+            </div>
 
-        <!-- 农户/公建明细 -->
-        <div v-if="detailData.declarationCategory === '1'" class="detail-section">
-          <div class="detail-section-title">👥 农户明细（{{ detailData.households?.length || 0 }}）</div>
-          <el-table :data="detailData.households || []" border size="small" empty-text="暂无农户">
-            <el-table-column label="户主" width="100" prop="snapshotHeadName" />
-            <el-table-column label="身份证号" width="180" prop="snapshotHeadIdCard" />
-            <el-table-column label="联系电话" width="130" prop="snapshotContactPhone" />
-            <el-table-column label="户类型" width="110">
-              <template #default="{ row }">{{ dictLabel('hu_lei_xing', row.snapshotHouseholdType) }}</template>
-            </el-table-column>
-            <el-table-column label="村组" min-width="130" prop="snapshotRegionName" />
-          </el-table>
-        </div>
-        <div v-if="detailData.declarationCategory === '2'" class="detail-section">
-          <div class="detail-section-title">🏗️ 公建设施明细（{{ detailData.facilities?.length || 0 }}）</div>
-          <el-table :data="detailData.facilities || []" border size="small" empty-text="暂无设施">
-            <el-table-column label="设施编号" width="140" prop="snapshotFacilityCode" />
-            <el-table-column label="设施名称" min-width="180" prop="snapshotFacilityName" />
-            <el-table-column label="类型" width="120">
-              <template #default="{ row }">{{ dictLabel('she_shi_lei_xing', row.snapshotFacilityType) }}</template>
-            </el-table-column>
-            <el-table-column label="位置" min-width="180" prop="snapshotLocation" />
-            <el-table-column label="村组" width="130" prop="snapshotRegionName" />
-          </el-table>
-        </div>
+            <!-- 农户/公建明细 -->
+            <div v-if="detailData.declarationCategory === '1'" class="detail-section">
+              <div class="detail-section-title">👥 农户明细（{{ detailData.households?.length || 0 }}）</div>
+              <el-table :data="detailData.households || []" border size="small" empty-text="暂无农户">
+                <el-table-column label="户主" width="100" prop="snapshotHeadName" />
+                <el-table-column label="户号" width="160" prop="snapshotHouseholdNo" />
+                <el-table-column label="身份证号" width="180" prop="snapshotHeadIdCard" />
+                <el-table-column label="联系电话" width="130" prop="snapshotContactPhone" />
+                <el-table-column label="户类型" width="110">
+                  <template #default="{ row }">{{ dictLabel('hu_lei_xing', row.snapshotHouseholdType) }}</template>
+                </el-table-column>
+                <el-table-column label="村组" min-width="130" prop="snapshotRegionName" />
+              </el-table>
+            </div>
+            <div v-if="detailData.declarationCategory === '2'" class="detail-section">
+              <div class="detail-section-title">🏗️ 公建设施明细（{{ detailData.facilities?.length || 0 }}）</div>
+              <el-table :data="detailData.facilities || []" border size="small" empty-text="暂无设施">
+                <el-table-column label="设施编号" width="140" prop="snapshotFacilityCode" />
+                <el-table-column label="设施名称" min-width="180" prop="snapshotFacilityName" />
+                <el-table-column label="类型" width="120">
+                  <template #default="{ row }">{{ dictLabel('she_shi_lei_xing', row.snapshotFacilityType) }}</template>
+                </el-table-column>
+                <el-table-column label="位置" min-width="180" prop="snapshotLocation" />
+                <el-table-column label="村组" width="130" prop="snapshotRegionName" />
+              </el-table>
+            </div>
+          </el-tab-pane>
+
+          <!-- ============ Tab 2：明细审核记录 ============ -->
+          <el-tab-pane label="明细审核记录" name="audit-log">
+            <el-table
+              :data="allDetailAuditLogs"
+              border size="small"
+              empty-text="暂无审核记录（未进入审核流程）"
+            >
+              <el-table-column label="序号" type="index" width="60" />
+              <el-table-column label="明细类型" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="row._kind === 'household' ? 'primary' : ''" size="small">
+                    {{ row._kind === 'household' ? '农户' : '公建设施' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="明细名称" min-width="160">
+                <template #default="{ row }">{{ row._displayName }}</template>
+              </el-table-column>
+              <el-table-column label="审核状态" width="110">
+                <template #default="{ row }">
+                  <el-tag
+                    v-if="row.auditStatus === 'unsubmitted'" type="info" size="small">未提交</el-tag>
+                  <el-tag v-else-if="row.auditStatus === 'pending'" type="warning" size="small">待审核</el-tag>
+                  <el-tag v-else-if="row.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
+                  <el-tag v-else-if="row.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
+                  <el-tag v-else type="info" size="small">{{ row.auditStatus || '—' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="审核人" width="120">
+                <template #default="{ row }">{{ row.auditByName || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="审核时间" width="170">
+                <template #default="{ row }">{{ row.auditTime || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="审核意见" min-width="200">
+                <template #default="{ row }">{{ row.auditRemark || '—' }}</template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
       </div>
 
       <!-- 新增/编辑模式 -->
@@ -545,6 +591,7 @@
       <template v-if="householdViewDialog.data">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="户主姓名">{{ householdViewDialog.data.snapshotHeadName }}</el-descriptions-item>
+          <el-descriptions-item label="户号">{{ householdViewDialog.data.snapshotHouseholdNo || '—' }}</el-descriptions-item>
           <el-descriptions-item label="联系电话">{{ householdViewDialog.data.snapshotContactPhone }}</el-descriptions-item>
           <el-descriptions-item label="户类型">{{ dictLabel('hu_lei_xing', householdViewDialog.data.snapshotHouseholdType) }}</el-descriptions-item>
           <el-descriptions-item label="所属村组">{{ householdViewDialog.data.snapshotRegionName }}</el-descriptions-item>
@@ -837,19 +884,18 @@ function flatDetails(row: any): any[] {
  *  - draft / rejected 主表 → 可编辑
  */
 function canParentEdit(row: any): boolean {
-  if (activeStatusTab.value === 'submitted') return false
+  // 已通过/已立项页签一律不可编辑；其他页签（待审核、已驳回）按主表+明细状态判断
   if (activeStatusTab.value === 'approved' || activeStatusTab.value === 'established') return false
   if (row.status === 'draft' || row.status === 'rejected') return true
   return flatDetails(row).some(d => d.auditStatus === 'rejected')
 }
 /**
  * 父行是否可显示"提交/重新提交"按钮：
- *  - 待审核页签（submitted，含撤销回来的单）→ 审核中不可重复提交
  *  - 已通过/已立项页签 → 一律不显示
  *  - draft / rejected 主表 → 可提交/重新提交
+ *  - submitted 主表且存在 rejected 明细 → 可重新提交
  */
 function canParentSubmit(row: any): boolean {
-  if (activeStatusTab.value === 'submitted') return false
   if (activeStatusTab.value === 'approved' || activeStatusTab.value === 'established') return false
   if (row.status === 'draft' || row.status === 'rejected') return true
   return flatDetails(row).some(d => d.auditStatus === 'rejected')
@@ -999,6 +1045,30 @@ const submitLoading = ref(false)
 
 // 详情用
 const detailData = ref<any>({})
+/** 查看弹窗的 Tab 切换：基本信息 / 明细审核记录 */
+const detailTab = ref<'info' | 'audit-log'>('info')
+/**
+ * 明细审核记录的合并列表（detail 模式下同时展示农户 + 公建设施）
+ * 每条：明细自身字段 + _kind('household'/'public_facility') + _displayName（前端展示名）
+ */
+const allDetailAuditLogs = computed(() => {
+  const list: any[] = []
+  for (const h of (detailData.value.households || [])) {
+    list.push({
+      ...h,
+      _kind: 'household',
+      _displayName: h.snapshotHeadName || '未知户主'
+    })
+  }
+  for (const f of (detailData.value.facilities || [])) {
+    list.push({
+      ...f,
+      _kind: 'public_facility',
+      _displayName: f.snapshotFacilityName || '未知设施'
+    })
+  }
+  return list
+})
 
 // 当前登录人乡镇（弹窗初始化时拿）
 const userTown = ref<UserRegionVO>({})
@@ -1347,11 +1417,13 @@ function openDetail(row: DeclarationVO) {
     nextTick(() => {
       dialogMode.value = 'detail'
       dialogVisible.value = true
+      detailTab.value = 'info'
       getDeclarationDetail(row.id).then((r) => { detailData.value = (r.data as any) || {} })
     })
   } else {
     dialogMode.value = 'detail'
     dialogVisible.value = true
+    detailTab.value = 'info'
     getDeclarationDetail(row.id).then((r) => { detailData.value = (r.data as any) || {} })
   }
 }
@@ -1548,6 +1620,8 @@ onMounted(async () => {
 
 .detail-mode .detail-section { margin-top: 16px; }
 .detail-mode .detail-section-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #303133; }
+.detail-tabs { margin-top: -4px; }
+.detail-tabs :deep(.el-tabs__content) { padding-top: 12px; }
 
 .section-block { margin-top: 10px; }
 .section-divider { display: flex; justify-content: space-between; align-items: center; }

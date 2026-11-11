@@ -70,6 +70,8 @@ public class DeclarationDetailVO extends Declaration {
         @JsonSerialize(using = ToStringSerializer.class)
         @Schema(description = "农户档案ID（t_base_household.id）")
         private Long householdId;
+        @Schema(description = "快照-户号（业务编码）")
+        private String snapshotHouseholdNo;
         @Schema(description = "快照-户主姓名")
         private String snapshotHeadName;
         @Schema(description = "快照-户主身份证号")
@@ -89,6 +91,8 @@ public class DeclarationDetailVO extends Declaration {
         @JsonSerialize(using = ToStringSerializer.class)
         @Schema(description = "明细实际审核人（雪花ID）")
         private Long auditBy;
+        @Schema(description = "明细实际审核人姓名（冗余，前端直接展示，不查用户表）")
+        private String auditByName;
         @Schema(description = "明细审核时间")
         private String auditTime;
         @Schema(description = "明细审核意见")
@@ -127,6 +131,8 @@ public class DeclarationDetailVO extends Declaration {
         @JsonSerialize(using = ToStringSerializer.class)
         @Schema(description = "明细实际审核人（雪花ID）")
         private Long auditBy;
+        @Schema(description = "明细实际审核人姓名（冗余，前端直接展示，不查用户表）")
+        private String auditByName;
         @Schema(description = "明细审核时间")
         private String auditTime;
         @Schema(description = "明细审核意见")

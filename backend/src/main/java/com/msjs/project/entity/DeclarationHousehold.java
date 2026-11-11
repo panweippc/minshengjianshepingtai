@@ -33,6 +33,9 @@ public class DeclarationHousehold implements Serializable {
     @Schema(description = "农户档案ID（关联 t_base_household.id）")
     private Long householdId;
 
+    @Schema(description = "快照-户号（业务编码，来源于 t_base_household.household_no）")
+    private String snapshotHouseholdNo;
+
     @Schema(description = "快照-户主姓名")
     private String snapshotHeadName;
 
