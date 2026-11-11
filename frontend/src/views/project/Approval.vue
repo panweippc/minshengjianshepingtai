@@ -983,7 +983,8 @@ const openEdit = async (row: DisplayRow) => {
   })
   attachmentCards.value = []
   const res = await getApprovalAttachments(approval.id)
-  attachmentCards.value = groupAttachmentsToCards(res.data || [])
+  // 编辑弹窗只维护项目级立项资料附件，申报材料附件（declareId 非空）由申报模块管理
+  attachmentCards.value = groupAttachmentsToCards((res.data || []).filter((item) => !item.declareId))
   editVisible.value = true
 }
 

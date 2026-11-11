@@ -27,7 +27,7 @@ public class ProjectApprovalDetail implements Serializable {
     /** 立项-申报单关联 ID */
     private Long declareId;
 
-    /** 明细类型：HOUSEHOLD / PUBLIC_FACILITY */
+    /** 明细类型：HOUSEHOLD农户 / FACILITY公共基础设施 */
     private String detailType;
 
     /** 申报单主表 ID */

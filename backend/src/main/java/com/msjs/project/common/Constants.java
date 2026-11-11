@@ -72,6 +72,11 @@ public final class Constants {
     /** 立项审核状态：已驳回 */
     public static final String APPROVAL_STATUS_REJECTED = "REJECTED";
 
+    /** 立项明细类型：农户 */
+    public static final String APPROVAL_DETAIL_TYPE_HOUSEHOLD = "HOUSEHOLD";
+    /** 立项明细类型：公共基础设施 */
+    public static final String APPROVAL_DETAIL_TYPE_FACILITY = "FACILITY";
+
     /** 资金节点类型：项目（一级资金登记） */
     public static final String FUND_NODE_APPROVAL = "approval";
     /** 资金节点类型：申报内容（二级下拨） */
