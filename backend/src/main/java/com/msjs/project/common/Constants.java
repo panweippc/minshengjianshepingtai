@@ -86,6 +86,23 @@ public final class Constants {
     /** 资金层级：三级下拨 */
     public static final int FUND_LEVEL_DETAIL = 3;
 
+    /** 施工状态：未开工 */
+    public static final String CONSTRUCTION_STATUS_NOT_STARTED = "NOT_STARTED";
+    /** 施工状态：施工中 */
+    public static final String CONSTRUCTION_STATUS_IN_PROGRESS = "IN_PROGRESS";
+    /** 施工状态：已完工 */
+    public static final String CONSTRUCTION_STATUS_COMPLETED = "COMPLETED";
+
+    /** 巡检状态：合格 */
+    public static final String CONSTRUCTION_INSPECTION_PASS = "PASS";
+    /** 巡检状态：不合格 */
+    public static final String CONSTRUCTION_INSPECTION_FAIL = "FAIL";
+
+    /** 施工节点层级：项目（一级） */
+    public static final int CONSTRUCTION_LEVEL_PROJECT = 1;
+    /** 施工节点层级：农户/设施明细（三级） */
+    public static final int CONSTRUCTION_LEVEL_DETAIL = 3;
+
     /** 立项页签：全部 */
     public static final String APPROVAL_TAB_ALL = "all";
     /** 立项页签：待审核 */
