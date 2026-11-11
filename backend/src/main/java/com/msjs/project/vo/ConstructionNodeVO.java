@@ -113,8 +113,26 @@ public class ConstructionNodeVO implements Serializable {
     @Schema(description = "施工日志/巡检记录（一级节点查看使用）")
     private List<ConstructionLogVO> logs;
 
+    @Schema(description = "最新一条施工记录的施工内容（二级查看明细使用）")
+    private String latestContent;
+
+    @Schema(description = "最新一条施工记录的巡检状态 PASS合格 FAIL整改（二级查看明细使用）")
+    private String latestInspectionStatus;
+
+    @Schema(description = "最新一条施工记录的施工状态 NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工（二级查看明细使用）")
+    private String latestConstructionStatus;
+
+    @Schema(description = "最新一条施工记录绑定的附件列表（二级查看明细使用，按 log_id 留痕快照）")
+    private List<ConstructionAttachmentVO> latestAttachments;
+
+    @Schema(description = "最新一条施工记录的巡检日期（二级查看明细使用）")
+    private LocalDate latestInspectionDate;
+
     @Schema(description = "施工资料附件（一级节点查看/编辑使用）")
     private List<ConstructionAttachmentVO> attachments;
+
+    @Schema(description = "三级明细最新施工记录快照（与三级查看详情页签完全同源，巡检状态/日期/内容/附件均取自此处）")
+    private ConstructionLogVO detailLogSnapshot;
 
     @Schema(description = "开工日期")
     private LocalDate startDate;

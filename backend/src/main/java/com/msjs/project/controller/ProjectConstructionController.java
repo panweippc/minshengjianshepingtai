@@ -5,7 +5,9 @@ import com.msjs.project.common.Result;
 import com.msjs.project.common.annotation.OperLog;
 import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.ConstructionEditDTO;
+import com.msjs.project.dto.ConstructionLogEditDTO;
 import com.msjs.project.service.ProjectConstructionService;
+import com.msjs.project.vo.ConstructionLogVO;
 import com.msjs.project.vo.ConstructionNodeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,6 +54,31 @@ public class ProjectConstructionController {
     public Result<ConstructionNodeVO> detail(
             @Parameter(description = "立项ID") @PathVariable Long approvalId) {
         return Result.ok(constructionService.detail(approvalId));
+    }
+
+    @Operation(summary = "三级施工记录详情（关联项目、记录日期、巡检人、巡检状态、施工状态、施工内容及附件）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/detail/{detailId}/log")
+    public Result<ConstructionLogVO> detailLog(
+            @Parameter(description = "明细ID") @PathVariable Long detailId) {
+        return Result.ok(constructionService.detailLog(detailId));
+    }
+
+    @Operation(summary = "三级施工记录历史（每次编辑留痕，倒序）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/detail/{detailId}/log/history")
+    public Result<java.util.List<ConstructionLogVO>> detailLogHistory(
+            @Parameter(description = "明细ID") @PathVariable Long detailId) {
+        return Result.ok(constructionService.detailLogHistory(detailId));
+    }
+
+    @Operation(summary = "保存三级施工记录（施工记录与附件，并同步明细施工状态）")
+    @RequirePerm("project:construction:edit")
+    @OperLog(module = "施工管理", operation = "保存三级施工记录")
+    @PutMapping("/detail/log")
+    public Result<Void> saveDetailLog(@Valid @RequestBody ConstructionLogEditDTO dto) {
+        constructionService.saveDetailLog(dto);
+        return Result.ok();
     }
 
     @Operation(summary = "编辑施工信息（一级：施工单位/工期；三级：施工状态/工期）")
