@@ -22,12 +22,12 @@ export function deleteUser(id: string) {
   return del<Result<void>>(`/api/system/user/${id}`)
 }
 
-/** 重置密码 */
+/** 重置密码（与后端 PUT /password 对齐，入参走 JSON body） */
 export function resetPassword(id: string, password: string) {
-  return put<Result<void>>(`/api/system/user/password/${id}`, { password })
+  return put<Result<void>>('/api/system/user/password', { userId: id, newPassword: password })
 }
 
-/** 分配角色 */
-export function assignRoles(id: string, roleIds: string[]) {
-  return put<Result<void>>(`/api/system/user/roleIds/${id}`, roleIds)
+/** 查询用户角色ID集合（编辑回显用） */
+export function getUserRoleIds(id: string) {
+  return get<Result<string[]>>(`/api/system/user/${id}/roleIds`)
 }

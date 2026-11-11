@@ -31,8 +31,8 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="store.hasPerm('system:menu:edit')" link type="primary" icon="Edit" @click="openDialog(row)">编辑</el-button>
-            <el-button v-if="store.hasPerm('system:menu:delete')" link type="danger" icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="store.hasPerm('system:menu:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
+            <el-button v-if="store.hasPerm('system:menu:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

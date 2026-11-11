@@ -26,7 +26,11 @@
         <el-table-column prop="username" label="操作人" width="120" />
         <el-table-column prop="module" label="模块" width="120" />
         <el-table-column prop="operation" label="操作" width="120" />
-        <el-table-column prop="method" label="请求方式" width="90" align="center" />
+        <el-table-column prop="method" label="请求方式" width="90" align="center">
+          <template #default="{ row }">
+            {{ methodLabel(row.method) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="url" label="请求地址" min-width="180" show-overflow-tooltip />
         <el-table-column prop="ip" label="IP" width="140" />
         <el-table-column label="结果" width="90" align="center">
@@ -65,6 +69,19 @@ const query = reactive<PageQuery & { username?: string; module?: string }>({ pag
 const total = ref(0)
 const tableData = ref<OperLogVO[]>([])
 const loading = ref(false)
+
+/** HTTP 请求方式 → 中文语义映射（RESTful：GET查询 POST新增 PUT修改 DELETE删除） */
+const METHOD_LABELS: Record<string, string> = {
+  GET: '查询',
+  POST: '新增',
+  PUT: '修改',
+  DELETE: '删除'
+}
+
+const methodLabel = (method: unknown): string => {
+  const key = typeof method === 'string' ? method.toUpperCase() : ''
+  return METHOD_LABELS[key] ?? String(method ?? '')
+}
 
 const loadData = async () => {
   loading.value = true

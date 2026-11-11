@@ -642,7 +642,6 @@ import {
   deleteDeclaration,
   submitDeclaration,
   getRecipients,
-  nextBusinessCode,
   getDeclarationDetail,
   getCurrentUserRegion,
   getVillageGroups,

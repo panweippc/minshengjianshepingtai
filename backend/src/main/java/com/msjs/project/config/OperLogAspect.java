@@ -7,6 +7,7 @@ import com.msjs.project.common.UserContext;
 import com.msjs.project.common.annotation.OperLog;
 import com.msjs.project.entity.SysOperLog;
 import com.msjs.project.service.SysOperLogService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +38,14 @@ public class OperLogAspect {
 
     /** 参数最大留存长度 */
     private static final int PARAM_MAX_LEN = 2000;
+
+    /** HTTP请求方式 → 中文操作语义（RESTful规范：GET查询 POST新增 PUT修改 DELETE删除） */
+    private static final Map<String, String> METHOD_OPERATION_MAP = Map.of(
+            "GET", "查询",
+            "POST", "新增",
+            "PUT", "修改",
+            "DELETE", "删除"
+    );
 
     private final SysOperLogService operLogService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -76,8 +86,22 @@ public class OperLogAspect {
         }
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         OperLog anno = signature.getMethod().getAnnotation(OperLog.class);
-        operLog.setModule(anno != null && !anno.module().isBlank() ? anno.module() : signature.getDeclaringType().getSimpleName());
-        operLog.setOperation(anno != null && !anno.operation().isBlank() ? anno.operation() : signature.getName());
+        // 模块兜底优先级：@OperLog注解 > Controller类上的@Tag中文注解 > 类名
+        Class<?> controllerClass = signature.getDeclaringType();
+        Tag tag = controllerClass.getAnnotation(Tag.class);
+        if (anno != null && !anno.module().isBlank()) {
+            operLog.setModule(anno.module());
+        } else if (tag != null && !tag.name().isBlank()) {
+            operLog.setModule(tag.name());
+        } else {
+            operLog.setModule(controllerClass.getSimpleName());
+        }
+        // 操作兜底：@OperLog注解 > HTTP请求方式中文映射，避免日志出现英文方法名
+        if (anno != null && !anno.operation().isBlank()) {
+            operLog.setOperation(anno.operation());
+        } else {
+            operLog.setOperation(METHOD_OPERATION_MAP.getOrDefault(request.getMethod(), request.getMethod()));
+        }
         operLog.setMethod(request.getMethod());
         operLog.setUrl(request.getRequestURI());
         operLog.setIp(request.getRemoteAddr());

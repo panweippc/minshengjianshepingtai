@@ -99,6 +99,21 @@ public class SysRoleServiceImpl implements SysRoleService {
                 .stream().map(SysRoleMenu::getMenuId).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void assignMenus(Long roleId, List<Long> menuIds) {
+        SysRole exist = roleMapper.selectById(roleId);
+        if (exist == null) {
+            throw new BizException("角色不存在");
+        }
+        // 内置超级管理员拥有全部权限，禁止通过分配权限改动，防止误清空导致系统不可用
+        if ("admin".equals(exist.getRoleKey())) {
+            throw new BizException("内置超级管理员角色无需分配权限");
+        }
+        // 删除旧关联后重建，与角色元数据保持事务一致，杜绝脏数据
+        saveRoleMenus(roleId, menuIds);
+    }
+
     private void fillRole(SysRole role, RoleSaveDTO dto) {
         role.setRoleName(dto.getRoleName());
         role.setRoleKey(dto.getRoleKey());

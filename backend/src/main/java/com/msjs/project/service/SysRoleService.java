@@ -28,4 +28,7 @@ public interface SysRoleService {
 
     /** 角色已分配菜单ID集合 */
     List<Long> menuIds(Long roleId);
+
+    /** 分配菜单权限（同事务重建角色-菜单关联） */
+    void assignMenus(Long roleId, List<Long> menuIds);
 }

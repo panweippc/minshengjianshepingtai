@@ -37,9 +37,9 @@
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="store.hasPerm('system:user:edit')" link type="primary" icon="Edit" @click="openDialog(row)">编辑</el-button>
-            <el-button v-if="store.hasPerm('system:user:edit')" link type="warning" icon="Key" @click="openPasswordDialog(row)">重置密码</el-button>
-            <el-button v-if="store.hasPerm('system:user:delete')" link type="danger" icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="store.hasPerm('system:user:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
+            <el-button v-if="store.hasPerm('system:user:edit')" link type="warning" @click="openPasswordDialog(row)">重置密码</el-button>
+            <el-button v-if="store.hasPerm('system:user:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -75,8 +75,8 @@
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" placeholder="手机号" />
         </el-form-item>
-        <el-form-item label="角色" prop="roleIds">
-          <el-select v-model="form.roleIds" multiple placeholder="分配角色" style="width: 100%">
+        <el-form-item label="角色" prop="roleId">
+          <el-select v-model="form.roleId" placeholder="分配角色" clearable style="width: 100%">
             <el-option v-for="r in roleList" :key="r.id" :label="r.roleName" :value="r.id" />
           </el-select>
         </el-form-item>
@@ -115,7 +115,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getUserPage, createUser, updateUser, deleteUser, resetPassword } from '@/api/user'
+import { getUserPage, createUser, updateUser, deleteUser, resetPassword, getUserRoleIds } from '@/api/user'
 import { getRoleAll } from '@/api/role'
 import { getRegionList } from '@/api/region'
 import { useUserStore } from '@/stores/user'
@@ -134,7 +134,8 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
-const form = reactive<UserSaveDTO>({ username: '', password: '', realName: '', regionCode: '', phone: '', status: 1, remark: '', roleIds: [] })
+// roleId 为表单单选绑定值，提交时映射为后端 roleIds 数组（用户仅分配单一角色）
+const form = reactive<UserSaveDTO & { roleId?: string }>({ username: '', password: '', realName: '', regionCode: '', phone: '', status: 1, remark: '', roleIds: [], roleId: '' })
 
 // 重置密码
 const pwdVisible = ref(false)
@@ -181,11 +182,14 @@ const resetQuery = () => {
   handleQuery()
 }
 
-const openDialog = (row?: UserVO) => {
+const openDialog = async (row?: UserVO) => {
   if (row) {
-    Object.assign(form, { id: row.id, username: row.username, realName: row.realName, regionCode: row.regionCode, phone: row.phone, status: row.status, remark: row.remark, roleIds: [] })
+    Object.assign(form, { id: row.id, username: row.username, realName: row.realName, regionCode: row.regionCode, phone: row.phone, status: row.status, remark: row.remark, roleIds: [], roleId: '' })
+    // 回显用户已分配角色（单选取第一个），避免编辑保存时误清空角色
+    const res = await getUserRoleIds(row.id)
+    form.roleId = res.data?.[0] ?? ''
   } else {
-    Object.assign(form, { id: undefined, username: '', password: '', realName: '', regionCode: '', phone: '', status: 1, remark: '', roleIds: [] })
+    Object.assign(form, { id: undefined, username: '', password: '', realName: '', regionCode: '', phone: '', status: 1, remark: '', roleIds: [], roleId: '' })
   }
   dialogVisible.value = true
 }
@@ -195,10 +199,13 @@ const handleSubmit = async () => {
   if (!valid) return
   submitLoading.value = true
   try {
+    // 单选角色映射为后端 roleIds 数组，剔除交互字段 roleId
+    const { roleId, ...rest } = form
+    const payload: UserSaveDTO = { ...rest, roleIds: roleId ? [roleId] : [] }
     if (form.id) {
-      await updateUser(form)
+      await updateUser(payload)
     } else {
-      await createUser(form)
+      await createUser(payload)
     }
     ElMessage.success('操作成功')
     dialogVisible.value = false

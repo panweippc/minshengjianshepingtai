@@ -83,4 +83,13 @@ public class SysRoleController {
     public Result<List<Long>> menuIds(@PathVariable("id") Long id) {
         return Result.ok(roleService.menuIds(id));
     }
+
+    @Operation(summary = "分配菜单权限（同事务重建角色-菜单关联）")
+    @RequirePerm("system:role:edit")
+    @OperLog(module = "角色管理", operation = "分配菜单权限")
+    @PutMapping("/menuIds/{id}")
+    public Result<Void> assignMenus(@PathVariable("id") Long id, @RequestBody List<Long> menuIds) {
+        roleService.assignMenus(id, menuIds);
+        return Result.ok();
+    }
 }

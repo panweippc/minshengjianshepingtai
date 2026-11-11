@@ -37,9 +37,9 @@
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="store.hasPerm('system:role:edit')" link type="primary" icon="Edit" @click="openDialog(row)">编辑</el-button>
-            <el-button v-if="store.hasPerm('system:role:edit')" link type="warning" icon="Menu" @click="openMenuDialog(row)">分配权限</el-button>
-            <el-button v-if="store.hasPerm('system:role:delete')" link type="danger" icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="store.hasPerm('system:role:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
+            <el-button v-if="store.hasPerm('system:role:edit')" link type="warning" @click="openMenuDialog(row)">分配权限</el-button>
+            <el-button v-if="store.hasPerm('system:role:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -106,10 +106,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getRolePage, createRole, updateRole, deleteRole, assignMenus } from '@/api/role'
+import { getRolePage, createRole, updateRole, deleteRole, assignMenus, getRoleMenuIds } from '@/api/role'
 import { getMenuTree } from '@/api/menu'
 import { useUserStore } from '@/stores/user'
 import type { RoleVO, RoleSaveDTO, MenuVO } from '@/types/system'
@@ -189,9 +189,30 @@ const handleSubmit = async () => {
 
 const openMenuDialog = async (row: RoleVO) => {
   currentRoleId.value = row.id
-  const res = await getMenuTree()
-  menuTree.value = res.data
+  // 并行加载菜单树与已分配菜单ID，实现回显
+  const [treeRes, idsRes] = await Promise.all([getMenuTree(), getRoleMenuIds(row.id)])
+  menuTree.value = treeRes.data
   menuVisible.value = true
+  // 等待树渲染完成后回显：仅勾选叶子节点，父节点由树联动自动呈半选状态
+  await nextTick()
+  const checkedSet = new Set(idsRes.data.map(String))
+  menuTreeRef.value?.setCheckedKeys(collectLeafIds(treeRes.data, checkedSet))
+}
+
+/** 从菜单树中筛选出已分配的叶子节点ID（父节点勾选会联动全选子节点，故只回显叶子） */
+const collectLeafIds = (nodes: MenuVO[], checkedSet: Set<string>): string[] => {
+  const leafIds: string[] = []
+  const walk = (list: MenuVO[]) => {
+    list.forEach((node) => {
+      if (node.children && node.children.length > 0) {
+        walk(node.children)
+      } else if (checkedSet.has(node.id)) {
+        leafIds.push(node.id)
+      }
+    })
+  }
+  walk(nodes)
+  return leafIds
 }
 
 const handleAssignMenus = async () => {

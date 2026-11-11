@@ -27,6 +27,11 @@ export function deleteRole(id: string) {
   return del<Result<void>>(`/api/system/role/${id}`)
 }
 
+/** 角色已分配菜单ID集合 */
+export function getRoleMenuIds(id: string) {
+  return get<Result<string[]>>(`/api/system/role/${id}/menuIds`)
+}
+
 /** 分配菜单权限 */
 export function assignMenus(id: string, menuIds: string[]) {
   return put<Result<void>>(`/api/system/role/menuIds/${id}`, menuIds)

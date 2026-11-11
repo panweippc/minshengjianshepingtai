@@ -47,9 +47,9 @@
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="store.hasPerm('system:dict:edit')" link type="primary" icon="Edit" @click="openDialog(row)">编辑</el-button>
-            <el-button v-if="store.hasPerm('system:dict:add')" link type="success" icon="Plus" @click="openAddKeyDialog(row)">添加键值</el-button>
-            <el-button v-if="store.hasPerm('system:dict:delete')" link type="danger" icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="store.hasPerm('system:dict:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
+            <el-button v-if="store.hasPerm('system:dict:add')" link type="success" @click="openAddKeyDialog(row)">添加键值</el-button>
+            <el-button v-if="store.hasPerm('system:dict:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
