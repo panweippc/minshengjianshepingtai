@@ -48,10 +48,14 @@ public class GlobalExceptionHandler {
         return Result.fail("缺少必填参数：" + e.getParameterName());
     }
 
-    /** 兜底异常：不向前端暴露堆栈 */
+    /** 兜底异常：不向前端暴露堆栈（开发阶段额外透出原始 msg 便于排查） */
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
         log.error("系统异常", e);
+        String rawMsg = e.getMessage();
+        if (rawMsg != null && !rawMsg.isBlank()) {
+            return Result.fail("系统繁忙：" + rawMsg);
+        }
         return Result.fail("系统繁忙，请稍后重试");
     }
 }

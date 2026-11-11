@@ -4,59 +4,42 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 立项管理-立项资料附件实体
+ * 立项资料附件（单独一张表，不复用申报的 attachment）。
+ * attachment_type 字典：li_xiang_fu_jian_lei_xing
  */
 @Data
 @TableName("t_project_approval_attachment")
-@Schema(description = "立项管理-立项附件")
 public class ProjectApprovalAttachment implements Serializable {
+    @Serial private static final long serialVersionUID = 1L;
 
-    @JsonSerialize(using = ToStringSerializer.class)
     @TableId(type = IdType.ASSIGN_ID)
-    @Schema(description = "主键（雪花ID）")
     private Long id;
 
-    @JsonSerialize(using = ToStringSerializer.class)
-    @Schema(description = "立项ID（关联 t_project_approval.id）")
+    /** 立项主表 ID */
     private Long approvalId;
 
-    @JsonSerialize(using = ToStringSerializer.class)
-    @Schema(description = "申报ID（关联 t_project_approval_declare.id，为空表示立项资料附件）")
+    /** 可选：关联到某条申报单 */
     private Long declareId;
 
-    @Schema(description = "附件类型（字典 li_xiang_fu_jian_lei_xing）")
+    /** 附件类型（字典：li_xiang_fu_jian_lei_xing） */
     private String attachmentType;
 
-    @Schema(description = "原始文件名")
     private String fileName;
-
-    @Schema(description = "MinIO 对象存储 key")
+    /** MinIO 文件 key（upload-temp / archive-formal 桶统一由 file 模块管理） */
     private String fileKey;
-
-    @Schema(description = "存储桶")
     private String bucket;
-
-    @Schema(description = "文件大小（字节）")
     private Long fileSize;
-
-    @Schema(description = "附件备注")
     private String remark;
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    @Schema(description = "上传时间")
     private LocalDateTime createTime;
 
     @TableLogic
-    @Schema(description = "逻辑删除：0否 1是")
     private Integer deleted;
 }

@@ -6,8 +6,8 @@ import com.msjs.project.common.annotation.OperLog;
 import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.PasswordDTO;
 import com.msjs.project.dto.UserSaveDTO;
-import com.msjs.project.entity.SysUser;
 import com.msjs.project.service.SysUserService;
+import com.msjs.project.vo.UserVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,7 +39,7 @@ public class SysUserController {
     @Operation(summary = "用户分页查询")
     @RequirePerm("system:user:list")
     @GetMapping("/page")
-    public Result<PageVO<SysUser>> page(
+    public Result<PageVO<UserVO>> page(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") long pageNum,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long pageSize,
             @Parameter(description = "登录账号") @RequestParam(required = false) String username,

@@ -44,6 +44,18 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '公共基础设施', icon: 'Connection' }
       },
       {
+        path: 'declaration/submit',
+        name: 'DeclarationSubmit',
+        component: () => import('@/views/declaration/DeclarationSubmit.vue'),
+        meta: { title: '申报提交', icon: 'EditPen' }
+      },
+      {
+        path: 'declaration/received',
+        name: 'DeclarationAudit',
+        component: () => import('@/views/declaration/DeclarationAudit.vue'),
+        meta: { title: '申报审核', icon: 'Checked' }
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/User.vue'),

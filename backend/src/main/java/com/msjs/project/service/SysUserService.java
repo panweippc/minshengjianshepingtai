@@ -3,7 +3,7 @@ package com.msjs.project.service;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.PasswordDTO;
 import com.msjs.project.dto.UserSaveDTO;
-import com.msjs.project.entity.SysUser;
+import com.msjs.project.vo.UserVO;
 
 import java.util.List;
 
@@ -12,8 +12,8 @@ import java.util.List;
  */
 public interface SysUserService {
 
-    /** 分页查询（自动套用行政区划数据权限） */
-    PageVO<SysUser> page(long pageNum, long pageSize, String username, String realName);
+    /** 分页查询（自动套用行政区划数据权限，返回带 regionName 的 VO） */
+    PageVO<UserVO> page(long pageNum, long pageSize, String username, String realName);
 
     /** 新增用户（同事务分配角色） */
     Long add(UserSaveDTO dto);

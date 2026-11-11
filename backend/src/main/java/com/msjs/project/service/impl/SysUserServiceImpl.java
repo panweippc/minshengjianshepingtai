@@ -11,6 +11,7 @@ import com.msjs.project.entity.SysUserRole;
 import com.msjs.project.mapper.SysUserMapper;
 import com.msjs.project.mapper.SysUserRoleMapper;
 import com.msjs.project.service.SysUserService;
+import com.msjs.project.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,8 +33,8 @@ public class SysUserServiceImpl implements SysUserService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
-    public PageVO<SysUser> page(long pageNum, long pageSize, String username, String realName) {
-        Page<SysUser> page = new Page<>(pageNum, pageSize);
+    public PageVO<UserVO> page(long pageNum, long pageSize, String username, String realName) {
+        Page<UserVO> page = new Page<>(pageNum, pageSize);
         return PageVO.of(userMapper.selectUserPage(page,
                 blankToNull(username), blankToNull(realName)));
     }
