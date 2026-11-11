@@ -111,6 +111,7 @@ export interface DeclarationAttachment {
 export interface DeclarationHouseholdDetail {
   id: string                         // 明细ID（t_declaration_household.id）
   householdId?: string               // 农户档案ID
+  snapshotHouseholdNo?: string       // 快照-户号（业务编码）
   snapshotHeadName?: string          // 快照-户主姓名
   snapshotHeadIdCard?: string
   snapshotContactPhone?: string

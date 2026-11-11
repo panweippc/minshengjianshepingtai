@@ -1,4 +1,4 @@
-package com.msjs.project.service.impl;
+﻿package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -143,6 +143,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 DeclarationDetailVO.HouseholdVO hvo = new DeclarationDetailVO.HouseholdVO();
                 hvo.setId(hh.getId());
                 hvo.setHouseholdId(hh.getHouseholdId());
+                hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadName(hh.getSnapshotHeadName());
                 hvo.setSnapshotHeadIdCard(hh.getSnapshotHeadIdCard());
                 hvo.setSnapshotContactPhone(hh.getSnapshotContactPhone());
@@ -160,6 +161,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 hvo.setAttachments(haList);
                 hVOs.add(hvo);
             }
+            fillHouseholdAuditByName(hVOs);
             vo.setHouseholds(hVOs);
         } else if ("2".equals(d.getDeclarationCategory())) {
             // 公建设施明细
@@ -189,6 +191,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 fvo.setAttachments(faList);
                 fVOs.add(fvo);
             }
+            // 批量填公建设施明细审核人姓名
+            fillFacilityAuditByName(fVOs);
             vo.setFacilities(fVOs);
         }
         // 冗余审核人姓名（detail 场景单独填，因为 detail 调的是 toSimpleVO 不是 buildListVO）
@@ -732,6 +736,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 DeclarationDetailVO.HouseholdVO hvo = new DeclarationDetailVO.HouseholdVO();
                 hvo.setId(hh.getId());
                 hvo.setHouseholdId(hh.getHouseholdId());
+                hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadName(hh.getSnapshotHeadName());
                 hvo.setSnapshotHeadIdCard(hh.getSnapshotHeadIdCard());
                 hvo.setSnapshotContactPhone(hh.getSnapshotContactPhone());
@@ -746,6 +751,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 hvo.setAttachments(listAttachments("household", hh.getId()));
                 return hvo;
             }).toList();
+            fillHouseholdAuditByName(hVOs);
             vo.setHouseholds(hVOs);
         } else if ("2".equals(d.getDeclarationCategory())) {
             List<DeclarationPublicFacility> pfList = facilityMapper.selectList(
@@ -772,6 +778,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 fvo.setAttachments(listAttachments("public_facility", pf.getId()));
                 return fvo;
             }).toList();
+            fillFacilityAuditByName(fVOs);
             vo.setFacilities(fVOs);
         }
         return vo;
@@ -947,6 +954,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             DeclarationHousehold dhh = new DeclarationHousehold();
             dhh.setDeclarationId(declarationId);
             dhh.setHouseholdId(h.getId());
+            dhh.setSnapshotHouseholdNo(h.getHouseholdNo());
             dhh.setSnapshotHeadName(h.getHeadName());
             dhh.setSnapshotHeadIdCard(h.getHeadIdCard());
             dhh.setSnapshotContactPhone(h.getContactPhone());
@@ -1087,6 +1095,35 @@ public class DeclarationServiceImpl implements DeclarationService {
             out.add(vo);
         }
         return out;
+    }
+
+    /**
+     * 批量填农户明细审核人姓名（一次 selectBatchIds 替代 N 次 selectById）
+     */
+    private void fillHouseholdAuditByName(List<DeclarationDetailVO.HouseholdVO> list) {
+        if (list == null || list.isEmpty()) return;
+        List<Long> ids = list.stream().map(DeclarationDetailVO.HouseholdVO::getAuditBy).filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return;
+        java.util.Map<Long, String> map = userMapper.selectBatchIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(SysUser::getId, u -> u.getRealName() == null ? u.getUsername() : u.getRealName(), (a, b) -> a));
+        for (DeclarationDetailVO.HouseholdVO v : list) {
+            if (v.getAuditBy() != null) {
+                v.setAuditByName(map.getOrDefault(v.getAuditBy(), "未知"));
+            }
+        }
+    }
+    /** 批量填公建设施明细审核人姓名 */
+    private void fillFacilityAuditByName(List<DeclarationDetailVO.FacilityVO> list) {
+        if (list == null || list.isEmpty()) return;
+        List<Long> ids = list.stream().map(DeclarationDetailVO.FacilityVO::getAuditBy).filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return;
+        java.util.Map<Long, String> map = userMapper.selectBatchIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(SysUser::getId, u -> u.getRealName() == null ? u.getUsername() : u.getRealName(), (a, b) -> a));
+        for (DeclarationDetailVO.FacilityVO v : list) {
+            if (v.getAuditBy() != null) {
+                v.setAuditByName(map.getOrDefault(v.getAuditBy(), "未知"));
+            }
+        }
     }
 
     /**
@@ -1273,5 +1310,6 @@ public class DeclarationServiceImpl implements DeclarationService {
         return isNotBlank(value) ? value.trim() : null;
     }
 }
+
 
 
