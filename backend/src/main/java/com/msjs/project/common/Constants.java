@@ -114,4 +114,26 @@ public final class Constants {
     public static final String APPROVAL_TAB_PENDING = "pending";
     /** 立项页签：已驳回 */
     public static final String APPROVAL_TAB_REJECTED = "rejected";
+
+    /** 验收节点类型：项目（一级） */
+    public static final String ACCEPTANCE_NODE_PROJECT = "project";
+    /** 验收节点类型：申报内容（二级） */
+    public static final String ACCEPTANCE_NODE_DECLARE = "declare";
+    /** 验收节点类型：明细（三级） */
+    public static final String ACCEPTANCE_NODE_DETAIL = "detail";
+
+    /** 验收状态：待验收 */
+    public static final String ACCEPTANCE_STATUS_PENDING = "PENDING";
+    /** 验收状态：已验收 */
+    public static final String ACCEPTANCE_STATUS_ACCEPTED = "ACCEPTED";
+
+    /** 验收状态：已归档 */
+    public static final String ARCHIVE_STATUS_ARCHIVED = "ARCHIVED";
+
+    /** 立项验收状态：未发起验收 */
+    public static final String APPROVAL_ACCEPT_NONE = "NONE";
+    /** 立项验收状态：验收中（已发起验收） */
+    public static final String APPROVAL_ACCEPT_APPLYING = "APPLYING";
+    /** 立项验收状态：已归档 */
+    public static final String APPROVAL_ACCEPT_ARCHIVED = "ARCHIVED";
 }

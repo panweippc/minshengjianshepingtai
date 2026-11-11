@@ -481,6 +481,7 @@ import {
   type ConstructionAttachmentItem
 } from '@/api/construction'
 import { uploadFile, getPresignUrl } from '@/api/file'
+import { applyAcceptance } from '@/api/acceptance'
 
 /**
  * 施工管理
@@ -678,10 +679,18 @@ const openView = async (row: DisplayRow) => {
 
 /* ============ 验收 ============ */
 const openAcceptance = async (row: DisplayRow) => {
-  await ElMessageBox.confirm(`「${row.name}」全部明细已完工，是否进入验收管理？`, '发起验收', {
-    type: 'success'
-  })
-  router.push({ path: '/project/acceptance', query: { approvalId: row.approvalId } })
+  try {
+    await ElMessageBox.confirm(`「${row.name}」全部明细已完工，是否进入验收管理？`, '发起验收', {
+      type: 'success',
+      confirmButtonText: '发起验收'
+    })
+    // 调用后端发起验收接口，把项目标记为"验收中"
+    await applyAcceptance(row.approvalId, userStore.userInfo?.username || '系统')
+    ElMessage.success('已发起验收，项目进入验收管理')
+    router.push({ path: '/project/acceptance' })
+  } catch {
+    /* 用户取消 */
+  }
 }
 
 /* ============ 编辑弹窗 ============ */

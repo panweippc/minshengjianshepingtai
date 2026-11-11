@@ -62,8 +62,9 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                                            String projectCategory, String projectType) {
         Page<ProjectApproval> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<ProjectApproval> wrapper = new LambdaQueryWrapper<>();
-        // 业务约束：只有审核通过的立项才进入施工阶段
+        // 业务约束：只有审核通过、尚未发起验收的立项才进入施工阶段
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
+                .eq(ProjectApproval::getAcceptStatus, Constants.APPROVAL_ACCEPT_NONE)
                 .like(isNotBlank(projectCode), ProjectApproval::getApprovalCode, trimToNull(projectCode))
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
