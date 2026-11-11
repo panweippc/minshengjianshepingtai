@@ -145,6 +145,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 hvo.setHouseholdId(hh.getHouseholdId());
                 hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadName(hh.getSnapshotHeadName());
+                hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadIdCard(hh.getSnapshotHeadIdCard());
                 hvo.setSnapshotContactPhone(hh.getSnapshotContactPhone());
                 hvo.setSnapshotHouseholdType(hh.getSnapshotHouseholdType());
@@ -738,6 +739,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 hvo.setHouseholdId(hh.getHouseholdId());
                 hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadName(hh.getSnapshotHeadName());
+                hvo.setSnapshotHouseholdNo(hh.getSnapshotHouseholdNo());
                 hvo.setSnapshotHeadIdCard(hh.getSnapshotHeadIdCard());
                 hvo.setSnapshotContactPhone(hh.getSnapshotContactPhone());
                 hvo.setSnapshotHouseholdType(hh.getSnapshotHouseholdType());
@@ -956,6 +958,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             dhh.setHouseholdId(h.getId());
             dhh.setSnapshotHouseholdNo(h.getHouseholdNo());
             dhh.setSnapshotHeadName(h.getHeadName());
+            dhh.setSnapshotHouseholdNo(h.getHouseholdNo());
             dhh.setSnapshotHeadIdCard(h.getHeadIdCard());
             dhh.setSnapshotContactPhone(h.getContactPhone());
             dhh.setSnapshotHouseholdType(h.getHouseholdType());

@@ -74,6 +74,8 @@ public class DeclarationDetailVO extends Declaration {
         private String snapshotHouseholdNo;
         @Schema(description = "快照-户主姓名")
         private String snapshotHeadName;
+        @Schema(description = "快照-户号（业务编码）")
+        private String snapshotHouseholdNo;
         @Schema(description = "快照-户主身份证号")
         private String snapshotHeadIdCard;
         @Schema(description = "快照-联系电话")
