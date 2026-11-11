@@ -7,12 +7,12 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 /**
- * 明细退回 DTO：将某条已审核明细（approved / rejected / pending 均可）退回到
- * 未提交状态（audit_status = pending），并强制父申报单状态回滚为 draft，
- * 清掉 recipient_user_id，让申报人可以在"申报提交"页看到并重新编辑、重新提交。
+ * 明细撤销 DTO：收回某条已审核明细（approved / rejected）的审核结论，
+ * audit_status 置回 pending 并清空审核痕迹，父申报单同步回到 submitted（待审核）、
+ * 保留 recipient_user_id 审核指派，供审核人在"待审核"页签重新做通过/驳回。
  */
 @Data
-@Schema(description = "明细退回 DTO（农户 / 公建设施通用）")
+@Schema(description = "明细撤销 DTO（农户 / 公建设施通用）")
 public class DeclarationDetailRevertDTO {
 
     @NotNull(message = "明细ID不能为空")
@@ -24,6 +24,6 @@ public class DeclarationDetailRevertDTO {
     @Schema(description = "明细类型：household 农户 / public_facility 公建设施")
     private String detailKind;
 
-    @Schema(description = "退回备注（可空，记录退回原因）")
+    @Schema(description = "撤销备注（可空，记录撤销原因）")
     private String remark;
 }

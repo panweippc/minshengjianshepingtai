@@ -69,12 +69,27 @@
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">户类型：</span><span>{{ dictLabel('hu_lei_xing', row.snapshotHouseholdType) }}</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">单户申报金额：</span><span class="detail-money">¥ {{ formatAmount(row.amount) }}</span>
+                <span class="detail-inline-label">单户申报金额：</span>
+                <span class="detail-money" v-if="row.amount != null">¥ {{ formatAmount(row.amount) }}</span>
+                <span v-else class="detail-empty">—</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">审核状态：</span>
-                <el-tag v-if="!row.auditStatus || row.auditStatus === 'pending'" type="warning" size="small">待审核</el-tag>
+                <span class="detail-inline-label">明细状态：</span>
+                <!-- 组合判断：auditStatus + 父表 status 区分 未提交/待重提/待审核 -->
+                <el-tag
+                  v-if="(row.auditStatus === 'unsubmitted') || (!row.auditStatus)"
+                  type="info" size="small"
+                >未提交</el-tag>
+                <el-tag
+                  v-else-if="row.auditStatus === 'pending' && row._parentStatus === 'draft'"
+                  type="warning" size="small"
+                >待重提</el-tag>
+                <el-tag
+                  v-else-if="row.auditStatus === 'pending'"
+                  type="warning" size="small"
+                >待审核</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
+                <el-tag v-else-if="row.auditStatus === 'established'" type="primary" size="small">已立项</el-tag>
               </span>
             </template>
             <template v-else>
@@ -85,12 +100,26 @@
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">所在位置：</span><span>{{ row.snapshotLocation || '—' }}</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">单设施申报金额：</span><span class="detail-money">¥ {{ formatAmount(row.amount) }}</span>
+                <span class="detail-inline-label">单设施申报金额：</span>
+                <span class="detail-money" v-if="row.amount != null">¥ {{ formatAmount(row.amount) }}</span>
+                <span v-else class="detail-empty">—</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">审核状态：</span>
-                <el-tag v-if="!row.auditStatus || row.auditStatus === 'pending'" type="warning" size="small">待审核</el-tag>
+                <span class="detail-inline-label">明细状态：</span>
+                <el-tag
+                  v-if="(row.auditStatus === 'unsubmitted') || (!row.auditStatus)"
+                  type="info" size="small"
+                >未提交</el-tag>
+                <el-tag
+                  v-else-if="row.auditStatus === 'pending' && row._parentStatus === 'draft'"
+                  type="warning" size="small"
+                >待重提</el-tag>
+                <el-tag
+                  v-else-if="row.auditStatus === 'pending'"
+                  type="warning" size="small"
+                >待审核</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
+                <el-tag v-else-if="row.auditStatus === 'established'" type="primary" size="small">已立项</el-tag>
               </span>
             </template>
           </template>
@@ -145,7 +174,7 @@
                 link type="primary" size="small" @click="openFacilityDetailView(row)"
               >查看</el-button>
               <el-button
-                v-if="row.auditStatus === 'unsubmitted' || row.auditStatus === 'rejected'"
+                v-if="activeStatusTab !== 'submitted' && activeStatusTab !== 'approved' && activeStatusTab !== 'established' && (row._parentStatus === 'draft' || row.auditStatus === 'rejected')"
                 link type="primary" size="small" @click="openDetailEdit(row._detailKind as any, row._parentRef, row)"
               >编辑</el-button>
             </template>
@@ -521,7 +550,8 @@
           <el-descriptions-item label="所属村组">{{ householdViewDialog.data.snapshotRegionName }}</el-descriptions-item>
           <el-descriptions-item label="身份证号" :span="2">{{ householdViewDialog.data.snapshotHeadIdCard }}</el-descriptions-item>
           <el-descriptions-item label="单户申报金额">
-            <span style="color:#d4380d;font-weight:600">¥ {{ formatAmount(householdViewDialog.data.amount) }}</span>
+            <span v-if="householdViewDialog.data.amount != null" style="color:#d4380d;font-weight:600">¥ {{ formatAmount(householdViewDialog.data.amount) }}</span>
+            <span v-else class="detail-empty">—</span>
           </el-descriptions-item>
           <el-descriptions-item label="事项说明" :span="2">{{ householdViewDialog.data.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
@@ -557,7 +587,8 @@
           <el-descriptions-item label="所在位置" :span="2">{{ facilityViewDialog.data.snapshotLocation }}</el-descriptions-item>
           <el-descriptions-item label="所属村组">{{ facilityViewDialog.data.snapshotRegionName }}</el-descriptions-item>
           <el-descriptions-item label="单设施申报金额">
-            <span style="color:#d4380d;font-weight:600">¥ {{ formatAmount(facilityViewDialog.data.amount) }}</span>
+            <span v-if="facilityViewDialog.data.amount != null" style="color:#d4380d;font-weight:600">¥ {{ formatAmount(facilityViewDialog.data.amount) }}</span>
+            <span v-else class="detail-empty">—</span>
           </el-descriptions-item>
           <el-descriptions-item label="事项说明" :span="2">{{ facilityViewDialog.data.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
@@ -798,21 +829,46 @@ function flatDetails(row: any): any[] {
     ...(row?.facilities || [])
   ]
 }
-/** 父行是否可编辑：存在 unsubmitted 或 rejected 的明细 */
+/**
+ * 父行是否可编辑：
+ *  - 待审核页签（submitted，含被"撤销"回来的单）→ 审核中一律只读，申报人不可编辑
+ *  - 已通过/已立项页签 → 一律不可编辑
+ *    注：后端用明细 auditStatus 匹配页签，"已通过"页签里主表 status 不一定是 approved，
+ *        必须按页签名判断，不能靠 row.status === 'approved' 拦截
+ *  - draft / rejected 主表 → 可编辑
+ */
 function canParentEdit(row: any): boolean {
-  return flatDetails(row).some(d =>
-    d.auditStatus === 'unsubmitted' || d.auditStatus === 'rejected'
-  )
-}
-/** 父行是否可显示"提交/重新提交"按钮 */
-function canParentSubmit(row: any): boolean {
-  // draft 主表（新建未提交）→ 首次提交；submitted 主表 → 只有 rejected 明细能重新提交
-  if (row.status === 'draft') return true
-  return canParentResubmit(row)
-}
-/** 父行是否应显示"重新提交"（rejected 明细存在） */
-function canParentResubmit(row: any): boolean {
+  if (activeStatusTab.value === 'submitted') return false
+  if (activeStatusTab.value === 'approved' || activeStatusTab.value === 'established') return false
+  if (row.status === 'draft' || row.status === 'rejected') return true
   return flatDetails(row).some(d => d.auditStatus === 'rejected')
+}
+/**
+ * 父行是否可显示"提交/重新提交"按钮：
+ *  - 待审核页签（submitted，含撤销回来的单）→ 审核中不可重复提交
+ *  - 已通过/已立项页签 → 一律不显示
+ *  - draft / rejected 主表 → 可提交/重新提交
+ */
+function canParentSubmit(row: any): boolean {
+  if (activeStatusTab.value === 'submitted') return false
+  if (activeStatusTab.value === 'approved' || activeStatusTab.value === 'established') return false
+  if (row.status === 'draft' || row.status === 'rejected') return true
+  return flatDetails(row).some(d => d.auditStatus === 'rejected')
+}
+/**
+ * 父行按钮文案是否显示为"重新提交"：
+ *  - approved 主表 → 不进这里（canParentSubmit 拦了）
+ *  - rejected 主表 / submitted 主表有 rejected 明细 → "重新提交"
+ *  - draft 主表下明细非全 unsubmitted → 退回场景 "重新提交"
+ *  - 否则 "提交"（首次）
+ */
+function canParentResubmit(row: any): boolean {
+  if (row.status === 'rejected') return true
+  const details = flatDetails(row)
+  if (row.status === 'draft') {
+    return details.some(d => d.auditStatus && d.auditStatus !== 'unsubmitted')
+  }
+  return details.some(d => d.auditStatus === 'rejected')
 }
 
 /** 手机号脱敏 138****1234 */
@@ -996,6 +1052,24 @@ const facilitySelection = ref<FacilityOption[]>([])
 const hhTableRef = ref()
 const facTableRef = ref()
 
+/**
+ * edit 模式下缓存后端返回的已保存明细（含 amount / remark / attachments），
+ * 用于 selection-change 里判断"取消勾选的那户/设施是否已有资料 → 弹二次确认"。
+ * add 模式下保持空，不拦截。
+ */
+const savedHouseholdDetails = ref<any[]>([])
+const savedFacilityDetails = ref<any[]>([])
+
+/** 判断某条已保存明细是否"已有资料"（金额/说明/附件任一非空） */
+function hasSavedDetailResources(saved: any): boolean {
+  if (!saved) return false
+  if (saved.amount != null) return true
+  if (saved.remark) return true
+  const atts = saved.attachments || []
+  if (atts.length > 0) return true
+  return false
+}
+
 // ================== 弹窗打开时 ==================
 async function onDialogOpen() {
   if (dialogMode.value === 'detail') return
@@ -1008,15 +1082,13 @@ async function onDialogOpen() {
     return
   }
   form.townCode = userTown.value.townCode
-  // 拉村组列表 → 默认选第一个村组（用户还没选申报类别，农户/公建数据源等用户选完类别后再触发加载）
+  // 拉村组列表
   await loadVillageGroups()
-  if (villageGroupOpts.value.length > 0) {
+  // 新建模式：默认选第一个村组；编辑模式：保留 openEdit 回调里将要回填的 villageGroupCode，不要强制覆盖
+  if (dialogMode.value === 'add' && villageGroupOpts.value.length > 0) {
     form.villageGroupCode = villageGroupOpts.value[0].code
   }
-  // 编辑时再拉详情、回填
-  if (dialogMode.value === 'edit') {
-    // 这里简化处理：编辑暂不支持（逻辑和保存类似，当前先只做新建）
-  }
+  // 编辑模式下 detail 回填由 openEdit 里 getDeclarationDetail 的异步回调负责（回填时会按已保存的村组自动拉农户/公建池并勾选）
 }
 
 async function loadVillageGroups() {
@@ -1076,10 +1148,86 @@ function onCategoryChange() {
   }
 }
 
+/**
+ * 开关：openEdit 回填 toggleRowSelection 时也会触发 selection-change，
+ * 用这个 flag 跳过拦截；弹框后勾回行也会触发，同样跳过。
+ * 必须声明在 onHouseholdSelectionChange / onFacilitySelectionChange 之前，否则运行时 TDZ 报错。
+ */
+const _suppressSelectGuard = ref(false)
+
+/**
+ * 农户多选 change：edit 模式下如果用户"取消勾选"了某户，且该户在后端已保存过 amount/remark/附件 → 弹确认框，
+ * 用户点取消则把该行再勾回去。add 模式 / 回填阶段直接放行。
+ */
 function onHouseholdSelectionChange(selection: HouseholdOption[]) {
+  // 回填阶段（openEdit 里 toggleRowSelection 也会触发）直接放行，避免自己拦自己
+  if (_suppressSelectGuard.value) { householdSelection.value = selection; return }
+
+  // 只有 edit 模式下且 savedHouseholdDetails 有数据时才做拦截
+  if (dialogMode.value === 'edit' && savedHouseholdDetails.value.length) {
+    const newIds = new Set(selection.map((s) => String(s.id)))
+    const prevSel = householdSelection.value
+    // 差集：之前选中、现在不在 selection 里的那些行（被取消勾选）
+    const removed = prevSel.filter((p) => !newIds.has(String(p.id)))
+    if (removed.length) {
+      // 找出 removed 里哪些在 savedHouseholdDetails 里已有资料
+      const withResources = removed.filter((p) => {
+        const saved = savedHouseholdDetails.value.find((s) => String(s.householdId) === String(p.id))
+        return hasSavedDetailResources(saved)
+      })
+      if (withResources.length) {
+        ElMessageBox.confirm(
+          `已填写资料的农户（${withResources.map((p) => p.headName).join('、')}）取消勾选后，其申报金额/事项说明/附件将一并删除。\n\n确定取消勾选吗？`,
+          '确认删除农户',
+          { confirmButtonText: '确定取消', cancelButtonText: '保留勾选', type: 'warning', customClass: 'decl-detail-uncheck-dialog' }
+        ).then(() => {
+          // 用户确认 → 放行，更新 selection
+          householdSelection.value = selection
+        }).catch(() => {
+          // 用户取消 → 把被取消的行重新勾回去
+          _suppressSelectGuard.value = true
+          nextTick(() => {
+            withResources.forEach((p) => hhTableRef.value?.toggleRowSelection(p, true))
+            _suppressSelectGuard.value = false
+          })
+        })
+        return  // 本次 change 先拦住，等确认回调再说
+      }
+    }
+  }
   householdSelection.value = selection
 }
+
+/** 公建设施多选 change：逻辑同农户 */
 function onFacilitySelectionChange(selection: FacilityOption[]) {
+  if (_suppressSelectGuard.value) { facilitySelection.value = selection; return }
+  if (dialogMode.value === 'edit' && savedFacilityDetails.value.length) {
+    const newIds = new Set(selection.map((s) => String(s.id)))
+    const prevSel = facilitySelection.value
+    const removed = prevSel.filter((p) => !newIds.has(String(p.id)))
+    if (removed.length) {
+      const withResources = removed.filter((p) => {
+        const saved = savedFacilityDetails.value.find((s) => String(s.facilityId) === String(p.id))
+        return hasSavedDetailResources(saved)
+      })
+      if (withResources.length) {
+        ElMessageBox.confirm(
+          `已填写资料的公建设施（${withResources.map((p) => p.facilityName).join('、')}）取消勾选后，其申报金额/事项说明/附件将一并删除。\n\n确定取消勾选吗？`,
+          '确认删除公建设施',
+          { confirmButtonText: '确定取消', cancelButtonText: '保留勾选', type: 'warning', customClass: 'decl-detail-uncheck-dialog' }
+        ).then(() => {
+          facilitySelection.value = selection
+        }).catch(() => {
+          _suppressSelectGuard.value = true
+          nextTick(() => {
+            withResources.forEach((p) => facTableRef.value?.toggleRowSelection(p, true))
+            _suppressSelectGuard.value = false
+          })
+        })
+        return
+      }
+    }
+  }
   facilitySelection.value = selection
 }
 
@@ -1183,6 +1331,8 @@ function resetForm() {
   facilitySelection.value = []
   villageGroupOpts.value = []
   userTown.value = {}
+  savedHouseholdDetails.value = []
+  savedFacilityDetails.value = []
 }
 
 // ================== 列表按钮 ==================
@@ -1238,40 +1388,57 @@ function openEdit(row: DeclarationVO) {
     } catch { /* 忽略，form.villageGroupCode 会默认选中匹配的 */ }
 
     // 2) 再拉农户/公建设施选项池（按村组），然后选中已保存的
+    // 先关拦截开关，避免回填时的 toggleRowSelection 触发 selection-change 弹框
+    _suppressSelectGuard.value = true
     if (d.declarationCategory === '1') {
+      // 缓存已保存的明细（含 amount/remark/attachments），供取消勾选时判断
+      savedHouseholdDetails.value = d.households || []
+      savedFacilityDetails.value = []
       householdPool.value = []
       facilityPool.value = []
       try {
         const hhRes = await getHouseholdsByVillageGroup(d.villageGroupCode)
         householdPool.value = hhRes.data || []
       } catch {}
-      // 回填已选农户（从明细快照拿 householdId）
-      householdSelection.value = (d.households || []).map((h: any) => ({
-        id: h.householdId || h.id,
-        headName: h.snapshotHeadName,
-        contactPhone: h.snapshotContactPhone,
-        householdType: h.snapshotHouseholdType,
-        regionCode: '',
-        regionName: h.snapshotRegionName
-      }))
-      form.householdIds = (d.households || []).map((h: any) => h.householdId)
+      // 回填已选农户
+      householdSelection.value = []
+      form.householdIds = []
+      await nextTick()
+      const savedHouseholdIds = new Set(savedHouseholdDetails.value.map((h: any) => String(h.householdId)))
+      householdPool.value.forEach((poolRow) => {
+        if (savedHouseholdIds.has(String(poolRow.id))) {
+          hhTableRef.value?.toggleRowSelection(poolRow, true)
+          if (!householdSelection.value.some((s) => String(s.id) === String(poolRow.id))) {
+            householdSelection.value.push(poolRow)
+          }
+        }
+      })
+      form.householdIds = householdSelection.value.map((h) => String(h.id) as any)
     } else if (d.declarationCategory === '2') {
+      savedFacilityDetails.value = d.facilities || []
+      savedHouseholdDetails.value = []
       householdPool.value = []
       facilityPool.value = []
       try {
         const pfRes = await getFacilitiesByVillageGroup(d.villageGroupCode)
         facilityPool.value = pfRes.data || []
       } catch {}
-      facilitySelection.value = (d.facilities || []).map((p: any) => ({
-        id: p.facilityId || p.id,
-        facilityName: p.snapshotFacilityName,
-        facilityType: p.snapshotFacilityType,
-        status: '',
-        regionCode: '',
-        regionName: p.snapshotRegionName
-      }))
-      form.facilityIds = (d.facilities || []).map((p: any) => p.facilityId)
+      facilitySelection.value = []
+      form.facilityIds = []
+      await nextTick()
+      const savedFacilityIds = new Set(savedFacilityDetails.value.map((p: any) => String(p.facilityId)))
+      facilityPool.value.forEach((poolRow) => {
+        if (savedFacilityIds.has(String(poolRow.id))) {
+          facTableRef.value?.toggleRowSelection(poolRow, true)
+          if (!facilitySelection.value.some((s) => String(s.id) === String(poolRow.id))) {
+            facilitySelection.value.push(poolRow)
+          }
+        }
+      })
+      form.facilityIds = facilitySelection.value.map((f) => String(f.id) as any)
     }
+    // 回填结束，恢复拦截
+    _suppressSelectGuard.value = false
 
     // 3) 回填申报单级附件（owner_type=declaration 的那些）
     form.attachments = (d.attachments || []).map((a: any) => ({

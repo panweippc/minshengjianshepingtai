@@ -79,12 +79,15 @@
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">户类型：</span><span>{{ dictLabel('hu_lei_xing', row.snapshotHouseholdType) }}</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">单户申报金额：</span><span class="detail-money">¥ {{ formatAmount(row.amount) }}</span>
+                <span class="detail-inline-label">单户申报金额：</span>
+                <span class="detail-money" v-if="row.amount != null">¥ {{ formatAmount(row.amount) }}</span>
+                <span v-else class="detail-empty">—</span>
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">审核状态：</span>
                 <el-tag v-if="row.auditStatus === 'pending' || !row.auditStatus" type="warning" size="small">待审核</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
+                <el-tag v-else-if="row.auditStatus === 'established'" type="primary" size="small">已立项</el-tag>
                 <el-tag v-else size="small">{{ row.auditStatus || '—' }}</el-tag>
               </span>
             </template>
@@ -96,12 +99,15 @@
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">所在位置：</span><span>{{ row.snapshotLocation || '—' }}</span>
                 <span class="sep">｜</span>
-                <span class="detail-inline-label">单设施申报金额：</span><span class="detail-money">¥ {{ formatAmount(row.amount) }}</span>
+                <span class="detail-inline-label">单设施申报金额：</span>
+                <span class="detail-money" v-if="row.amount != null">¥ {{ formatAmount(row.amount) }}</span>
+                <span v-else class="detail-empty">—</span>
                 <span class="sep">｜</span>
                 <span class="detail-inline-label">审核状态：</span>
                 <el-tag v-if="row.auditStatus === 'pending' || !row.auditStatus" type="warning" size="small">待审核</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
                 <el-tag v-else-if="row.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
+                <el-tag v-else-if="row.auditStatus === 'established'" type="primary" size="small">已立项</el-tag>
                 <el-tag v-else size="small">{{ row.auditStatus || '—' }}</el-tag>
               </span>
             </template>
@@ -151,17 +157,17 @@
                 <el-button link type="success" size="small" @click="openDetailAuditDialog(row, 'approve')">通过</el-button>
                 <el-button link type="danger" size="small" @click="openDetailAuditDialog(row, 'reject')">驳回</el-button>
               </template>
-              <!-- 已通过且未立项 → 退回 -->
+              <!-- 已通过且未立项 → 撤销（收回审核结论，回到待审核重审） -->
               <template v-else-if="row.auditStatus === 'approved'">
-                <el-button link type="warning" size="small" @click="openRevertDialog(row)">退回</el-button>
+                <el-button link type="warning" size="small" @click="openRevertDialog(row)">撤销</el-button>
               </template>
               <!-- 已立项 → 只读，无操作（MD 要求禁止撤销 / 再次审核） -->
               <template v-else-if="row.auditStatus === 'established'">
                 <span class="muted-ops">已立项</span>
               </template>
-              <!-- 已驳回 → 退回 -->
+              <!-- 已驳回 → 撤销（收回驳回结论，回到待审核重审） -->
               <template v-else-if="row.auditStatus === 'rejected'">
-                <el-button link type="warning" size="small" @click="openRevertDialog(row)">退回</el-button>
+                <el-button link type="warning" size="small" @click="openRevertDialog(row)">撤销</el-button>
               </template>
             </template>
           </template>
@@ -175,7 +181,6 @@
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 16px; justify-content: flex-end"
         @size-change="handleQuery"
-        @current-change="loadData"
       />
     </el-card>
 
@@ -261,7 +266,8 @@
           <el-descriptions-item label="所属村组">{{ householdViewDialog.data.snapshotRegionName }}</el-descriptions-item>
           <el-descriptions-item label="身份证号" :span="2">{{ householdViewDialog.data.snapshotHeadIdCard }}</el-descriptions-item>
           <el-descriptions-item label="单户申报金额">
-            <span style="color:#d4380d;font-weight:600">¥ {{ formatAmount(householdViewDialog.data.amount) }}</span>
+            <span v-if="householdViewDialog.data.amount != null" style="color:#d4380d;font-weight:600">¥ {{ formatAmount(householdViewDialog.data.amount) }}</span>
+            <span v-else class="detail-empty">—</span>
           </el-descriptions-item>
           <el-descriptions-item label="事项说明" :span="2">{{ householdViewDialog.data.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
@@ -297,7 +303,8 @@
           <el-descriptions-item label="所在位置" :span="2">{{ facilityViewDialog.data.snapshotLocation }}</el-descriptions-item>
           <el-descriptions-item label="所属村组">{{ facilityViewDialog.data.snapshotRegionName }}</el-descriptions-item>
           <el-descriptions-item label="单设施申报金额">
-            <span style="color:#d4380d;font-weight:600">¥ {{ formatAmount(facilityViewDialog.data.amount) }}</span>
+            <span v-if="facilityViewDialog.data.amount != null" style="color:#d4380d;font-weight:600">¥ {{ formatAmount(facilityViewDialog.data.amount) }}</span>
+            <span v-else class="detail-empty">—</span>
           </el-descriptions-item>
           <el-descriptions-item label="事项说明" :span="2">{{ facilityViewDialog.data.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
@@ -369,17 +376,17 @@
       </template>
     </el-dialog>
 
-    <!-- 明细退回弹窗：退回到未提交（父申报单回滚到 draft，让申报人可重新编辑） -->
+    <!-- 明细撤销弹窗：收回审核结论（明细 → pending，父申报单 → submitted 待审核，保留审核指派） -->
     <el-dialog
       v-model="revertDialog.visible"
-      title="退回明细（退回到未提交，可重新编辑）"
+      title="撤销审核（回到待审核，可重新审核）"
       width="480px"
       :close-on-click-modal="false"
       append-to-body
     >
       <el-alert
         type="warning" :closable="false" show-icon
-        title="退回后，该申报单将回到'未提交'状态并清掉当前审核指派，申报人可重新编辑明细后再次提交。"
+        title="撤销后，该明细将回到'待审核'状态，申报单同步回到待审核队列，审核人可重新做通过/驳回；申报人侧不可编辑。"
         style="margin-bottom:12px"
       />
       <el-descriptions :column="1" border size="small">
@@ -397,17 +404,18 @@
           <el-tag v-if="revertDialog.row?.auditStatus === 'approved'" type="success" size="small">已通过</el-tag>
           <el-tag v-else-if="revertDialog.row?.auditStatus === 'rejected'" type="danger" size="small">已驳回</el-tag>
           <el-tag v-else-if="revertDialog.row?.auditStatus === 'pending' || !revertDialog.row?.auditStatus" type="warning" size="small">待审核</el-tag>
+          <el-tag v-else-if="revertDialog.row?.auditStatus === 'established'" type="primary" size="small">已立项</el-tag>
           <el-tag v-else size="small">{{ revertDialog.row?.auditStatus }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="申报金额">¥ {{ formatAmount(revertDialog.row?.amount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form :label-position="'top'" style="margin-top:12px">
-        <el-form-item label="退回备注（给申报人看）">
+        <el-form-item label="撤销备注（可选）">
           <el-input
             v-model="revertDialog.remark"
             type="textarea"
             :rows="3"
-            placeholder="可写退回原因 / 修改建议，申报人重新编辑时能看到"
+            placeholder="可填写撤销原因，留痕后在重新审核时可见"
             maxlength="500"
             show-word-limit
           />
@@ -416,7 +424,7 @@
       <template #footer>
         <el-button @click="revertDialog.visible = false">取消</el-button>
         <el-button type="warning" :loading="revertDialog.submitting" @click="doRevertDetailDeclaration">
-          确认退回（申报单变未提交）
+          确认撤销（回到待审核）
         </el-button>
       </template>
     </el-dialog>
@@ -555,7 +563,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -721,17 +729,26 @@ function formatAmount(v?: number | string | null) {
 }
 
 /**
- * 子明细行横向合并：
- * 总 10 列：col0=展开箭头 / col1=申报编号 / col2-8=中间7列 / col9=操作列(固定右侧)
- * 子明细行：col0 独立；col1 横向合并到 col8 共 8 列；col9 操作列独立
- * 父行：全部正常 1×1
+ * 子明细行横向合并（列索引随 selection 列的 v-if 动态变化，不能硬编码）
+ * 待审核等 tab（无 selection，共 10 列）：0=箭头列，1=申报编号(明细内容)…8，9=操作列
+ * 已通过/已立项 tab（有 selection，共 11 列）：0=勾选列，1=箭头列，2=申报编号(明细内容)…9，10=操作列
+ * 规则：最左侧的勾选/箭头列各自独立；申报编号列横向合并到操作列之前；操作列独立
  */
-const ACTION_COL_INDEX = 9
 function detailMergeMethod({ row, columnIndex }: { row: any; columnIndex: number }) {
   if (!row._isDetail) return { rowspan: 1, colspan: 1 }
-  if (columnIndex === 0)           return { rowspan: 1, colspan: 1 }  // 展开箭头列独立
-  if (columnIndex === ACTION_COL_INDEX) return { rowspan: 1, colspan: 1 }  // 操作列独立
-  if (columnIndex === 1)           return { rowspan: 1, colspan: ACTION_COL_INDEX - 1 }  // col1→col8 合并 8 列
+  // 已通过等页签多出一列 selection，总列数与首个合并列下标都要相应后移
+  const hasSelection = activeStatusTab.value === 'approved'
+  const totalCols = hasSelection ? 11 : 10
+  const actionColIndex = totalCols - 1              // 操作列（固定右侧）
+  const firstMergedCol = hasSelection ? 2 : 1       // 申报编号列（明细内容模板所在列）
+  // 勾选列 / 箭头列：独立不合并
+  if (columnIndex < firstMergedCol) return { rowspan: 1, colspan: 1 }
+  // 操作列：独立，保留“查看/撤销”等按钮
+  if (columnIndex === actionColIndex) return { rowspan: 1, colspan: 1 }
+  // 申报编号列：一次性横向合并到操作列之前
+  if (columnIndex === firstMergedCol) {
+    return { rowspan: 1, colspan: actionColIndex - firstMergedCol }
+  }
   return { rowspan: 0, colspan: 0 }  // 被合并掉的中间列
 }
 function isDetailRowClass({ row }: { row: any }) {
@@ -816,7 +833,7 @@ async function doAuditDetailDeclaration() {
   finally { detailAuditDialog.submitting = false }
 }
 
-// ================== 明细退回弹窗（明细 → pending，父申报单 → draft，清掉 recipient） ==================
+// ================== 明细撤销弹窗（明细 → pending，父申报单 → submitted 待审核，保留 recipient 审核指派） ==================
 const revertDialog = reactive({
   visible: false,
   row: null as any,
@@ -842,7 +859,7 @@ async function doRevertDetailDeclaration() {
   revertDialog.submitting = true
   try {
     await revertDeclarationDetail(dto)
-    ElMessage.success('已退回，申报单回到未提交状态')
+    ElMessage.success('已撤销，该明细回到待审核，可重新审核')
     revertDialog.visible = false
     loadData()
   } catch { /* 拦截器会提示后端返回的业务错误 */ }
@@ -1055,6 +1072,13 @@ function onApprovalAttUploadError(err: any) {
 onMounted(async () => {
   await loadDict()
   loadData()
+})
+
+// 监听页码变化：翻页时只触发一次 loadData，避免和 v-model 联动导致的重复请求
+// （之前用 el-pagination @current-change + onStatusTabChange 内部设 query.pageNum=1 会触发两次 loadData，
+//  第二次返回空数组把 el-table 的数据覆盖成空，导致树形子行丢失）
+watch(() => query.pageNum, (val, oldVal) => {
+  if (val !== oldVal) loadData()
 })
 </script>
 

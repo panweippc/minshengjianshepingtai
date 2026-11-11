@@ -15,6 +15,6 @@ public interface DeclarationHouseholdMapper extends BaseMapper<DeclarationHouseh
     /**
      * 按申报单ID逻辑删除全部明细（更新主表时先清空再批量插入，保证快照与主表一致）
      */
-    @Update("UPDATE t_declaration_household SET deleted = id WHERE declaration_id = #{declarationId} AND deleted = 0")
+    @Update("UPDATE t_declaration_household SET deleted = 1 WHERE declaration_id = #{declarationId} AND deleted = 0")
     int logicDeleteByDeclarationId(@Param("declarationId") Long declarationId);
 }
