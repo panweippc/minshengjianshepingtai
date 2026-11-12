@@ -186,8 +186,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                     }
                 }
             }
-            // 4.3 父申报单状态回算：established 也算"全部完成"，推进到 approved（或维持）
-            d.setStatus("approved");
+            // 4.3 父申报单状态回算：明细已立项 → 父申报单状态推进到 established（已立项）
+            d.setStatus("established");
             d.setAuditBy(userId);
             d.setAuditTime(now);
             d.setAuditRemark("明细已立项（审批单：" + approval.getApprovalCode() + "）");

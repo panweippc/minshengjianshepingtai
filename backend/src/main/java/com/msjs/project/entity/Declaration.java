@@ -11,6 +11,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -29,6 +30,9 @@ public class Declaration implements Serializable {
 
     @Schema(description = "申报编号（业务编码，保存时自动生成，全局唯一）")
     private String businessCode;
+
+    @Schema(description = "申报日期（业务字段，实际申报时点，精确到天）")
+    private LocalDate declarationDate;
 
     @Schema(description = "申报标题")
     private String title;

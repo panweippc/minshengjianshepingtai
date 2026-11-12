@@ -28,6 +28,8 @@ export interface DeclarationSaveDTO {
   id?: string
   /** 申报编号（业务编码），可选，弹窗预生成后回传；不传则后端自动生成 */
   businessCode?: string
+  /** 申报日期（YYYY-MM-DD；空则后端默认当天） */
+  declarationDate?: string
   title: string
   townCode: string
   villageGroupCode: string
@@ -45,6 +47,7 @@ export interface DeclarationSaveDTO {
 export interface DeclarationVO {
   id: string
   businessCode: string
+  declarationDate?: string
   title: string
   townCode: string
   townName: string
@@ -113,7 +116,6 @@ export interface DeclarationHouseholdDetail {
   householdId?: string               // 农户档案ID
   snapshotHouseholdNo?: string       // 快照-户号（业务编码）
   snapshotHeadName?: string          // 快照-户主姓名
-  snapshotHouseholdNo?: string      // 快照-户号（业务编码）
   snapshotHeadIdCard?: string
   snapshotContactPhone?: string
   snapshotHouseholdType?: string
@@ -226,6 +228,32 @@ export function getReceivedDeclarationPage(params: DeclarationQuery) {
 /** 详情（含农户/公建明细 + 附件树） */
 export function getDeclarationDetail(id: string) {
   return get<Result<DeclarationDetailFull>>(`/api/declaration/detail/${id}`)
+}
+
+/**
+ * 明细级审核/修改历史（时间线，升序）
+ * GET /api/declaration/audit-logs/{declarationId}
+ */
+export interface DeclarationDetailAuditLogVO {
+  id: string
+  declarationId: string
+  detailKind: 'household' | 'public_facility'
+  detailId: string
+  detailSnapshotName: string
+  /** AUDIT_PASS / AUDIT_REJECT / AUDIT_REVOKE / SUBMIT_UNSUBMITTED / USER_EDIT */
+  action: string
+  beforeAuditStatus: string | null
+  afterAuditStatus: string | null
+  remark: string | null
+  /** USER_EDIT 时的字段 diff（JSON 字符串，前端 JSON.parse 后渲染） */
+  fieldDiff: string | null
+  attachmentChanged: boolean
+  operatorId: string | null
+  operatorName: string | null
+  createTime: string
+}
+export function getAuditLogs(declarationId: string) {
+  return get<Result<DeclarationDetailAuditLogVO[]>>(`/api/declaration/audit-logs/${declarationId}`)
 }
 
 /** 新增 */
@@ -348,4 +376,53 @@ export function submitProjectApproval(data: ProjectApprovalSubmitDTO) {
     detailCount: number
     attachmentCount: number
   }>>('/api/project/approval/submit', data)
+}
+
+// ================== 综合查询统计 ==================
+
+/** 统计行 */
+export interface DeclarationStatRow {
+  /** 是否为分组汇总行 */
+  groupSummary: boolean
+  /** 分组一级值（公建申报/到户申报/已通过/光明村 等） */
+  groupLabel: string
+  /** 分组二级值（汇总行固定为「全部村组」） */
+  villageName: string
+  villageGroupCode: string | null
+  declarationCount: number
+  householdCount: number
+  facilityCount: number
+  amount: number
+  /** 是否为总计行 */
+  grandTotal: boolean
+}
+
+/** 左侧筛选面板统计项 */
+export interface DeclarationStatSidebarItem {
+  value: string | null
+  label: string
+  count: number
+}
+
+/** 综合查询统计返回 */
+export interface DeclarationStatisticsVO {
+  groupBy: 'category' | 'status' | 'village'
+  rows: DeclarationStatRow[]
+  sidebar: {
+    byCategory: DeclarationStatSidebarItem[]
+    byStatus: DeclarationStatSidebarItem[]
+    byVillage: DeclarationStatSidebarItem[]
+  }
+}
+
+/** 申报综合查询统计 */
+export function getDeclarationStatistics(params: {
+  year?: string
+  regionCode?: string
+  groupBy?: 'category' | 'status' | 'village'
+  declarationCategory?: string
+  status?: string
+  villageGroupCode?: string
+}) {
+  return get<Result<DeclarationStatisticsVO>>('/api/declaration/statistics', { params })
 }

@@ -11,8 +11,10 @@ import com.msjs.project.dto.DeclarationDetailRevertDTO;
 import com.msjs.project.dto.DeclarationSaveDTO;
 import com.msjs.project.dto.DeclarationSubmitDTO;
 import com.msjs.project.service.DeclarationService;
+import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
 import com.msjs.project.vo.UserRegionVO;
+import com.msjs.project.vo.DeclarationStatisticsVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -81,6 +83,14 @@ public class DeclarationController {
     public Result<DeclarationDetailVO> detail(
             @Parameter(description = "申报单ID") @PathVariable Long id) {
         return Result.ok(declarationService.detail(id));
+    }
+
+    @Operation(summary = "明细级审核/修改历史（时间线，升序）")
+    @RequirePerm("declaration:view")
+    @GetMapping("/audit-logs/{declarationId}")
+    public Result<List<DeclarationDetailAuditLogVO>> auditLogs(
+            @Parameter(description = "申报单ID") @PathVariable Long declarationId) {
+        return Result.ok(declarationService.auditLogs(declarationId));
     }
 
     @Operation(summary = "新增申报单")
@@ -214,5 +224,26 @@ public class DeclarationController {
     public Result<Void> editPublicFacilityDetail(@Valid @RequestBody DeclarationDetailEditDTO dto) {
         declarationService.editPublicFacilityDetail(dto);
         return Result.ok();
+    }
+
+    // ============ 综合查询统计 ============
+
+    @Operation(summary = "申报综合查询统计（分组 + 左侧筛选面板统计）")
+    @GetMapping("/statistics")
+    public Result<DeclarationStatisticsVO> statistics(
+            @Parameter(description = "年度（格式 yyyy，按申报单 create_time 年份过滤）")
+            @RequestParam(required = false) String year,
+            @Parameter(description = "区划编码（乡镇或村组，含全部子孙级）")
+            @RequestParam(required = false) String regionCode,
+            @Parameter(description = "分组维度：category 按申报类别 / status 按审批状态 / village 按所属村组，默认 category")
+            @RequestParam(required = false, defaultValue = "category") String groupBy,
+            @Parameter(description = "左侧筛选：申报类别（1到户 / 2公建）")
+            @RequestParam(required = false) String declarationCategory,
+            @Parameter(description = "左侧筛选：审批状态（draft/submitted/approved/rejected/established）")
+            @RequestParam(required = false) String status,
+            @Parameter(description = "左侧筛选：所属村组区划编码")
+            @RequestParam(required = false) String villageGroupCode) {
+        return Result.ok(declarationService.statistics(year, regionCode, groupBy,
+                declarationCategory, status, villageGroupCode));
     }
 }
