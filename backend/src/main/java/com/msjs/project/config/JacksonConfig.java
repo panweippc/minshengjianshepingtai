@@ -22,9 +22,9 @@ import java.time.format.DateTimeFormatter;
  * Jackson 全局配置
  * <p>
  * 1. LocalDateTime / LocalDate 统一格式化为 "yyyy-MM-dd HH:mm:ss" / "yyyy-MM-dd"
- * 2. Long 全局序列化为 String（雪花ID 19 位，超过 JS Number 安全整数上限 9×10^15）
- *    —— 同时提供 LongDeserializer 兼容前端传 "字符串" 或 "裸数字" 两种情况
- *    —— PageVO.total / sort 这类小数字段也会变成字符串，但前端展示时用 String 没问题
+ * 2. Long 反序列化兼容（前端传 "字符串" 或 "裸数字" 两种情况都能正确转 Long）
+ *    —— 雪花ID 在各实体/VO 的 id 字段上单独标注 @JsonSerialize(using = ToStringSerializer.class)
+ *    —— 不再全局 Long→String（会导致 PageVO.total 等数值字段变成字符串，ElPagination 渲染失败）
  */
 @Configuration
 public class JacksonConfig {
@@ -45,14 +45,9 @@ public class JacksonConfig {
             builder.deserializerByType(LocalDateTime.class, new LocalDateTimeDeserializer(dateTimeFormatter));
             builder.serializerByType(LocalDate.class, new LocalDateSerializer(dateFormatter));
             builder.deserializerByType(LocalDate.class, new LocalDateDeserializer(dateFormatter));
-            // —— Long 序列化（全局 → String）——
-            // 雪花ID 19 位（~2e18）> JS Number.MAX_SAFE_INTEGER (9e15)
-            // 必须输出 JSON 字符串才能让前端 JSON.parse 保留完整精度
-            builder.serializerByType(Long.class, ToStringSerializer.instance);
-            builder.serializerByType(long.class, ToStringSerializer.instance);
             // —— Long 反序列化（兼容 "字符串" 或 "裸数字"）——
-            // 前端 JSON.parse 后的 JS number 如果丢了精度会是错误的数字，
-            // 但如果前端用 String 类型 value 绑定选择器，就能保留原始字符串 → Long 正确
+            // 雪花ID 19 位，前端 JSON.parse 后再传给后端可能丢失精度，
+            // 所以前端传字符串是更安全的方式；这里两种输入都支持
             builder.deserializerByType(Long.class, new SafeLongDeserializer());
             builder.deserializerByType(long.class, new SafeLongDeserializer());
         };

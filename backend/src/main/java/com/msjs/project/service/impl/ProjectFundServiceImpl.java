@@ -68,7 +68,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
-                .eq(isNotBlank(projectSource), ProjectApproval::getProjectSource, projectSource)
+                .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
                 .orderByDesc(ProjectApproval::getSubmitTime);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
@@ -83,6 +83,66 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         vo.setPageNum(result.getCurrent());
         vo.setPageSize(result.getSize());
         return vo;
+    }
+
+    @Override
+    public FundNodeVO approvalDetail(Long approvalId) {
+        ProjectApproval approval = approvalMapper.selectById(approvalId);
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+
+        // 直接复用资金树与项目级流水组装逻辑，与资金管理“项目资金”页签保持一致
+        FundNodeVO result = buildTree(Collections.singletonList(approval)).get(0);
+        result.setRecords(listRecords(Constants.FUND_NODE_APPROVAL, approvalId));
+        return result;
+    }
+
+    @Override
+    public FundNodeVO declareDetail(Long declareId) {
+        ProjectApprovalDeclare declare = declareMapper.selectById(declareId);
+        if (declare == null) {
+            throw new BizException("申报内容不存在或已被删除");
+        }
+        ProjectApproval approval = approvalMapper.selectById(declare.getApprovalId());
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+
+        // 直接复用资金树与二级流水组装逻辑，与资金管理“事项申报资金”页签保持一致
+        FundNodeVO root = buildTree(Collections.singletonList(approval)).get(0);
+        FundNodeVO result = root.getChildren().stream()
+                .filter(item -> declareId.equals(item.getId()))
+                .findFirst()
+                .orElseThrow(() -> new BizException("申报内容不存在或已被删除"));
+        result.setRecords(listRecords(Constants.FUND_NODE_DECLARE, declareId));
+        return result;
+    }
+
+    @Override
+    public FundNodeVO detail(Long detailId) {
+        ProjectApprovalDetail detail = detailMapper.selectById(detailId);
+        if (detail == null) {
+            throw new BizException("申报明细不存在或已被删除");
+        }
+        ProjectApprovalDeclare declare = declareMapper.selectById(detail.getDeclareId());
+        if (declare == null) {
+            throw new BizException("申报内容不存在或已被删除");
+        }
+        ProjectApproval approval = approvalMapper.selectById(declare.getApprovalId());
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+
+        // 直接复用资金树与流水组装逻辑，保证施工管理看到的数据与资金管理三级查看一致
+        FundNodeVO root = buildTree(Collections.singletonList(approval)).get(0);
+        FundNodeVO result = root.getChildren().stream()
+                .flatMap(item -> item.getChildren().stream())
+                .filter(item -> detailId.equals(item.getId()))
+                .findFirst()
+                .orElseThrow(() -> new BizException("申报明细不存在或已被删除"));
+        result.setRecords(listRecords(Constants.FUND_NODE_DETAIL, detailId));
+        return result;
     }
 
     @Override
@@ -409,7 +469,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
             root.setCode(approval.getApprovalCode());
             root.setName(approval.getProjectName());
             root.setCategory(approval.getProjectCategory());
-            root.setType(approval.getProjectSource());
+            root.setType(approval.getProjectType());
             root.setBudget(approval.getBudget());
             root.setFundSource(approvalSource.get(approval.getId()));
             root.setLeader(approval.getLeader());

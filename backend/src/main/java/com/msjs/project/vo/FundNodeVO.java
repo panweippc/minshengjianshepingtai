@@ -2,6 +2,7 @@ package com.msjs.project.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.msjs.project.entity.ProjectApprovalAttachment;
+import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.entity.ProjectFundAttachment;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -74,7 +75,7 @@ public class FundNodeVO implements Serializable {
     @Schema(description = "申报内容（仅二级）")
     private String declareContent;
 
-    @Schema(description = "申报材料附件（仅二级）")
+    @Schema(description = "立项/申报材料附件（一级/二级）")
     private List<ProjectApprovalAttachment> attachments;
 
     @Schema(description = "事项说明（仅三级）")
@@ -88,6 +89,9 @@ public class FundNodeVO implements Serializable {
 
     @Schema(description = "申报材料附件（仅三级：关联农户/公共基础设施的附件）")
     private List<FundMaterialAttachmentVO> materialAttachments;
+
+    @Schema(description = "资金流水（一级/二级/三级查看）")
+    private List<ProjectFund> records;
 
     @Schema(description = "子节点")
     private List<FundNodeVO> children;

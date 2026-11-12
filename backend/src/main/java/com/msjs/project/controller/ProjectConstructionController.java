@@ -7,7 +7,9 @@ import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.ConstructionEditDTO;
 import com.msjs.project.dto.ConstructionLogEditDTO;
 import com.msjs.project.service.ProjectConstructionService;
+import com.msjs.project.service.ProjectFundService;
 import com.msjs.project.vo.ConstructionLogVO;
+import com.msjs.project.vo.FundNodeVO;
 import com.msjs.project.vo.ConstructionNodeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectConstructionController {
 
     private final ProjectConstructionService constructionService;
+    private final ProjectFundService fundService;
 
     @Operation(summary = "施工分页查询（树形：项目 → 申报内容 → 农户/设施明细，含施工进度聚合）")
     @RequirePerm("project:construction:list")
@@ -70,6 +73,30 @@ public class ProjectConstructionController {
     public Result<java.util.List<ConstructionLogVO>> detailLogHistory(
             @Parameter(description = "明细ID") @PathVariable Long detailId) {
         return Result.ok(constructionService.detailLogHistory(detailId));
+    }
+
+    @Operation(summary = "一级项目资金查看（与资金管理项目资金页签一致）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/approval/{approvalId}/fund")
+    public Result<FundNodeVO> approvalFund(
+            @Parameter(description = "立项ID") @PathVariable Long approvalId) {
+        return Result.ok(fundService.approvalDetail(approvalId));
+    }
+
+    @Operation(summary = "二级事项申报资金查看（与资金管理事项申报资金页签一致）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/declare/{declareId}/fund")
+    public Result<FundNodeVO> declareFund(
+            @Parameter(description = "申报ID") @PathVariable Long declareId) {
+        return Result.ok(fundService.declareDetail(declareId));
+    }
+
+    @Operation(summary = "三级明细资金查看（与资金管理三级查看一致，含申报材料附件及资金流水）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/detail/{detailId}/fund")
+    public Result<FundNodeVO> detailFund(
+            @Parameter(description = "明细ID") @PathVariable Long detailId) {
+        return Result.ok(fundService.detail(detailId));
     }
 
     @Operation(summary = "保存三级施工记录（施工记录与附件，并同步明细施工状态）")

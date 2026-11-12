@@ -68,7 +68,7 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 .eq(ProjectApproval::getAcceptStatus, Constants.APPROVAL_ACCEPT_APPLYING)
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
-                .eq(isNotBlank(projectSource), ProjectApproval::getProjectSource, projectSource)
+                .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
                 .orderByDesc(ProjectApproval::getAcceptApplyTime);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
@@ -303,7 +303,7 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             projectNode.setCode(approval.getApprovalCode());
             projectNode.setName(approval.getProjectName());
             projectNode.setCategory(approval.getProjectCategory());
-            projectNode.setSource(approval.getProjectSource());
+            projectNode.setSource(approval.getProjectType());
             projectNode.setSubmitTime(approval.getSubmitTime());
             projectNode.setBudget(approval.getBudget());
             projectNode.setTotalCount(approvalTotalCount);

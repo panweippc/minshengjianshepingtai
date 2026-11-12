@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
  * 变更内容：
  *   1. t_declaration_household 新增 snapshot_household_no 列并回填户号
  *   2. t_project_approval_detail 历史数据中农户 target_code 由身份证号修正为户号
+ *   3. t_project_approval 新增 project_type 列 + 字典初始化（V15）
  * 跑完可保留，再次启动会被幂等检查短路。
  */
 @Slf4j
@@ -23,8 +24,29 @@ public class SchemaMigrationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        normalizeApprovalStatusCase();
         migrateSnapshotHouseholdNo();
         fixApprovalDetailTargetCode();
+        migrateApprovalProjectType();
+    }
+
+    /**
+     * 立项状态大小写归一化：存量数据 status 可能存了小写 pending/approved/rejected，
+     * 与 Java 常量 APPROVAL_STATUS_PENDING(大写) 做 equals 比较会失败，
+     * 导致无法驳回/通过。统一改为大写。
+     * 注意：MySQL 默认 collation(utf8mb4_general_ci) 大小写不敏感，
+     * IN/比较运算都要用 BINARY 才能精确匹配小写存量。
+     */
+    private void normalizeApprovalStatusCase() {
+        int affected = jdbcTemplate.update(
+                "UPDATE t_project_approval SET status = UPPER(status) " +
+                "WHERE BINARY status IN ('pending','approved','rejected') " +
+                "AND BINARY status <> UPPER(status)");
+        if (affected > 0) {
+            log.info("[Migration] 已将 t_project_approval.status 归一化为大写（{} 条）", affected);
+        } else {
+            log.info("[Migration] 立项状态已是大写，无需归一化");
+        }
     }
 
     /** 步骤1：申报-农户明细表补 snapshot_household_no */
@@ -82,6 +104,47 @@ public class SchemaMigrationRunner implements ApplicationRunner {
             log.info("[Migration] 已修正 {} 条立项农户明细的 target_code（身份证号 → 户号）", affected);
         } else {
             log.info("[Migration] 立项农户明细 target_code 已是户号，无需修正");
+        }
+    }
+
+    /**
+     * 立项主表补 project_type 列并初始化字典数据（V15）。
+     * 修复前端"一级表单项目类型取不到数据"——之前前端错误地把 project_source
+     * （项目来源字典 xiang_mu_lai_yuan）当成项目类型字典 xiang_mu_lei_xing 去查，
+     * 且数据库确实缺失 project_type 列。
+     */
+    private void migrateApprovalProjectType() {
+        // 幂等检查：project_type 列是否已存在
+        Integer colExists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_project_approval' " +
+                "AND COLUMN_NAME = 'project_type'", Integer.class);
+
+        if (colExists != null && colExists > 0) {
+            log.info("[Migration] project_type 列已存在，跳过 ADD COLUMN");
+        } else {
+            try {
+                jdbcTemplate.update(
+                        "ALTER TABLE t_project_approval ADD COLUMN project_type VARCHAR(8) DEFAULT NULL " +
+                        "COMMENT '项目类型（字典 xiang_mu_lei_xing）' AFTER project_category");
+                log.info("[Migration] 已为 t_project_approval 新增 project_type 列");
+            } catch (Exception e) {
+                log.warn("[Migration] ALTER TABLE 失败：{}", e.getMessage());
+                return;
+            }
+        }
+
+        // 回填已有立项的 project_type（按 project_category 做合理默认值）
+        int filled = jdbcTemplate.update(
+                "UPDATE t_project_approval SET project_type = '1' " +
+                "WHERE project_type IS NULL AND project_category IN ('1','2')");
+        jdbcTemplate.update(
+                "UPDATE t_project_approval SET project_type = '2' " +
+                "WHERE project_type IS NULL AND project_category = '3'");
+        if (filled > 0) {
+            log.info("[Migration] 已回填 {} 条立项记录的 project_type", filled);
+        } else {
+            log.info("[Migration] 立项记录的 project_type 已全部回填，无需更新");
         }
     }
 }

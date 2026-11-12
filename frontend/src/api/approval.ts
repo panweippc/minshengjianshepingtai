@@ -33,11 +33,15 @@ export interface ApprovalDetailNode {
   quantity?: number
   remark?: string
   sort?: number
+  /** 明细自身的申报材料附件（declare_id + detail_target 关联的附件） */
+  attachments?: ApprovalAttachmentVO[]
 }
 
 /** 申报内容（树形二级） */
 export interface ApprovalDeclareNode {
   id: string
+  /** 来源申报单ID（t_declaration.id） */
+  declarationId?: string
   approvalId: string
   /** 申报编号（业务编码） */
   declareCode?: string
@@ -62,9 +66,11 @@ export interface ApprovalVO {
   approvalCode: string
   projectName: string
   projectCategory?: string
+  projectType?: string
   projectSource?: string
   budget?: number
   leader?: string
+  applyBy?: string
   submitTime?: string
   /** PENDING待审核 APPROVED已通过 REJECTED已驳回 */
   status: string
@@ -97,7 +103,8 @@ export interface ApprovalQuery extends PageQuery {
   tab: 'pending' | 'rejected'
   projectName?: string
   projectCategory?: string
-  projectSource?: string
+  /** 项目类型（字典 xiang_mu_lei_xing） */
+  projectType?: string
   /** 提交开始日期 yyyy-MM-dd */
   startTime?: string
   /** 提交结束日期 yyyy-MM-dd */
@@ -109,11 +116,17 @@ export interface ApprovalEditDTO {
   id: string
   projectName: string
   projectCategory?: string
+  projectType?: string
   projectSource?: string
   budget?: number
   leader?: string
+  applyBy?: string
   remark?: string
   attachments?: ApprovalAttachmentItem[]
+  /** 本次新增关联的申报单ID集合（编辑时追加） */
+  addDeclarationIds?: string[]
+  /** 本次移除关联的申报单ID集合（编辑时解绑） */
+  removeDeclarationIds?: string[]
 }
 
 /** 立项分页查询 */
@@ -150,7 +163,8 @@ export function rejectApproval(id: string) {
 export function getApprovalCounts(params: {
   projectName?: string
   projectCategory?: string
-  projectSource?: string
+  /** 项目类型（字典 xiang_mu_lei_xing） */
+  projectType?: string
   startTime?: string
   endTime?: string
 }) {
