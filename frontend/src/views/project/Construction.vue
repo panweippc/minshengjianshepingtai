@@ -128,7 +128,7 @@
                 link
                 type="success"
                 @click="openAcceptance(row)"
-              >验收</el-button>
+              >完工</el-button>
             </div>
           </template>
         </el-table-column>
@@ -1353,16 +1353,16 @@ const openView = async (row: DisplayRow) => {
   }
 }
 
-/* ============ 验收 ============ */
+/* ============ 完工 ============ */
 const openAcceptance = async (row: DisplayRow) => {
   try {
-    await ElMessageBox.confirm(`「${row.name}」全部明细已完工，是否进入验收管理？`, '发起验收', {
+    await ElMessageBox.confirm(`「${row.name}」全部明细已完工，确认完工并进入验收管理？`, '确认完工', {
       type: 'success',
-      confirmButtonText: '发起验收'
+      confirmButtonText: '确认完工'
     })
-    // 调用后端发起验收接口，把项目标记为"验收中"
+    // 调用后端发起验收接口，将项目标记为"验收中"并进入验收管理
     await applyAcceptance(row.approvalId, userStore.userInfo?.username || '系统')
-    ElMessage.success('已发起验收，项目进入验收管理')
+    ElMessage.success('已完工，项目进入验收管理')
     router.push({ path: '/project/acceptance' })
   } catch {
     /* 用户取消 */
