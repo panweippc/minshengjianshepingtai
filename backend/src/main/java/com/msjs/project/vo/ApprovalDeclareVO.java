@@ -20,6 +20,9 @@ public class ApprovalDeclareVO implements Serializable {
     @Schema(description = "立项-申报关联ID")
     private Long id;
 
+    @Schema(description = "来源申报单ID（t_declaration.id）")
+    private Long declarationId;
+
     @Schema(description = "所属立项ID")
     private Long approvalId;
 

@@ -30,6 +30,9 @@ public class ApprovalVO implements Serializable {
     @Schema(description = "项目类别（字典 xiang_mu_lei_bie）")
     private String projectCategory;
 
+    @Schema(description = "项目类型（字典 xiang_mu_lei_xing）")
+    private String projectType;
+
     @Schema(description = "项目来源（字典 xiang_mu_lai_yuan）")
     private String projectSource;
 
@@ -38,6 +41,9 @@ public class ApprovalVO implements Serializable {
 
     @Schema(description = "项目负责人")
     private String leader;
+
+    @Schema(description = "申报人")
+    private String applyBy;
 
     @Schema(description = "提交时间")
     private LocalDateTime submitTime;

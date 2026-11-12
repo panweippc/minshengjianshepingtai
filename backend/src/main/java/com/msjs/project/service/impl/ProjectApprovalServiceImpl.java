@@ -126,74 +126,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         // 4. declare + detail + 状态推进
         int declareCount = 0, detailCount = 0;
         for (Declaration d : parents) {
-            // 4.1 每个被选中的声明单落一条 declare
-            ProjectApprovalDeclare declare = new ProjectApprovalDeclare();
-            declare.setApprovalId(approval.getId());
-            declare.setDeclarationId(d.getId());
-            declare.setDeclareCode(d.getBusinessCode());
-            declare.setDeclareName(d.getTitle());
-            declare.setDeclareCategory(d.getDeclarationCategory());
-            declare.setDeclareType(d.getDeclarationType());
-            declare.setTownName(d.getTownName());
-            declare.setBudget(d.getAmount());
-            declare.setSort(declareCount);
-            declare.setCreateTime(now);
-            declareMapper.insert(declare);
+            detailCount += bindDeclaration(approval, d, declareCount, userId, username, now);
             declareCount++;
-
-            // 4.2 抓这条声明单下所有 approved 明细 → 立项 detail → 改 audit_status=established
-            if ("1".equals(d.getDeclarationCategory())) {
-                // 农户
-                List<DeclarationHousehold> all = householdMapper.selectList(
-                        new LambdaQueryWrapper<DeclarationHousehold>()
-                                .eq(DeclarationHousehold::getDeclarationId, d.getId())
-                                .eq(DeclarationHousehold::getDeleted, 0));
-                for (DeclarationHousehold hh : all) {
-                    if ("approved".equals(hh.getAuditStatus())) {
-                        ProjectApprovalDetail pd = buildHouseholdDetail(declare.getId(), hh);
-                        pd.setDeclarationId(d.getId());
-                        detailMapper.insert(pd);
-                        // 改状态：approved → established
-                        DeclarationHousehold upd = new DeclarationHousehold();
-                        upd.setId(hh.getId());
-                        upd.setAuditStatus("established");
-                        upd.setAuditBy(userId);
-                        upd.setAuditTime(now);
-                        upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
-                        householdMapper.updateById(upd);
-                        detailCount++;
-                    }
-                }
-            } else if ("2".equals(d.getDeclarationCategory())) {
-                // 公建
-                List<DeclarationPublicFacility> all = facilityMapper.selectList(
-                        new LambdaQueryWrapper<DeclarationPublicFacility>()
-                                .eq(DeclarationPublicFacility::getDeclarationId, d.getId())
-                                .eq(DeclarationPublicFacility::getDeleted, 0));
-                for (DeclarationPublicFacility pf : all) {
-                    if ("approved".equals(pf.getAuditStatus())) {
-                        ProjectApprovalDetail pd = buildFacilityDetail(declare.getId(), pf);
-                        pd.setDeclarationId(d.getId());
-                        detailMapper.insert(pd);
-                        DeclarationPublicFacility upd = new DeclarationPublicFacility();
-                        upd.setId(pf.getId());
-                        upd.setAuditStatus("established");
-                        upd.setAuditBy(userId);
-                        upd.setAuditTime(now);
-                        upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
-                        facilityMapper.updateById(upd);
-                        detailCount++;
-                    }
-                }
-            }
-            // 4.3 父申报单状态回算：established 也算"全部完成"，推进到 approved（或维持）
-            d.setStatus("approved");
-            d.setAuditBy(userId);
-            d.setAuditTime(now);
-            d.setAuditRemark("明细已立项（审批单：" + approval.getApprovalCode() + "）");
-            d.setUpdateBy(username);
-            d.setUpdateTime(now);
-            declarationMapper.updateById(d);
         }
 
         // 5. 附件行（项目级；declareId 为空，挂在 approval 下）
@@ -236,9 +170,9 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
 
     @Override
     public PageVO<ApprovalVO> page(long pageNum, long pageSize, String tab, String projectName,
-                                   String projectCategory, String projectSource, String startTime, String endTime) {
+                                   String projectCategory, String projectType, String startTime, String endTime) {
         LambdaQueryWrapper<ProjectApproval> wrapper = buildFilterWrapper(
-                projectName, projectCategory, projectSource, startTime, endTime);
+                projectName, projectCategory, projectType, startTime, endTime);
         // 页签仅支持待审核 / 已驳回，状态值统一使用常量
         if (Constants.APPROVAL_TAB_PENDING.equals(tab)) {
             wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_PENDING);
@@ -259,13 +193,13 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     }
 
     @Override
-    public ApprovalCountVO counts(String projectName, String projectCategory, String projectSource,
+    public ApprovalCountVO counts(String projectName, String projectCategory, String projectType,
                                   String startTime, String endTime) {
         ApprovalCountVO vo = new ApprovalCountVO();
-        vo.setAll(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectSource, startTime, endTime)));
-        vo.setPending(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectSource, startTime, endTime)
+        vo.setAll(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectType, startTime, endTime)));
+        vo.setPending(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectType, startTime, endTime)
                 .eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_PENDING)));
-        vo.setRejected(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectSource, startTime, endTime)
+        vo.setRejected(approvalMapper.selectCount(buildFilterWrapper(projectName, projectCategory, projectType, startTime, endTime)
                 .eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_REJECTED)));
         return vo;
     }
@@ -292,21 +226,113 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     @Transactional(rollbackFor = Exception.class)
     public void edit(ApprovalEditDTO dto) {
         ProjectApproval approval = requireApproval(dto.getId());
-        // 业务约束：仅待审核状态可编辑
-        if (!Constants.APPROVAL_STATUS_PENDING.equals(approval.getStatus())) {
+        // 业务约束：仅待审核状态可编辑（equalsIgnoreCase 兼容历史数据大小写）
+        if (!Constants.APPROVAL_STATUS_PENDING.equalsIgnoreCase(approval.getStatus())) {
             throw new BizException("仅待审核的立项可编辑");
         }
         approval.setProjectName(trimToNull(dto.getProjectName()));
         approval.setProjectCategory(trimToNull(dto.getProjectCategory()));
+        approval.setProjectType(trimToNull(dto.getProjectType()));
         approval.setProjectSource(trimToNull(dto.getProjectSource()));
         approval.setBudget(dto.getBudget());
         approval.setLeader(trimToNull(dto.getLeader()));
+        approval.setApplyBy(trimToNull(dto.getApplyBy()));
         approval.setRemark(trimToNull(dto.getRemark()));
         approval.setUpdateBy(currentUser());
         approval.setUpdateTime(LocalDateTime.now());
         approvalMapper.updateById(approval);
 
         saveProjectAttachments(approval.getId(), dto.getAttachments());
+
+        // 新增关联申报单：落 declare + 明细，并推进申报明细为已立项
+        if (dto.getAddDeclarationIds() != null && !dto.getAddDeclarationIds().isEmpty()) {
+            bindNewDeclarations(approval, dto.getAddDeclarationIds());
+        }
+
+        // 移除关联申报单：删除 declare + 明细，并把申报明细状态回退为已通过
+        if (dto.getRemoveDeclarationIds() != null && !dto.getRemoveDeclarationIds().isEmpty()) {
+            unbindDeclarations(approval, dto.getRemoveDeclarationIds());
+        }
+    }
+
+    /** 编辑时移除关联申报单：删除申报节点及其明细，申报明细状态 established → approved */
+    private void unbindDeclarations(ProjectApproval approval, List<Long> removeIds) {
+        List<ProjectApprovalDeclare> linked = declareMapper.selectList(
+                new LambdaQueryWrapper<ProjectApprovalDeclare>()
+                        .eq(ProjectApprovalDeclare::getApprovalId, approval.getId())
+                        .in(ProjectApprovalDeclare::getDeclarationId, removeIds));
+        if (linked.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (ProjectApprovalDeclare declare : linked) {
+            List<ProjectApprovalDetail> details = detailMapper.selectList(
+                    new LambdaQueryWrapper<ProjectApprovalDetail>()
+                            .eq(ProjectApprovalDetail::getDeclareId, declare.getId()));
+            // 明细状态回退：已立项 → 已通过，便于重新选择申报单
+            for (ProjectApprovalDetail detail : details) {
+                if (Constants.APPROVAL_DETAIL_TYPE_HOUSEHOLD.equals(detail.getDetailType())
+                        && detail.getHouseholdId() != null) {
+                    DeclarationHousehold upd = new DeclarationHousehold();
+                    upd.setId(detail.getHouseholdId());
+                    upd.setAuditStatus("approved");
+                    upd.setAuditTime(now);
+                    upd.setAuditRemark("已移除立项（审批单：" + approval.getApprovalCode() + "）");
+                    householdMapper.updateById(upd);
+                } else if (Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(detail.getDetailType())
+                        && detail.getFacilityId() != null) {
+                    DeclarationPublicFacility upd = new DeclarationPublicFacility();
+                    upd.setId(detail.getFacilityId());
+                    upd.setAuditStatus("approved");
+                    upd.setAuditTime(now);
+                    upd.setAuditRemark("已移除立项（审批单：" + approval.getApprovalCode() + "）");
+                    facilityMapper.updateById(upd);
+                }
+            }
+            if (!details.isEmpty()) {
+                detailMapper.deleteBatchIds(details.stream().map(ProjectApprovalDetail::getId).toList());
+            }
+            // 清理该申报节点下挂的申报材料附件，避免孤儿数据
+            attachmentMapper.delete(new LambdaQueryWrapper<ProjectApprovalAttachment>()
+                    .eq(ProjectApprovalAttachment::getApprovalId, approval.getId())
+                    .eq(ProjectApprovalAttachment::getDeclareId, declare.getId()));
+            // 物理删除关联行：逻辑删除会残留 declare_code 唯一索引占位，导致该申报单无法重新关联
+            declareMapper.hardDeleteById(declare.getId());
+        }
+    }
+
+    /** 编辑时追加关联申报单：去重校验后逐条绑定 */
+    private void bindNewDeclarations(ProjectApproval approval, List<Long> addIds) {
+        LoginUser me = UserContext.get();
+        String username = me != null ? me.getUsername() : "system";
+        Long userId = me != null ? me.getUserId() : null;
+        LocalDateTime now = LocalDateTime.now();
+
+        // 已绑定的申报单集合，避免重复挂接
+        List<ProjectApprovalDeclare> existing = declareMapper.selectList(
+                new LambdaQueryWrapper<ProjectApprovalDeclare>()
+                        .eq(ProjectApprovalDeclare::getApprovalId, approval.getId()));
+        Set<Long> linkedIds = existing.stream()
+                .map(ProjectApprovalDeclare::getDeclarationId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<Long> distinctIds = addIds.stream().distinct().filter(java.util.Objects::nonNull).toList();
+        List<Declaration> declarations = declarationMapper.selectBatchIds(distinctIds);
+        if (declarations == null || declarations.size() != distinctIds.size()) {
+            throw new BizException("部分申报单不存在，请刷新后重试");
+        }
+
+        int sort = existing.size();
+        for (Declaration d : declarations) {
+            if (linkedIds.contains(d.getId())) {
+                throw new BizException("申报单「" + d.getTitle() + "」已关联，请勿重复添加");
+            }
+            int detailCount = bindDeclaration(approval, d, sort++, userId, username, now);
+            if (detailCount == 0) {
+                throw new BizException("申报单「" + d.getTitle() + "」下没有已通过的明细可立项");
+            }
+        }
     }
 
     @Override
@@ -333,7 +359,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     /** 状态流转：校验当前状态后仅更新状态与更新人/更新时间 */
     private void changeStatus(Long id, String fromStatus, String toStatus, String errorMsg) {
         ProjectApproval approval = requireApproval(id);
-        if (!fromStatus.equals(approval.getStatus())) {
+        // 使用 equalsIgnoreCase 防御存量数据 status 大小写不一致的问题
+        if (!fromStatus.equalsIgnoreCase(approval.getStatus())) {
             throw new BizException(errorMsg);
         }
         ProjectApproval update = new ProjectApproval();
@@ -408,9 +435,11 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         vo.setApprovalCode(approval.getApprovalCode());
         vo.setProjectName(approval.getProjectName());
         vo.setProjectCategory(approval.getProjectCategory());
+        vo.setProjectType(approval.getProjectType());
         vo.setProjectSource(approval.getProjectSource());
         vo.setBudget(approval.getBudget());
         vo.setLeader(approval.getLeader());
+        vo.setApplyBy(approval.getApplyBy());
         vo.setSubmitTime(approval.getSubmitTime());
         vo.setStatus(approval.getStatus());
         vo.setRegionCode(approval.getRegionCode());
@@ -424,6 +453,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     private ApprovalDeclareVO toDeclareVO(ProjectApprovalDeclare declare) {
         ApprovalDeclareVO vo = new ApprovalDeclareVO();
         vo.setId(declare.getId());
+        vo.setDeclarationId(declare.getDeclarationId());
         vo.setApprovalId(declare.getApprovalId());
         vo.setDeclareCode(declare.getDeclareCode());
         vo.setDeclareName(declare.getDeclareName());
@@ -552,9 +582,9 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         return approval;
     }
 
-    /** 构造列表筛选条件（项目名称/类别/来源/提交时间范围） */
+    /** 构造列表筛选条件（项目名称/类别/类型/提交时间范围） */
     private LambdaQueryWrapper<ProjectApproval> buildFilterWrapper(String projectName, String projectCategory,
-                                                                   String projectSource, String startTime,
+                                                                   String projectType, String startTime,
                                                                    String endTime) {
         LocalDate startDate = parseDate(startTime, "提交开始日期");
         LocalDate endDate = parseDate(endTime, "提交结束日期");
@@ -563,7 +593,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         return new LambdaQueryWrapper<ProjectApproval>()
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, trimToNull(projectCategory))
-                .eq(isNotBlank(projectSource), ProjectApproval::getProjectSource, trimToNull(projectSource))
+                .eq(isNotBlank(projectType), ProjectApproval::getProjectType, trimToNull(projectType))
                 .ge(start != null, ProjectApproval::getSubmitTime, start)
                 .le(end != null, ProjectApproval::getSubmitTime, end);
     }
@@ -577,6 +607,90 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         } catch (DateTimeParseException e) {
             throw new BizException(fieldName + "格式不正确，应为 yyyy-MM-dd");
         }
+    }
+
+    /**
+     * 将一条申报单绑定到立项单：
+     * 1) 落一条 t_project_approval_declare（申报内容节点）
+     * 2) 抓该申报单下所有 approved 明细 → 落 t_project_approval_detail
+     * 3) 明细 audit_status 推进为 established，父申报单状态回算为 approved
+     *
+     * @return 本次落库的明细条数（0 表示该申报单下没有已通过明细）
+     */
+    private int bindDeclaration(ProjectApproval approval, Declaration d, int sort,
+                                Long userId, String username, LocalDateTime now) {
+        // 1. 申报内容节点
+        ProjectApprovalDeclare declare = new ProjectApprovalDeclare();
+        declare.setApprovalId(approval.getId());
+        declare.setDeclarationId(d.getId());
+        declare.setDeclareCode(d.getBusinessCode());
+        declare.setDeclareName(d.getTitle());
+        declare.setDeclareCategory(d.getDeclarationCategory());
+        declare.setDeclareType(d.getDeclarationType());
+        declare.setTownName(d.getTownName());
+        declare.setBudget(d.getAmount());
+        declare.setSort(sort);
+        declare.setCreateTime(now);
+        // declare_code 有唯一索引，先清理历史逻辑删除行，避免同一申报单重新关联时唯一键冲突
+        declareMapper.hardDeleteSoftDeletedByCode(declare.getDeclareCode());
+        declareMapper.insert(declare);
+
+        // 2. 已通过明细 → 立项明细，并推进为已立项
+        int detailCount = 0;
+        if ("1".equals(d.getDeclarationCategory())) {
+            // 农户
+            List<DeclarationHousehold> all = householdMapper.selectList(
+                    new LambdaQueryWrapper<DeclarationHousehold>()
+                            .eq(DeclarationHousehold::getDeclarationId, d.getId())
+                            .eq(DeclarationHousehold::getDeleted, 0));
+            for (DeclarationHousehold hh : all) {
+                if ("approved".equals(hh.getAuditStatus())) {
+                    ProjectApprovalDetail pd = buildHouseholdDetail(declare.getId(), hh);
+                    pd.setDeclarationId(d.getId());
+                    detailMapper.insert(pd);
+                    // 改状态：approved → established
+                    DeclarationHousehold upd = new DeclarationHousehold();
+                    upd.setId(hh.getId());
+                    upd.setAuditStatus("established");
+                    upd.setAuditBy(userId);
+                    upd.setAuditTime(now);
+                    upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
+                    householdMapper.updateById(upd);
+                    detailCount++;
+                }
+            }
+        } else if ("2".equals(d.getDeclarationCategory())) {
+            // 公建
+            List<DeclarationPublicFacility> all = facilityMapper.selectList(
+                    new LambdaQueryWrapper<DeclarationPublicFacility>()
+                            .eq(DeclarationPublicFacility::getDeclarationId, d.getId())
+                            .eq(DeclarationPublicFacility::getDeleted, 0));
+            for (DeclarationPublicFacility pf : all) {
+                if ("approved".equals(pf.getAuditStatus())) {
+                    ProjectApprovalDetail pd = buildFacilityDetail(declare.getId(), pf);
+                    pd.setDeclarationId(d.getId());
+                    detailMapper.insert(pd);
+                    DeclarationPublicFacility upd = new DeclarationPublicFacility();
+                    upd.setId(pf.getId());
+                    upd.setAuditStatus("established");
+                    upd.setAuditBy(userId);
+                    upd.setAuditTime(now);
+                    upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
+                    facilityMapper.updateById(upd);
+                    detailCount++;
+                }
+            }
+        }
+
+        // 3. 父申报单状态回算：established 也算"全部完成"，推进到 approved（或维持）
+        d.setStatus("approved");
+        d.setAuditBy(userId);
+        d.setAuditTime(now);
+        d.setAuditRemark("明细已立项（审批单：" + approval.getApprovalCode() + "）");
+        d.setUpdateBy(username);
+        d.setUpdateTime(now);
+        declarationMapper.updateById(d);
+        return detailCount;
     }
 
     private ProjectApprovalDetail buildHouseholdDetail(Long declareId, DeclarationHousehold hh) {

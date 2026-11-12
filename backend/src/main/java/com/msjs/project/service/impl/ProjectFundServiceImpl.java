@@ -68,7 +68,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
-                .eq(isNotBlank(projectSource), ProjectApproval::getProjectSource, projectSource)
+                .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
                 .orderByDesc(ProjectApproval::getSubmitTime);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
@@ -409,7 +409,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
             root.setCode(approval.getApprovalCode());
             root.setName(approval.getProjectName());
             root.setCategory(approval.getProjectCategory());
-            root.setType(approval.getProjectSource());
+            root.setType(approval.getProjectType());
             root.setBudget(approval.getBudget());
             root.setFundSource(approvalSource.get(approval.getId()));
             root.setLeader(approval.getLeader());
