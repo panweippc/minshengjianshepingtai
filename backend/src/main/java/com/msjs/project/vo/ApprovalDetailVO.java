@@ -1,5 +1,7 @@
 package com.msjs.project.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -16,15 +18,18 @@ public class ApprovalDetailVO implements Serializable {
     @Serial private static final long serialVersionUID = 1L;
 
     @Schema(description = "明细ID")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Schema(description = "所属立项-申报关联ID")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long declareId;
 
     @Schema(description = "明细类型：HOUSEHOLD农户 FACILITY公共基础设施")
     private String detailType;
 
     @Schema(description = "目标ID（农户ID/设施ID）")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long targetId;
 
     @Schema(description = "农户/设施名称")
