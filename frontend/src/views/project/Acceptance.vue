@@ -49,40 +49,55 @@
         class="acceptance-table"
         :row-class-name="rowClassName"
       >
-        <el-table-column label="项目编号" width="190">
+        <el-table-column label="项目编号" width="210">
           <template #default="{ row }">
-            <span
-              v-if="row.hasChildren"
-              class="tree-toggle"
-              :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
-              :title="collapsedKeys.has(row.rowKey) ? '展开' : '收起'"
-              @click.stop="toggleRow(row.rowKey)"
-            >
-              <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.rowKey) }">
-                <ArrowRight />
+            <span class="approval-code-line">
+              <span
+                v-if="row.hasChildren"
+                class="tree-toggle"
+                :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
+                :title="collapsedKeys.has(row.rowKey) ? '展开' : '收起'"
+                @click.stop="toggleRow(row.rowKey)"
+              >
+                <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.rowKey) }">
+                  <ArrowRight />
+                </el-icon>
+              </span>
+              <span
+                v-else
+                class="tree-toggle"
+                :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
+              />
+              <!-- 二级申报节点：蓝色文件夹小标签 -->
+              <el-icon
+                v-if="row.nodeType === 'declare'"
+                class="detail-type-icon detail-type-icon--folder"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
               </el-icon>
-            </span>
-            <span
-              v-else
-              class="tree-toggle"
-              :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
-            />
-            <el-icon
-              v-if="row.nodeType === 'detail'"
-              class="detail-type-icon"
-              :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
-            >
-              <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
-              <UserFilled v-else />
-            </el-icon>
-            <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
-              {{ row.code || '-' }}
+              <el-icon
+                v-if="row.nodeType === 'detail'"
+                class="detail-type-icon"
+                :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
+              >
+                <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
+                <UserFilled v-else />
+              </el-icon>
+              <el-tooltip
+                :content="row.code || '-'"
+                placement="top"
+                :show-after="200"
+              >
+                <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
+                  {{ row.code || '-' }}
+                </span>
+              </el-tooltip>
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="name" label="项目名称" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="category" label="项目类别" width="130" />
-        <el-table-column prop="type" label="项目类型" width="120" />
+        <el-table-column prop="category" label="项目类别" width="130" show-overflow-tooltip />
+        <el-table-column prop="type" label="项目类型" width="120" show-overflow-tooltip />
         <el-table-column label="验收进度" width="170">
           <template #default="{ row }">
             <template v-if="row.nodeType === 'detail'">
@@ -192,13 +207,13 @@
           size="small"
           class="accept-tree-table"
         >
-          <el-table-column label="申报编号" width="160">
+          <el-table-column label="申报编号" width="180">
             <template #default="{ row }">
               <span class="accept-tree-cell">
                 <el-icon
                   v-if="row.vtKind === 'declare'"
                   class="accept-tree-kind accept-tree-kind--declare"
-                ><Folder /></el-icon>
+                ><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></el-icon>
                 <el-icon
                   v-else-if="row.detailType === 'FACILITY'"
                   class="detail-type-icon detail-type-icon--facility"
@@ -207,7 +222,13 @@
                   v-else
                   class="detail-type-icon detail-type-icon--household"
                 ><UserFilled /></el-icon>
-                <span class="accept-tree-cell__text">{{ row.code || '-' }}</span>
+                <el-tooltip
+                  :content="row.code || '-'"
+                  placement="top"
+                  :show-after="200"
+                >
+                  <span class="accept-tree-cell__text">{{ row.code || '-' }}</span>
+                </el-tooltip>
               </span>
             </template>
           </el-table-column>
@@ -404,7 +425,7 @@
       width="600px"
       destroy-on-close
     >
-      <el-form :ref="acceptFormRef" :model="acceptForm" :rules="acceptRules" label-width="90px">
+      <el-form ref="acceptFormRef" :model="acceptForm" :rules="acceptRules" label-width="90px">
         <el-descriptions :column="2" border class="accept-target">
           <el-descriptions-item label="验收对象">
             <template v-if="acceptRow">
@@ -764,7 +785,7 @@ const openAcceptForm = (row: DisplayRow) => {
     return
   }
   acceptRow.value = row
-  acceptForm.acceptBy = userStore.userInfo?.username || ''
+  acceptForm.acceptBy = ''
   acceptForm.remark = ''
   acceptVisible.value = true
 }
@@ -882,13 +903,40 @@ onMounted(async () => {
 }
 
 .tree-code {
-  display: inline-block;
-  vertical-align: middle;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tree-code--detail {
   padding-left: 6px;
+}
+
+/* 项目编号行容器：图标 + 编号强制同一行，禁止换行 */
+.approval-code-line {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  width: 100%;
+  min-width: 0;
+}
+.approval-code-line .tree-toggle {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.approval-code-line .detail-type-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+.approval-code-line .tree-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .acceptance-table :deep(.accept-detail-row) {
@@ -916,6 +964,16 @@ onMounted(async () => {
 .detail-type-icon--facility {
   background: #fdf6ec;
   color: #e6a23c;
+}
+
+/* 二级申报节点：纯蓝色文件夹小图标，不使用圆形背景 */
+.detail-type-icon--folder {
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--el-color-primary, #409eff);
+  font-size: 14px;
 }
 
 .pagination {
@@ -972,19 +1030,33 @@ onMounted(async () => {
   color: #c0c4cc;
 }
 
-/* 验收情况树形表格单元格 */
+/* 验收情况树形表格单元格：图标 + 编号强制同一行 */
 .accept-tree-cell {
   display: inline-flex;
   align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
 }
 
 .accept-tree-kind--declare {
   color: var(--el-color-primary, #409eff);
   font-size: 14px;
+  flex-shrink: 0;
+}
+
+.accept-tree-cell .detail-type-icon {
+  flex-shrink: 0;
 }
 
 .accept-tree-cell__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   vertical-align: middle;
 }
 

@@ -25,10 +25,10 @@ public interface ProjectApprovalService {
      * 返回三级树：项目 → 申报内容 → 农户/设施明细
      */
     PageVO<ApprovalVO> page(long pageNum, long pageSize, String tab, String projectName,
-                            String projectCategory, String projectSource, String startTime, String endTime);
+                            String projectCategory, String projectType, String startTime, String endTime);
 
     /** 各页签数量统计（与分页查询共享筛选条件） */
-    ApprovalCountVO counts(String projectName, String projectCategory, String projectSource,
+    ApprovalCountVO counts(String projectName, String projectCategory, String projectType,
                            String startTime, String endTime);
 
     /** 立项详情（含申报内容与明细树） */

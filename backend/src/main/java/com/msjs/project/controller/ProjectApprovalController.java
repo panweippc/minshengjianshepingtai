@@ -60,11 +60,11 @@ public class ProjectApprovalController {
             @Parameter(description = "页签：pending待审核 rejected已驳回") @RequestParam(defaultValue = "pending") String tab,
             @Parameter(description = "项目名称") @RequestParam(required = false) String projectName,
             @Parameter(description = "项目类别（字典 xiang_mu_lei_bie）") @RequestParam(required = false) String projectCategory,
-            @Parameter(description = "项目类型（字典 xiang_mu_lei_xing，对应 project_source）") @RequestParam(required = false) String projectSource,
+            @Parameter(description = "项目类型（字典 xiang_mu_lei_xing）") @RequestParam(required = false) String projectType,
             @Parameter(description = "提交开始日期 yyyy-MM-dd") @RequestParam(required = false) String startTime,
             @Parameter(description = "提交结束日期 yyyy-MM-dd") @RequestParam(required = false) String endTime) {
         return Result.ok(projectApprovalService.page(pageNum, pageSize, tab, projectName,
-                projectCategory, projectSource, startTime, endTime));
+                projectCategory, projectType, startTime, endTime));
     }
 
     @Operation(summary = "立项页签数量统计（按当前筛选条件）")
@@ -73,10 +73,10 @@ public class ProjectApprovalController {
     public Result<ApprovalCountVO> counts(
             @Parameter(description = "项目名称") @RequestParam(required = false) String projectName,
             @Parameter(description = "项目类别（字典 xiang_mu_lei_bie）") @RequestParam(required = false) String projectCategory,
-            @Parameter(description = "项目类型（字典 xiang_mu_lei_xing，对应 project_source）") @RequestParam(required = false) String projectSource,
+            @Parameter(description = "项目类型（字典 xiang_mu_lei_xing）") @RequestParam(required = false) String projectType,
             @Parameter(description = "提交开始日期 yyyy-MM-dd") @RequestParam(required = false) String startTime,
             @Parameter(description = "提交结束日期 yyyy-MM-dd") @RequestParam(required = false) String endTime) {
-        return Result.ok(projectApprovalService.counts(projectName, projectCategory, projectSource, startTime, endTime));
+        return Result.ok(projectApprovalService.counts(projectName, projectCategory, projectType, startTime, endTime));
     }
 
     @Operation(summary = "立项详情（含申报内容与明细树）")

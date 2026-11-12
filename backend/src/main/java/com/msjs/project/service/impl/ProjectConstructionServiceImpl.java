@@ -75,8 +75,8 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                 .like(isNotBlank(projectCode), ProjectApproval::getApprovalCode, trimToNull(projectCode))
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
-                // 项目类型与立项共用 project_source 字段存储，筛选字典为 xiang_mu_lei_xing
-                .eq(isNotBlank(projectType), ProjectApproval::getProjectSource, projectType)
+                // 项目类型筛选（字典 xiang_mu_lei_xing，对应 project_type 列）
+                .eq(isNotBlank(projectType), ProjectApproval::getProjectType, projectType)
                 .orderByDesc(ProjectApproval::getSubmitTime)
                 .orderByDesc(ProjectApproval::getId);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
