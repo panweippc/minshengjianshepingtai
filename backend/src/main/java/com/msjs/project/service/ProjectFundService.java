@@ -17,6 +17,15 @@ public interface ProjectFundService {
     PageVO<FundNodeVO> page(long pageNum, long pageSize, String projectName,
                             String projectCategory, String projectSource);
 
+    /** 一级项目资金查看（含立项资料附件与资金流水），供施工管理只读复用 */
+    FundNodeVO approvalDetail(Long approvalId);
+
+    /** 二级事项申报资金查看（含申报材料附件与资金流水），供施工管理只读复用 */
+    FundNodeVO declareDetail(Long declareId);
+
+    /** 三级明细资金查看（含申报材料附件与资金流水），供施工管理只读复用 */
+    FundNodeVO detail(Long detailId);
+
     /** 查询指定节点的资金拨付记录 */
     List<ProjectFund> listRecords(String nodeType, Long nodeId);
 

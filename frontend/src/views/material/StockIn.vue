@@ -1,22 +1,8 @@
 <template>
   <div>
-    <!-- 顶部：入库操作 -->
-    <el-card shadow="never" class="top-card">
-      <div class="card-header">
-        <span class="page-title">入库单管理</span>
-        <el-button
-          v-if="store.hasPerm('material:stockin:add')"
-          type="primary"
-          icon="Plus"
-          @click="openCreate"
-        >
-          入库
-        </el-button>
-      </div>
-    </el-card>
-
     <el-card shadow="never" class="tabs-card">
-      <el-tabs v-model="activeTab">
+      <div class="tabs-header">
+        <el-tabs v-model="activeTab" class="fill-tabs">
         <!-- ==================== 明细页签 ==================== -->
         <el-tab-pane label="明细" name="detail">
           <el-form :inline="true" :model="detailQuery" class="query-form detail-query-form" @submit.prevent>
@@ -221,6 +207,16 @@
           />
         </el-tab-pane>
       </el-tabs>
+        <el-button
+          v-if="store.hasPerm('material:stockin:add')"
+          type="primary"
+          icon="Plus"
+          class="stockin-btn"
+          @click="openCreate"
+        >
+          入库
+        </el-button>
+      </div>
     </el-card>
 
     <!-- ==================== 入库 / 编辑弹窗 ==================== -->
@@ -907,18 +903,21 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.top-card {
-  margin-bottom: 12px;
+/* 页签头部：标签与入库按钮同一行，按钮靠右且不挤压页签宽度 */
+.tabs-header {
+  position: relative;
 }
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* el-tabs 撑满卡片宽度，使内部筛选表单的重置按钮到达卡片右边缘 */
+.fill-tabs {
+  width: 100%;
 }
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
+/* 入库按钮绝对定位于页签导航行右侧空白处，与重置按钮右边缘对齐 */
+.stockin-btn {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  margin: 0;
+  z-index: 2;
 }
 .tabs-card :deep(.el-tabs__header) {
   margin-bottom: 12px;
@@ -926,9 +925,12 @@ onMounted(async () => {
 .query-form :deep(.el-form-item) {
   margin-bottom: 12px;
 }
-/* 明细筛选区：四个筛选项同行展示，控件按可用宽度自适应，避免挤压变形 */
+/* 明细筛选区：四个筛选项同行展示，控件按可用宽度自适应，避免挤压变形
+   注意：el-form :inline 默认 display:inline-flex，会收缩到内容宽度，
+   导致重置按钮无法到达卡片右边缘，需显式覆盖为 flex 并撑满宽度 */
 .detail-query-form {
-  display: flex;
+  display: flex !important;
+  width: 100%;
   flex-wrap: nowrap;
   align-items: flex-start;
 }

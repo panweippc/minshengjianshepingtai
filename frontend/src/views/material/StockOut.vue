@@ -1,22 +1,8 @@
 <template>
   <div>
-    <!-- 顶部：出库操作 -->
-    <el-card shadow="never" class="top-card">
-      <div class="card-header">
-        <span class="page-title">出库单管理</span>
-        <el-button
-          v-if="store.hasPerm('material:stockout:add')"
-          type="primary"
-          icon="Plus"
-          @click="openCreate"
-        >
-          出库
-        </el-button>
-      </div>
-    </el-card>
-
     <el-card shadow="never" class="tabs-card">
-      <el-tabs v-model="activeTab">
+      <div class="tabs-header">
+        <el-tabs v-model="activeTab" class="fill-tabs">
         <!-- ==================== 明细页签 ==================== -->
         <el-tab-pane label="明细" name="detail">
           <el-form :inline="true" :model="detailQuery" class="query-form detail-query-form" @submit.prevent>
@@ -220,6 +206,16 @@
           />
         </el-tab-pane>
       </el-tabs>
+        <el-button
+          v-if="store.hasPerm('material:stockout:add')"
+          type="primary"
+          icon="Plus"
+          class="stockout-btn"
+          @click="openCreate"
+        >
+          出库
+        </el-button>
+      </div>
     </el-card>
 
     <!-- ==================== 出库 / 编辑弹窗 ==================== -->
@@ -927,18 +923,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.top-card {
-  margin-bottom: 12px;
+.tabs-header {
+  position: relative;
 }
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* el-tabs 撑满卡片宽度，使内部筛选表单的重置按钮到达卡片右边缘 */
+.fill-tabs {
+  width: 100%;
 }
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
+/* 出库按钮绝对定位于页签导航行右侧空白处，与重置按钮右边缘对齐 */
+.stockout-btn {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  margin: 0;
+  z-index: 2;
 }
 .tabs-card :deep(.el-tabs__header) {
   margin-bottom: 12px;
