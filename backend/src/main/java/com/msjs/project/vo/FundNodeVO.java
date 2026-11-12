@@ -1,6 +1,8 @@
 package com.msjs.project.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.msjs.project.entity.ProjectApprovalAttachment;
 import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.entity.ProjectFundAttachment;
@@ -21,6 +23,7 @@ import java.util.List;
 public class FundNodeVO implements Serializable {
 
     @Schema(description = "节点ID（项目/申报/明细）")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Schema(description = "节点类型：approval项目 declare申报 detail明细")
