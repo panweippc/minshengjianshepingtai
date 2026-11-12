@@ -57,45 +57,60 @@
         class="construction-table"
         :row-class-name="rowClassName"
       >
-        <el-table-column label="项目编号" width="200">
+        <el-table-column label="项目编号" width="210">
           <template #default="{ row }">
-            <span
-              v-if="row.hasChildren"
-              class="tree-toggle"
-              :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
-              :title="collapsedKeys.has(row.nodeKey) ? '展开' : '收起'"
-              @click.stop="toggleRow(row.nodeKey)"
-            >
-              <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.nodeKey) }">
-                <ArrowRight />
+            <span class="approval-code-line">
+              <span
+                v-if="row.hasChildren"
+                class="tree-toggle"
+                :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
+                :title="collapsedKeys.has(row.nodeKey) ? '展开' : '收起'"
+                @click.stop="toggleRow(row.nodeKey)"
+              >
+                <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.nodeKey) }">
+                  <ArrowRight />
+                </el-icon>
+              </span>
+              <span
+                v-else
+                class="tree-toggle"
+                :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
+              />
+              <!-- 二级申报节点：蓝色文件夹小标签 -->
+              <el-icon
+                v-if="row.nodeType === 'declare'"
+                class="detail-type-icon detail-type-icon--folder"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
               </el-icon>
-            </span>
-            <span
-              v-else
-              class="tree-toggle"
-              :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
-            />
-            <!-- 三级明细按类型区分图标：农户为头像图标，公共基础设施为设施图标 -->
-            <el-icon
-              v-if="row.nodeType === 'detail'"
-              class="detail-type-icon"
-              :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
-            >
-              <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
-              <UserFilled v-else />
-            </el-icon>
-            <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
-              {{ row.code || '-' }}
+              <!-- 三级明细按类型区分图标：农户为头像图标，公共基础设施为设施图标 -->
+              <el-icon
+                v-if="row.nodeType === 'detail'"
+                class="detail-type-icon"
+                :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
+              >
+                <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
+                <UserFilled v-else />
+              </el-icon>
+              <el-tooltip
+                :content="row.code || '-'"
+                placement="top"
+                :show-after="200"
+              >
+                <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
+                  {{ row.code || '-' }}
+                </span>
+              </el-tooltip>
             </span>
           </template>
         </el-table-column>
         <el-table-column label="项目名称" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">{{ row.name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="项目类别" width="150">
+        <el-table-column label="项目类别" width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ categoryLabel(row) }}</template>
         </el-table-column>
-        <el-table-column label="项目类型" width="140">
+        <el-table-column label="项目来源" width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ sourceLabel(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="230">
@@ -1765,13 +1780,40 @@ onMounted(async () => {
 }
 
 .tree-code {
-  display: inline-block;
-  vertical-align: middle;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tree-code--detail {
   padding-left: 6px;
+}
+
+/* 项目编号行容器：图标 + 编号强制同一行，禁止换行 */
+.approval-code-line {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  width: 100%;
+  min-width: 0;
+}
+.approval-code-line .tree-toggle {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.approval-code-line .detail-type-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+.approval-code-line .tree-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 三级明细行文字字号略小于一级、二级 */
@@ -1800,6 +1842,16 @@ onMounted(async () => {
 .detail-type-icon--facility {
   background: #fdf6ec;
   color: #e6a23c;
+}
+
+/* 二级申报节点：纯蓝色文件夹小图标，不使用圆形背景 */
+.detail-type-icon--folder {
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--el-color-primary, #409eff);
+  font-size: 14px;
 }
 
 /* 状态列：状态标签 + 进度条 + 分数 */

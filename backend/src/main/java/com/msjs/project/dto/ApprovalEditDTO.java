@@ -30,6 +30,10 @@ public class ApprovalEditDTO {
     @Schema(description = "项目类别（字典 xiang_mu_lei_bie）")
     private String projectCategory;
 
+    @Size(max = 8, message = "项目类型编码长度不超过8")
+    @Schema(description = "项目类型（字典 xiang_mu_lei_xing）")
+    private String projectType;
+
     @Size(max = 8, message = "项目来源编码长度不超过8")
     @Schema(description = "项目来源（字典 xiang_mu_lai_yuan）")
     private String projectSource;
@@ -41,12 +45,22 @@ public class ApprovalEditDTO {
     @Schema(description = "负责人")
     private String leader;
 
-    @Size(max = 512, message = "备注长度不超过512")
-    @Schema(description = "备注")
+    @Size(max = 32, message = "申报人长度不超过32")
+    @Schema(description = "申报人")
+    private String applyBy;
+
+    @Size(max = 1000, message = "建设依据长度不超过1000")
+    @Schema(description = "建设依据/备注")
     private String remark;
 
     @Schema(description = "立项资料附件列表（可新增多条）")
     private List<AttachmentItem> attachments;
+
+    @Schema(description = "本次新增关联的申报单ID集合（编辑时追加，已关联的会自动忽略报错）")
+    private List<Long> addDeclarationIds;
+
+    @Schema(description = "本次移除关联的申报单ID集合（编辑时删除，明细状态回退为已通过）")
+    private List<Long> removeDeclarationIds;
 
     /**
      * 附件子项

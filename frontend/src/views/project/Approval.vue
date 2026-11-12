@@ -22,7 +22,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="项目类型">
-          <el-select v-model="queryForm.projectSource" placeholder="全部" clearable>
+          <el-select v-model="queryForm.projectType" placeholder="全部" clearable>
             <el-option
               v-for="item in dictOptions('xiang_mu_lei_xing')"
               :key="item.dictValue"
@@ -68,45 +68,62 @@
         class="approval-table"
         :row-class-name="rowClassName"
       >
-        <el-table-column label="项目编号" width="180">
+        <el-table-column label="项目编号" width="210">
           <template #default="{ row }">
-            <span
-              v-if="row.hasChildren"
-              class="tree-toggle"
-              :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
-              :title="collapsedKeys.has(row.rowKey) ? '展开' : '收起'"
-              @click.stop="toggleRow(row.rowKey)"
-            >
-              <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.rowKey) }">
-                <ArrowRight />
+            <span class="approval-code-line">
+              <span
+                v-if="row.hasChildren"
+                class="tree-toggle"
+                :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
+                :title="collapsedKeys.has(row.rowKey) ? '展开' : '收起'"
+                @click.stop="toggleRow(row.rowKey)"
+              >
+                <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.rowKey) }">
+                  <ArrowRight />
+                </el-icon>
+              </span>
+              <span
+                v-else
+                class="tree-toggle"
+                :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
+              />
+              <!-- 二级申报节点：蓝色文件夹小标签 -->
+              <el-icon
+                v-if="row.nodeType === 'declare'"
+                class="detail-type-icon detail-type-icon--folder"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
+                </svg>
               </el-icon>
-            </span>
-            <span
-              v-else
-              class="tree-toggle"
-              :class="{ 'tree-toggle--detail': row.nodeType === 'detail' }"
-            />
-            <!-- 三级明细按类型区分图标：农户为头像图标，公共基础设施为设施图标 -->
-            <el-icon
-              v-if="row.nodeType === 'detail'"
-              class="detail-type-icon"
-              :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
-            >
-              <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
-              <UserFilled v-else />
-            </el-icon>
-            <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
-              {{ row.code }}
+              <!-- 三级明细按类型区分图标：农户为头像图标，公共基础设施为设施图标 -->
+              <el-icon
+                v-if="row.nodeType === 'detail'"
+                class="detail-type-icon"
+                :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
+              >
+                <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
+                <UserFilled v-else />
+              </el-icon>
+              <el-tooltip
+                :content="row.code"
+                placement="top"
+                :show-after="200"
+              >
+                <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
+                  {{ row.code }}
+                </span>
+              </el-tooltip>
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="name" label="项目名称" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="category" label="项目类别" width="140" />
-        <el-table-column prop="source" label="项目类型" width="120" />
+        <el-table-column prop="category" label="项目类别" width="140" show-overflow-tooltip />
+        <el-table-column prop="source" label="项目类型" width="120" show-overflow-tooltip />
         <el-table-column label="项目预算（元）" width="150" align="right">
           <template #default="{ row }">{{ formatMoney(row.budget) }}</template>
         </el-table-column>
-        <el-table-column prop="leader" label="负责人" width="100" />
+        <el-table-column prop="leader" label="负责人" width="100" show-overflow-tooltip />
         <el-table-column prop="submitTime" label="提交时间" width="170" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
@@ -150,14 +167,11 @@
                 {{ dictLabel('xiang_mu_lei_bie', viewApproval.projectCategory) }}
               </el-descriptions-item>
               <el-descriptions-item label="项目类型">
-                {{ dictLabel('xiang_mu_lei_xing', viewApproval.projectSource) }}
+                {{ dictLabel('xiang_mu_lei_xing', viewApproval.projectType) }}
               </el-descriptions-item>
               <el-descriptions-item label="项目预算">{{ formatMoney(viewApproval.budget) }} 元</el-descriptions-item>
               <el-descriptions-item label="负责人">{{ viewApproval.leader || '-' }}</el-descriptions-item>
               <el-descriptions-item label="提交时间">{{ viewApproval.submitTime || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="审核状态">
-                <el-tag :type="statusTagType(viewApproval.status)" size="small">{{ statusLabel(viewApproval.status) }}</el-tag>
-              </el-descriptions-item>
               <el-descriptions-item label="备注" :span="2">{{ viewApproval.remark || '-' }}</el-descriptions-item>
             </el-descriptions>
 
@@ -204,21 +218,33 @@
               class="declare-tree-table"
               :row-class-name="rowClassName"
             >
-              <el-table-column label="申报编号" width="160">
+              <el-table-column label="申报编号" width="190">
                 <template #default="{ row }">
-                  <!-- 农户/设施明细前显示对应类型图标，图标与编号强制同行 -->
+                  <!-- declare 节点显示文件夹标签，detail 节点显示农户/设施类型图标，图标与编号强制同行 -->
                   <span class="detail-code-line" :class="{ 'detail-code-line--detail': row.nodeType === 'detail' }">
                     <el-icon
-                      v-if="row.nodeType === 'detail'"
+                      v-if="row.nodeType === 'declare'"
+                      class="detail-type-icon detail-type-icon--folder"
+                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                    </el-icon>
+                    <el-icon
+                      v-else
                       class="detail-type-icon"
                       :class="row.detailType === 'FACILITY' ? 'detail-type-icon--facility' : 'detail-type-icon--household'"
                     >
                       <OfficeBuilding v-if="row.detailType === 'FACILITY'" />
                       <UserFilled v-else />
                     </el-icon>
-                    <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
-                      {{ row.code || '-' }}
-                    </span>
+                    <el-tooltip
+                      :content="row.code || '-'"
+                      placement="top"
+                      :show-after="200"
+                    >
+                      <span class="tree-code" :class="{ 'tree-code--detail': row.nodeType === 'detail' }">
+                        {{ row.code || '-' }}
+                      </span>
+                    </el-tooltip>
                   </span>
                 </template>
               </el-table-column>
@@ -248,29 +274,19 @@
               <el-table-column label="所属村组" width="100">
                 <template #default="{ row }">{{ row.villageName || '-' }}</template>
               </el-table-column>
-              <el-table-column label="申报材料附件" min-width="240">
+              <el-table-column label="申报材料附件" width="110" align="center">
                 <template #default="{ row }">
                   <template v-if="row.nodeType === 'declare'">
-                    <div v-if="row.attachments?.length">
-                      <div v-for="file in row.attachments" :key="file.id" class="attachment-file-cell">
-                        <!-- 显示附件类型 + 附件文件 -->
-                        <span class="attachment-type-label">
-                          {{ dictLabel('li_xiang_fu_jian_lei_xing', file.attachmentType) || '-' }}：
-                        </span>
-                        <span
-                          class="attachment-file-name"
-                          :title="file.fileName"
-                          @click="openViewAttachment(file)"
-                        >{{ file.fileName }}</span>
-                        <el-icon
-                          class="attachment-file-download"
-                          title="下载"
-                          @click.stop="openViewAttachment(file, true)"
-                        >
-                          <Download />
-                        </el-icon>
-                      </div>
-                    </div>
+                    <el-button
+                      v-if="row.attachments?.length"
+                      type="primary"
+                      link
+                      :underline="false"
+                      class="declare-attach-btn"
+                      @click.stop="openDeclareAttachDialog(row)"
+                    >
+                      附件 ({{ row.attachments.length }})
+                    </el-button>
                     <span v-else class="declare-no-attachment-text">暂无附件</span>
                   </template>
                   <span v-else>-</span>
@@ -351,9 +367,20 @@
                 <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
               </el-table-column>
               <el-table-column prop="remark" label="事项说明" min-width="140" show-overflow-tooltip />
-              <!-- 明细暂无独立附件数据，先占位展示 -->
-              <el-table-column label="附件" width="120" align="center">
-                <template #default>-</template>
+              <el-table-column label="附件" width="110" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.attachments?.length"
+                    type="primary"
+                    link
+                    :underline="false"
+                    class="declare-attach-btn"
+                    @click.stop="openDetailAttachDialog(row)"
+                  >
+                    附件 ({{ row.attachments.length }})
+                  </el-button>
+                  <span v-else>-</span>
+                </template>
               </el-table-column>
             </el-table>
             <!-- 申报明细分页 -->
@@ -388,18 +415,78 @@
       </template>
     </el-dialog>
 
-    <!-- 编辑弹窗：项目信息 + 立项资料附件 -->
+    <!-- 申报材料附件明细弹窗 -->
+    <el-dialog
+      v-model="declareAttachDialogVisible"
+      :title="declareAttachDialogTitle"
+      width="720px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-empty v-if="!declareAttachDialogList.length" description="暂无附件" :image-size="60" />
+      <el-table v-else :data="declareAttachDialogList" size="small" border>
+        <el-table-column label="附件类型" width="150">
+          <template #default="{ row }">
+            {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="附件名称" min-width="220">
+          <template #default="{ row }">
+            <div class="attachment-file-cell">
+              <span
+                class="attachment-file-name"
+                :title="row.fileName"
+                @click="openViewAttachment(row)"
+              >{{ row.fileName }}</span>
+              <el-icon
+                class="attachment-file-download"
+                title="下载"
+                @click.stop="openViewAttachment(row, true)"
+              >
+                <Download />
+              </el-icon>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="createTime" label="上传时间" width="170" />
+      </el-table>
+      <template #footer>
+        <el-button @click="declareAttachDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑弹窗：项目信息（参照图1布局） + 立项资料附件 -->
     <el-dialog v-model="editVisible" title="编辑立项" width="860px" destroy-on-close>
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100px">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="120px">
         <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="项目编号">
+              <el-input :model-value="editForm.approvalCode" disabled />
+            </el-form-item>
+          </el-col>
           <el-col :span="12">
             <el-form-item label="项目名称" prop="projectName">
               <el-input v-model="editForm.projectName" placeholder="请输入项目名称" maxlength="255" />
             </el-form-item>
           </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="项目类型" prop="projectType">
+              <el-select v-model="editForm.projectType" placeholder="请选择项目类型" style="width: 100%" clearable>
+                <el-option
+                  v-for="item in dictOptions('xiang_mu_lei_xing')"
+                  :key="item.dictValue"
+                  :label="item.dictLabel"
+                  :value="item.dictValue"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
           <el-col :span="12">
             <el-form-item label="项目类别" prop="projectCategory">
-              <el-select v-model="editForm.projectCategory" placeholder="请选择项目类别" style="width: 100%">
+              <el-select v-model="editForm.projectCategory" placeholder="请选择项目类别" style="width: 100%" clearable>
                 <el-option
                   v-for="item in dictOptions('xiang_mu_lei_bie')"
                   :key="item.dictValue"
@@ -412,42 +499,77 @@
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="项目来源" prop="projectSource">
-              <el-select v-model="editForm.projectSource" placeholder="请选择项目来源" style="width: 100%">
-                <el-option
-                  v-for="item in dictOptions('xiang_mu_lai_yuan')"
-                  :key="item.dictValue"
-                  :label="item.dictLabel"
-                  :value="item.dictValue"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="项目预算" prop="budget">
+            <el-form-item label="项目预算（元）" prop="budget">
               <el-input-number
                 v-model="editForm.budget"
                 :min="0"
                 :precision="2"
-                :controls="false"
+                :step="10000"
+                step-strictly
                 placeholder="请输入项目预算"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="负责人" prop="leader">
+              <el-input v-model="editForm.leader" placeholder="选填" maxlength="32" />
+            </el-form-item>
+          </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="负责人" prop="leader">
-              <el-input v-model="editForm.leader" placeholder="请输入负责人" maxlength="32" />
+            <el-form-item label="申报人" prop="applyBy">
+              <el-input v-model="editForm.applyBy" placeholder="选填" maxlength="32" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="备注" prop="remark">
-              <el-input v-model="editForm.remark" placeholder="请输入备注" maxlength="512" />
+            <el-form-item label="所属乡镇">
+              <el-input :model-value="editForm.regionName || '-' " disabled />
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="建设依据" prop="remark">
+          <el-input
+            v-model="editForm.remark"
+            type="textarea"
+            :maxlength="1000"
+            show-word-limit
+            rows="4"
+            placeholder="请填写立项依据 / 必要性 / 预期效果"
+          />
+        </el-form-item>
+
+        <!-- 关联申报单：立项生成时已绑定，编辑阶段仅展示（变更需走申报审核流程） -->
+        <el-form-item label="关联申报单">
+          <div class="approval-declaration-list">
+            <div v-for="(item, idx) in editDeclarations" :key="item.id" class="decl-row">
+              <span class="decl-index">#{{ idx + 1 }}</span>
+              <el-input :model-value="item.declareCode || ''" placeholder="申报编号" disabled style="width: 160px" />
+              <el-input :model-value="item.declareName || ''" placeholder="申报标题" disabled style="flex: 1" />
+              <el-input
+                :model-value="item.budget != null ? `¥ ${item.budget}` : ''"
+                disabled
+                style="width: 120px; text-align: right"
+              />
+              <el-button
+                link
+                type="danger"
+                icon="Delete"
+                title="删除该申报单"
+                @click="handleRemoveDeclaration(idx)"
+              />
+            </div>
+            <div v-if="!editDeclarations.length" class="decl-empty">暂无关联申报单</div>
+            <el-button
+              link
+              type="primary"
+              size="small"
+              icon="Plus"
+              @click="openDeclPicker"
+            >新增申报单</el-button>
+          </div>
+        </el-form-item>
 
         <!-- 立项资料附件：分隔线标题 + 卡片式多条录入 -->
         <div class="attachment-section">
@@ -526,6 +648,99 @@
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 选择申报单弹窗：展示申报审核「已通过」页签数据，支持多选 -->
+    <el-dialog
+      v-model="declPicker.visible"
+      title="选择申报单"
+      width="880px"
+      append-to-body
+      destroy-on-close
+    >
+      <div class="decl-picker-search">
+        <el-input
+          v-model="declPicker.title"
+          placeholder="申报标题"
+          clearable
+          style="width: 220px"
+          @keyup.enter="handleDeclPickerSearch"
+        />
+        <el-button type="primary" icon="Search" @click="handleDeclPickerSearch">查询</el-button>
+        <el-button icon="Refresh" @click="resetDeclPickerSearch">刷新</el-button>
+      </div>
+
+      <el-table
+        v-loading="declPicker.loading"
+        :data="declPickerRows"
+        border
+        row-key="id"
+        default-expand-all
+        max-height="380"
+        class="decl-picker-table"
+        :row-class-name="declPickerRowClass"
+        @selection-change="handleDeclPickerSelectionChange"
+      >
+        <el-table-column type="selection" width="48" reserve-selection :selectable="isDeclSelectable" />
+        <el-table-column label="申报编号 / 户号" width="170">
+          <template #default="{ row }">
+            <!-- 二级明细：小标签 + 户号/设施编码，字体比一级小 -->
+            <span v-if="row._isDetail" class="decl-picker-detail-code">
+              <span
+                class="decl-picker-tag"
+                :class="row._detailKind === 'facility' ? 'decl-picker-tag--facility' : 'decl-picker-tag--household'"
+              >
+                <el-icon>
+                  <OfficeBuilding v-if="row._detailKind === 'facility'" />
+                  <UserFilled v-else />
+                </el-icon>
+              </span>
+              <span>{{ row.snapshotHouseholdNo || row.snapshotFacilityCode || '-' }}</span>
+            </span>
+            <span v-else>{{ row.businessCode }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="申报标题 / 明细名称" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row._isDetail ? (row.snapshotHeadName || row.snapshotFacilityName || '-') : row.title }}
+          </template>
+        </el-table-column>
+        <el-table-column label="申报类别" width="130">
+          <template #default="{ row }">
+            <span v-if="row._isDetail">{{ row._detailKind === 'household' ? '农户' : '公共基础设施' }}</span>
+            <span v-else>{{ dictLabel('shen_bao_lei_bie', row.declarationCategory) || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="所属乡镇" width="120">
+          <template #default="{ row }">{{ row._isDetail ? (row.snapshotRegionName || '-') : (row.townName || '-') }}</template>
+        </el-table-column>
+        <el-table-column label="申报金额（元）" width="140" align="right">
+          <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+        </el-table-column>
+      </el-table>
+
+      <div class="decl-picker-pager">
+        <span class="decl-picker-tip">已选 {{ declPicker.selection.length }} 条</span>
+        <el-pagination
+          v-model:current-page="declPicker.pageNum"
+          v-model:page-size="declPicker.pageSize"
+          :total="declPicker.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadDeclPicker"
+          @size-change="handleDeclPickerSearch"
+        />
+      </div>
+
+      <template #footer>
+        <el-button @click="declPicker.visible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!declPicker.selection.length"
+          @click="confirmDeclPicker"
+        >确定（{{ declPicker.selection.length }}）</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -537,6 +752,8 @@ import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import type { DictVO } from '@/types/system'
 import { uploadFile as uploadFileToServer, getPresignUrl } from '@/api/file'
+import { getReceivedDeclarationPage } from '@/api/declaration'
+import type { DeclarationDetailFull } from '@/api/declaration'
 import {
   getApprovalPage,
   getApprovalCounts,
@@ -621,8 +838,8 @@ const activeTab = ref<TabKey>('pending')
 const queryForm = reactive({
   projectName: '',
   projectCategory: '',
-  /** 项目类型：沿用后端 projectSource 字段传参，字典为 xiang_mu_lei_xing */
-  projectSource: ''
+  /** 项目类型（字典 xiang_mu_lei_xing，对应后端 project_type 列） */
+  projectType: ''
 })
 const dateRange = ref<[string, string] | null>(null)
 const loading = ref(false)
@@ -672,7 +889,7 @@ const toDisplay = (approval: ApprovalVO): DisplayRow => ({
   code: approval.approvalCode,
   name: approval.projectName,
   category: dictLabel('xiang_mu_lei_bie', approval.projectCategory),
-  source: dictLabel('xiang_mu_lei_xing', approval.projectSource),
+  source: dictLabel('xiang_mu_lei_xing', approval.projectType),
   budget: approval.budget,
   leader: approval.leader || '',
   submitTime: approval.submitTime || '',
@@ -720,7 +937,7 @@ const loadData = async () => {
       tab: activeTab.value,
       projectName: queryForm.projectName || undefined,
       projectCategory: queryForm.projectCategory || undefined,
-      projectSource: queryForm.projectSource || undefined,
+      projectType: queryForm.projectType || undefined,
       startTime: dateRange.value?.[0],
       endTime: dateRange.value?.[1]
     })
@@ -738,7 +955,7 @@ const loadCounts = async () => {
     const res = await getApprovalCounts({
       projectName: queryForm.projectName || undefined,
       projectCategory: queryForm.projectCategory || undefined,
-      projectSource: queryForm.projectSource || undefined,
+      projectType: queryForm.projectType || undefined,
       startTime: dateRange.value?.[0],
       endTime: dateRange.value?.[1]
     })
@@ -759,7 +976,7 @@ const handleQuery = () => {
 const handleReset = () => {
   queryForm.projectName = ''
   queryForm.projectCategory = ''
-  queryForm.projectSource = ''
+  queryForm.projectType = ''
   dateRange.value = null
   pageNum.value = 1
   loadData()
@@ -774,20 +991,6 @@ const handleTabChange = () => {
 const formatMoney = (value?: number): string => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
   return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-const statusLabel = (status?: string): string => {
-  if (status === 'PENDING') return '待审核'
-  if (status === 'APPROVED') return '已通过'
-  if (status === 'REJECTED') return '已驳回'
-  return status || '-'
-}
-
-const statusTagType = (status?: string): 'success' | 'warning' | 'danger' | 'info' => {
-  if (status === 'APPROVED') return 'success'
-  if (status === 'PENDING') return 'warning'
-  if (status === 'REJECTED') return 'danger'
-  return 'info'
 }
 
 /* ============ 查看弹窗 ============ */
@@ -913,6 +1116,31 @@ const openViewAttachment = (row: ApprovalAttachmentVO, download = false) => {
   openAttachmentFile({ fileName: row.fileName || '', fileKey: row.fileKey, bucket: row.bucket }, download)
 }
 
+/* ============ 申报材料附件明细弹窗 ============ */
+const declareAttachDialogVisible = ref(false)
+const declareAttachDialogTitle = ref('申报材料附件')
+const declareAttachDialogList = ref<ApprovalAttachmentVO[]>([])
+
+/** 打开某条申报节点的附件明细弹窗 */
+const openDeclareAttachDialog = (row: DeclareTreeRow) => {
+  // 用申报编号+标题做弹窗标题，方便用户辨识当前查看哪条申报的附件
+  const code = row.code || ''
+  const title = row.title || ''
+  declareAttachDialogTitle.value = `申报材料附件 — ${code} ${title}`.trim()
+  declareAttachDialogList.value = row.attachments || []
+  declareAttachDialogVisible.value = true
+}
+
+/** 打开某条明细（农户/设施）节点的附件明细弹窗 */
+const openDetailAttachDialog = (row: ApprovalDetailNode) => {
+  // 明细用农户/设施名称+户号/编码做标题
+  const name = row.targetName || ''
+  const code = row.targetCode || ''
+  declareAttachDialogTitle.value = `明细附件 — ${name} ${code}`.trim()
+  declareAttachDialogList.value = row.attachments || []
+  declareAttachDialogVisible.value = true
+}
+
 /* ============ 编辑弹窗 ============ */
 interface AttachmentFileItem {
   id?: string
@@ -933,17 +1161,102 @@ const submitLoading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editForm = reactive({
   id: '',
+  approvalCode: '',
   projectName: '',
   projectCategory: '',
+  projectType: '',
   projectSource: '',
   budget: undefined as number | undefined,
   leader: '',
+  applyBy: '',
+  regionName: '',
   remark: ''
 })
 const attachmentCards = ref<AttachmentEditCard[]>([])
+/** 编辑弹窗展示的关联申报单（立项创建时已绑定，编辑阶段只读） */
+const editDeclarations = ref<ApprovalDeclareNode[]>([])
+/** 本次编辑新增的关联申报单ID（保存时提交后端绑定） */
+const addDeclarationIds = ref<string[]>([])
+/** 本次编辑删除的关联申报单ID（保存时提交后端解绑） */
+const removeDeclarationIds = ref<string[]>([])
+
+/** 选择申报单弹窗的行：一级为申报单，二级为已通过明细（农户/公建） */
+interface DeclPickerRow {
+  id: string
+  businessCode?: string
+  title?: string
+  declarationCategory?: string
+  declarationType?: string
+  townName?: string
+  amount?: number
+  _isDetail?: boolean
+  _detailKind?: 'household' | 'facility'
+  snapshotHouseholdNo?: string
+  snapshotHeadName?: string
+  snapshotFacilityCode?: string
+  snapshotFacilityName?: string
+  snapshotRegionName?: string
+  children?: DeclPickerRow[]
+}
+
+/** 选择申报单弹窗：数据来源为申报审核「已通过」页签，支持多选 */
+const declPicker = reactive({
+  visible: false,
+  loading: false,
+  records: [] as DeclarationDetailFull[],
+  selection: [] as DeclPickerRow[],
+  total: 0,
+  pageNum: 1,
+  pageSize: 10,
+  title: ''
+})
+
+/** 树形表格数据：申报单 + 其下已通过明细 */
+const declPickerRows = computed<DeclPickerRow[]>(() =>
+  declPicker.records.map((decl) => ({
+    id: String(decl.id),
+    businessCode: decl.businessCode,
+    title: decl.title,
+    declarationCategory: decl.declarationCategory,
+    declarationType: decl.declarationType,
+    townName: decl.townName,
+    amount: decl.amount,
+    _isDetail: false,
+    children: [
+      ...(decl.households || []).map<DeclPickerRow>((hh) => ({
+        id: `h_${hh.id}`,
+        _isDetail: true,
+        _detailKind: 'household',
+        snapshotHouseholdNo: hh.snapshotHouseholdNo,
+        snapshotHeadName: hh.snapshotHeadName,
+        snapshotRegionName: hh.snapshotRegionName,
+        amount: hh.amount
+      })),
+      ...(decl.facilities || []).map<DeclPickerRow>((pf) => ({
+        id: `f_${pf.id}`,
+        _isDetail: true,
+        _detailKind: 'facility',
+        snapshotFacilityCode: pf.snapshotFacilityCode,
+        snapshotFacilityName: pf.snapshotFacilityName,
+        snapshotRegionName: pf.snapshotRegionName,
+        amount: pf.amount
+      }))
+    ]
+  }))
+)
+
+/** 仅申报单级别可勾选，明细行只做展示 */
+const isDeclSelectable = (row: DeclPickerRow) => !row._isDetail
+
+/** 选择弹窗二级明细行：字体比一级更小 */
+const declPickerRowClass = ({ row }: { row: DeclPickerRow }) =>
+  row._isDetail ? 'decl-picker-detail-row' : ''
 
 const editRules: FormRules = {
-  projectName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }]
+  projectName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+  projectType: [{ required: true, message: '请选择项目类型', trigger: 'change' }],
+  projectCategory: [{ required: true, message: '请选择项目类别', trigger: 'change' }],
+  remark: [{ required: true, message: '请填写建设依据', trigger: 'blur' }]
 }
 
 const groupAttachmentsToCards = (list: ApprovalAttachmentVO[]): AttachmentEditCard[] => {
@@ -974,18 +1287,138 @@ const openEdit = async (row: DisplayRow) => {
   const approval = row.raw as ApprovalVO
   Object.assign(editForm, {
     id: approval.id,
+    approvalCode: approval.approvalCode ?? '',
     projectName: approval.projectName,
     projectCategory: approval.projectCategory ?? '',
+    projectType: approval.projectType ?? '',
     projectSource: approval.projectSource ?? '',
     budget: approval.budget,
     leader: approval.leader ?? '',
+    applyBy: approval.applyBy ?? '',
+    regionName: approval.regionName ?? '',
     remark: approval.remark ?? ''
   })
+  editDeclarations.value = approval.children || []
+  addDeclarationIds.value = []
+  removeDeclarationIds.value = []
+  declPicker.visible = false
+  declPicker.selection = []
   attachmentCards.value = []
   const res = await getApprovalAttachments(approval.id)
   // 编辑弹窗只维护项目级立项资料附件，申报材料附件（declareId 非空）由申报模块管理
   attachmentCards.value = groupAttachmentsToCards((res.data || []).filter((item) => !item.declareId))
   editVisible.value = true
+}
+
+/** 删除关联申报单：二次确认后本地移除，保存时提交后端解绑并把明细回退为已通过 */
+const handleRemoveDeclaration = async (idx: number) => {
+  const item = editDeclarations.value[idx]
+  if (!item) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除关联申报单「${item.declareName || item.declareCode || ''}」？删除后需点击「确定」保存才会生效。`,
+      '删除关联申报单',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  const declId = String(item.declarationId ?? '')
+  const addIdx = addDeclarationIds.value.indexOf(declId)
+  if (addIdx >= 0) {
+    // 本次新增、尚未保存的直接从待新增列表移除
+    addDeclarationIds.value.splice(addIdx, 1)
+  } else if (declId) {
+    if (!removeDeclarationIds.value.includes(declId)) {
+      removeDeclarationIds.value.push(declId)
+    }
+  } else {
+    ElMessage.warning('该申报单缺少来源信息，无法删除')
+    return
+  }
+  editDeclarations.value.splice(idx, 1)
+  ElMessage.success('已删除，保存后生效')
+}
+
+/** 已关联（含本次新增）的申报单ID集合，选择弹窗中不再展示 */
+const linkedDeclarationIds = computed(() => new Set<string>([
+  ...editDeclarations.value.map((item) => String(item.declarationId ?? '')),
+  ...addDeclarationIds.value
+]))
+
+/** 打开选择申报单弹窗 */
+const openDeclPicker = () => {
+  declPicker.visible = true
+  declPicker.title = ''
+  declPicker.pageNum = 1
+  declPicker.selection = []
+  loadDeclPicker()
+}
+
+/** 加载「申报审核 → 已通过」页签数据，过滤掉已关联的 */
+const loadDeclPicker = async () => {
+  declPicker.loading = true
+  try {
+    const res: any = await getReceivedDeclarationPage({
+      pageNum: declPicker.pageNum,
+      pageSize: declPicker.pageSize,
+      status: 'approved',
+      title: declPicker.title.trim() || undefined
+    })
+    const excludes = linkedDeclarationIds.value
+    declPicker.records = ((res?.data?.records || []) as unknown as DeclarationDetailFull[])
+      .filter((decl) => !excludes.has(String(decl.id)))
+    declPicker.total = res?.data?.total || 0
+  } finally {
+    declPicker.loading = false
+  }
+}
+
+const handleDeclPickerSearch = () => {
+  declPicker.pageNum = 1
+  loadDeclPicker()
+}
+
+const resetDeclPickerSearch = () => {
+  declPicker.title = ''
+  handleDeclPickerSearch()
+}
+
+const handleDeclPickerSelectionChange = (rows: DeclPickerRow[]) => {
+  declPicker.selection = rows
+}
+
+/** 确认选择：批量追加到关联申报单列表，随编辑保存一起提交 */
+const confirmDeclPicker = () => {
+  const rows = declPicker.selection
+  if (!rows.length) {
+    ElMessage.warning('请先选择申报单')
+    return
+  }
+  let added = 0
+  rows.forEach((decl) => {
+    const id = String(decl.id)
+    if (addDeclarationIds.value.includes(id)) return
+    editDeclarations.value.push({
+      id,
+      declarationId: id,
+      approvalId: editForm.id,
+      declareCode: decl.businessCode,
+      declareName: decl.title || '',
+      declareCategory: decl.declarationCategory,
+      declareType: decl.declarationType,
+      townName: decl.townName,
+      budget: decl.amount
+    })
+    addDeclarationIds.value.push(id)
+    // 若之前删过同一条，重新选择后撤销删除标记
+    const removedIdx = removeDeclarationIds.value.indexOf(id)
+    if (removedIdx >= 0) removeDeclarationIds.value.splice(removedIdx, 1)
+    added++
+  })
+  declPicker.visible = false
+  declPicker.selection = []
+  ElMessage.success(`已添加 ${added} 条关联申报单`)
 }
 
 const addAttachment = () => {
@@ -1053,11 +1486,15 @@ const handleSubmit = async () => {
     id: editForm.id,
     projectName: editForm.projectName,
     projectCategory: editForm.projectCategory,
+    projectType: editForm.projectType,
     projectSource: editForm.projectSource,
     budget: editForm.budget,
     leader: editForm.leader,
+    applyBy: editForm.applyBy,
     remark: editForm.remark,
-    attachments
+    attachments,
+    addDeclarationIds: addDeclarationIds.value.length ? [...addDeclarationIds.value] : undefined,
+    removeDeclarationIds: removeDeclarationIds.value.length ? [...removeDeclarationIds.value] : undefined
   }
   submitLoading.value = true
   try {
@@ -1154,6 +1591,33 @@ onMounted(async () => {
 /* 表头首列与层级文字起点对齐（单元格 12px + 展开按钮 20px） */
 .approval-table :deep(.el-table__header th:first-child .cell) {
   padding-left: 32px;
+}
+
+/* 项目编号行容器：图标 + 编号强制同一行，禁止换行 */
+.approval-code-line {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  width: 100%;
+  min-width: 0;
+}
+
+.approval-code-line .tree-toggle {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.approval-code-line .detail-type-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
+.approval-code-line .tree-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 展开箭头：一级黑色、二级与"查看"按钮同为主题蓝 */
@@ -1254,6 +1718,27 @@ onMounted(async () => {
   flex-wrap: nowrap;
   white-space: nowrap;
   vertical-align: middle;
+  /* 不强制撑满，让 Element Plus 内置树形展开箭头 + 缩进 与本容器共存于同一行 */
+  width: auto;
+  max-width: 100%;
+}
+
+/* 查看弹窗 declare-tree-table：Element Plus 自动处理层级缩进和展开箭头，我们只处理图标+编号同行 */
+.declare-tree-table .detail-code-line {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-code-line .tree-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-code-line .detail-type-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
 }
 
 /* 三级明细类型图标：农户为浅蓝头像、公共基础设施为浅橙设施图标 */
@@ -1277,6 +1762,16 @@ onMounted(async () => {
 .detail-type-icon--facility {
   background: #fdf6ec;
   color: #e6a23c;
+}
+
+/* 二级申报节点：纯蓝色文件夹小图标，不使用圆形背景 */
+.detail-type-icon--folder {
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--el-color-primary, #409eff);
+  font-size: 14px;
 }
 
 .action-buttons {
@@ -1307,6 +1802,90 @@ onMounted(async () => {
 /* 附件录入区 */
 .attachment-section {
   margin-top: 8px;
+}
+
+/* 编辑弹窗：关联申报单只读列表 */
+.approval-declaration-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.decl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.decl-index {
+  min-width: 32px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.decl-empty {
+  color: #909399;
+  font-size: 13px;
+}
+
+/* 选择申报单弹窗 */
+.decl-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.decl-picker-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.decl-picker-tip {
+  color: #606266;
+  font-size: 13px;
+}
+
+/* 选择申报单弹窗：二级明细行字体改小、底色弱化 */
+.decl-picker-table :deep(.decl-picker-detail-row) td {
+  font-size: 12px;
+  color: #606266;
+  background: #fafcff;
+}
+
+/* 二级明细前的类型小标签 */
+.decl-picker-detail-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.decl-picker-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.decl-picker-tag .el-icon {
+  font-size: 10px;
+}
+
+/* 农户：蓝色标签；公共基础设施：橙色标签 */
+.decl-picker-tag--household {
+  background: #409eff;
+}
+
+.decl-picker-tag--facility {
+  background: #e6a23c;
 }
 
 .attachment-divider {
@@ -1468,6 +2047,11 @@ onMounted(async () => {
 .declare-no-attachment-text {
   color: #909399;
   font-size: 12px;
+}
+
+/* 申报材料附件：表格中展示蓝色文字链接按钮 "附件 (N)" */
+.declare-attach-btn {
+  font-size: 14px;
 }
 
 /* 附件类型标签：显示在文件名前，避免挤压文件名 */
