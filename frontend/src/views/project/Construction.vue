@@ -95,7 +95,7 @@
         <el-table-column label="项目类别" width="150">
           <template #default="{ row }">{{ categoryLabel(row) }}</template>
         </el-table-column>
-        <el-table-column label="项目来源" width="140">
+        <el-table-column label="项目类型" width="140">
           <template #default="{ row }">{{ sourceLabel(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="230">
@@ -128,7 +128,7 @@
                 link
                 type="success"
                 @click="openAcceptance(row)"
-              >验收</el-button>
+              >完工</el-button>
             </div>
           </template>
         </el-table-column>
@@ -149,7 +149,7 @@
     <!-- 查看弹窗 -->
     <el-dialog v-model="viewVisible" :title="viewTitle" width="1000px" destroy-on-close class="construction-view-dialog">
       <template v-if="viewNode">
-        <!-- 一级：两个页签 -->
+        <!-- 一级：施工详情 / 施工单位信息 / 立项 / 资金 -->
         <template v-if="viewNode.nodeType === 'project'">
           <div v-loading="viewLoading">
             <el-tabs v-model="viewActiveTab">
@@ -159,7 +159,7 @@
                   <el-descriptions-item label="项目编码">{{ projectView?.code || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="项目名称">{{ projectView?.name || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="项目类别">{{ categoryLabel(projectView) }}</el-descriptions-item>
-                  <el-descriptions-item label="项目来源">{{ sourceLabel(projectView) }}</el-descriptions-item>
+                  <el-descriptions-item label="项目类型">{{ sourceLabel(projectView) }}</el-descriptions-item>
                   <el-descriptions-item label="状态" :span="2">
                     <span class="status-tag" :class="`status-tag--${projectView?.status}`">{{ statusLabel(projectView?.status) }}</span>
                   </el-descriptions-item>
@@ -206,25 +206,14 @@
                   <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                     <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
                   </el-table-column>
-                  <el-table-column label="附件" min-width="200">
+                  <el-table-column label="附件" width="100" align="center">
                     <template #default="{ row }">
-                      <template v-if="row.detailLogSnapshot?.attachments?.length">
-                        <div
-                          v-for="file in row.detailLogSnapshot.attachments"
-                          :key="file.id"
-                          class="attachment-cell-line"
-                        >
-                          <el-link
-                            type="primary"
-                            :underline="false"
-                            class="attachment-name"
-                            @click="previewAttachment(file)"
-                          >{{ file.fileName }}</el-link>
-                          <el-icon class="attachment-download" @click="downloadAttachment(file)">
-                            <Download />
-                          </el-icon>
-                        </div>
-                      </template>
+                      <el-button
+                        v-if="row.detailLogSnapshot?.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openHistoryAttachments(row.detailLogSnapshot)"
+                      >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
                       <span v-else>-</span>
                     </template>
                   </el-table-column>
@@ -267,11 +256,147 @@
                       </el-icon>
                     </template>
                   </el-table-column>
-                  <el-table-column label="大小" width="110" align="right">
-                    <template #default="{ row }">{{ row.fileSize ? formatFileSize(row.fileSize) : '-' }}</template>
-                  </el-table-column>
                   <el-table-column label="备注" min-width="160">
                     <template #default="{ row }">{{ row.remark || '-' }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <!-- 页签 3：项目立项 -->
+              <el-tab-pane label="立项" name="approval">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="项目编号">{{ projectView?.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目名称">{{ projectView?.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目类别">{{ categoryLabel(projectView) }}</el-descriptions-item>
+                  <el-descriptions-item label="项目类型">{{ sourceLabel(projectView) }}</el-descriptions-item>
+                  <el-descriptions-item label="项目预算">{{ formatMoney(projectView?.approvalBudget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="负责人">{{ projectView?.approvalLeader || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ projectView?.approvalSubmitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="审核状态">
+                    <el-tag :type="approvalStatusTagType(projectView?.approvalStatus)" size="small">
+                      {{ approvalStatusLabel(projectView?.approvalStatus) }}
+                    </el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="备注" :span="2">{{ projectView?.approvalRemark || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">立项资料附件</el-divider>
+                <el-empty v-if="!projectView?.approvalAttachments?.length" description="暂无附件" :image-size="60" />
+                <el-table v-else :data="projectView.approvalAttachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        :title="row.fileName"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon
+                        class="attachment-download"
+                        title="下载"
+                        @click.stop="downloadAttachment(row)"
+                      >
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane label="资金" name="fund">
+                <el-descriptions :column="3" border>
+                  <el-descriptions-item label="项目编号">{{ viewFund?.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目名称">{{ viewFund?.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="项目类别">
+                    {{ dictLabel('xiang_mu_lei_bie', viewFund?.category) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目类型">
+                    {{ dictLabel('xiang_mu_lei_xing', viewFund?.type) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目预算">{{ formatMoney(viewFund?.budget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="负责人">{{ viewFund?.leader || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ viewFund?.submitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="审核状态">
+                    <el-tag :type="approvalStatusTagType(viewFund?.status)" size="small">
+                      {{ approvalStatusLabel(viewFund?.status) }}
+                    </el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="拨付金额">{{ formatMoney(viewFund?.allocatedAmount) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="结余">{{ formatMoney(viewFund?.balance) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="备注">{{ viewFund?.remark || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">立项资料附件</el-divider>
+                <el-empty v-if="!viewFund?.attachments?.length" description="暂无附件" :image-size="60" />
+                <el-table v-else :data="viewFund.attachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        :title="row.fileName"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon
+                        class="attachment-download"
+                        title="下载"
+                        @click.stop="downloadAttachment(row)"
+                      >
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
+
+                <el-divider content-position="left">资金流水</el-divider>
+                <el-table :data="viewFund?.records || []" size="small" border>
+                  <el-table-column label="资金类型" width="110">
+                    <template #default="{ row }">{{ dictLabel('zi_jin_lei_xing', row.fundType) || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="资金来源" width="120">
+                    <template #default="{ row }">{{ dictLabel('zi_jin_lai_yuan', row.fundSource) || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="金额（元）" width="130" align="right">
+                    <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="createBy" label="操作人" width="100" />
+                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column prop="remark" label="拨付说明" min-width="150" show-overflow-tooltip />
+                  <el-table-column label="附件" min-width="190">
+                    <template #default="{ row }">
+                      <template v-if="row.attachments?.length">
+                        <div v-for="file in row.attachments" :key="file.id" class="attachment-cell-line">
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            :title="file.fileName"
+                            @click="previewAttachment(file)"
+                          >{{ file.fileName || '-' }}</el-link>
+                          <el-icon
+                            class="attachment-download"
+                            title="下载"
+                            @click.stop="downloadAttachment(file)"
+                          >
+                            <Download />
+                          </el-icon>
+                        </div>
+                      </template>
+                      <span v-else>-</span>
+                    </template>
                   </el-table-column>
                 </el-table>
               </el-tab-pane>
@@ -279,84 +404,199 @@
           </div>
         </template>
 
-        <!-- 二级：申报信息 + 明细进度 -->
+        <!-- 二级：施工详情 + 立项 + 资金 -->
         <template v-else-if="viewNode.nodeType === 'declare'">
           <div v-loading="viewLoading">
-            <el-descriptions :column="2" border>
-            <el-descriptions-item label="申报编号">{{ viewNode.code || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="申报标题">{{ viewNode.name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="申报类别">{{ categoryLabel(viewNode) }}</el-descriptions-item>
-            <el-descriptions-item label="申报类型">{{ sourceLabel(viewNode) }}</el-descriptions-item>
-            <el-descriptions-item label="施工状态">
-              <span class="status-tag" :class="`status-tag--${viewNode.status}`">{{ statusLabel(viewNode.status) }}</span>
-              <span class="status-fraction status-fraction--inline">{{ viewNode.numerator }}/{{ viewNode.totalCount }}</span>
-            </el-descriptions-item>
-          </el-descriptions>
+            <el-tabs v-model="declareActiveTab">
+              <el-tab-pane label="施工详情" name="detail">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="申报编号">{{ viewNode.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报标题">{{ viewNode.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报类别">{{ categoryLabel(viewNode) }}</el-descriptions-item>
+                  <el-descriptions-item label="申报类型">{{ sourceLabel(viewNode) }}</el-descriptions-item>
+                  <el-descriptions-item label="施工状态">
+                    <span class="status-tag" :class="`status-tag--${viewNode.status}`">{{ statusLabel(viewNode.status) }}</span>
+                    <span class="status-fraction status-fraction--inline">{{ viewNode.numerator }}/{{ viewNode.totalCount }}</span>
+                  </el-descriptions-item>
+                </el-descriptions>
 
-          <el-divider content-position="left">明细进度</el-divider>
-          <el-empty v-if="!viewNode.children?.length" description="暂无农户/设施明细" :image-size="60" />
-          <el-table v-else :data="viewNode.children" border size="small" class="construction-view-table">
-            <el-table-column label="类型" width="130">
-              <template #default="{ row }">{{ detailTypeLabel(row.detailType) }}</template>
-            </el-table-column>
-            <el-table-column label="农户/设施名称" min-width="160">
-              <template #default="{ row }">{{ row.name || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="户号/编码" width="150">
-              <template #default="{ row }">{{ row.code || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="所属区划" width="130">
-              <template #default="{ row }">{{ row.source || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="巡检状态" width="100" align="center">
-              <template #default="{ row }">
-                <span
-                  v-if="row.detailLogSnapshot?.inspectionStatus"
-                  class="status-tag"
-                  :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
-                >{{ inspectionLabel(row.detailLogSnapshot.inspectionStatus) }}</span>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="施工状态" width="110" align="center">
-              <template #default="{ row }">
-                <span
-                  v-if="row.detailLogSnapshot?.constructionStatus"
-                  class="status-tag"
-                  :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'FAIL' ? 'SUSPENDED' : row.detailLogSnapshot.constructionStatus}`"
-                >{{ row.detailLogSnapshot.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.detailLogSnapshot.constructionStatus) }}</span>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="巡检日期" width="120">
-              <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="附件" min-width="200">
-              <template #default="{ row }">
-                <template v-if="row.detailLogSnapshot?.attachments?.length">
-                  <div
-                    v-for="file in row.detailLogSnapshot.attachments"
-                    :key="file.id"
-                    class="attachment-cell-line"
-                  >
-                    <el-link
-                      type="primary"
-                      :underline="false"
-                      class="attachment-name"
-                      @click="previewAttachment(file)"
-                    >{{ file.fileName }}</el-link>
-                    <el-icon class="attachment-download" @click="downloadAttachment(file)">
-                      <Download />
-                    </el-icon>
-                  </div>
-                </template>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-          </el-table>
+                <el-divider content-position="left">明细进度</el-divider>
+                <el-empty v-if="!viewNode.children?.length" description="暂无农户/设施明细" :image-size="60" />
+                <el-table v-else :data="viewNode.children" border size="small" class="construction-view-table">
+                  <el-table-column label="类型" width="130">
+                    <template #default="{ row }">{{ detailTypeLabel(row.detailType) }}</template>
+                  </el-table-column>
+                  <el-table-column label="农户/设施名称" min-width="160">
+                    <template #default="{ row }">{{ row.name || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="户号/编码" width="150">
+                    <template #default="{ row }">{{ row.code || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="所属区划" width="130">
+                    <template #default="{ row }">{{ row.source || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="巡检状态" width="100" align="center">
+                    <template #default="{ row }">
+                      <span
+                        v-if="row.detailLogSnapshot?.inspectionStatus"
+                        class="status-tag"
+                        :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'PASS' ? 'COMPLETED' : 'FAIL'}`"
+                      >{{ inspectionLabel(row.detailLogSnapshot.inspectionStatus) }}</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="施工状态" width="110" align="center">
+                    <template #default="{ row }">
+                      <span
+                        v-if="row.detailLogSnapshot?.constructionStatus"
+                        class="status-tag"
+                        :class="`status-tag--${row.detailLogSnapshot.inspectionStatus === 'FAIL' ? 'SUSPENDED' : row.detailLogSnapshot.constructionStatus}`"
+                      >{{ row.detailLogSnapshot.inspectionStatus === 'FAIL' ? '暂停施工' : statusLabel(row.detailLogSnapshot.constructionStatus) }}</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="巡检日期" width="120">
+                    <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="附件" width="100" align="center">
+                    <template #default="{ row }">
+                      <el-button
+                        v-if="row.detailLogSnapshot?.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openHistoryAttachments(row.detailLogSnapshot)"
+                      >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane label="立项" name="approval">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="申报编号">{{ viewNode.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报标题">{{ viewNode.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报类别">{{ categoryLabel(viewNode) }}</el-descriptions-item>
+                  <el-descriptions-item label="申报类型">{{ sourceLabel(viewNode) }}</el-descriptions-item>
+                  <el-descriptions-item label="申报金额">{{ formatMoney(viewNode.declareBudget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="申报内容" :span="2">{{ viewNode.declareContent || '-' }}</el-descriptions-item>
+                </el-descriptions>
+                <el-divider content-position="left">申报材料附件</el-divider>
+                <el-empty v-if="!viewNode.declareAttachments?.length" description="暂无申报材料附件" :image-size="60" />
+                <el-table v-else :data="viewNode.declareAttachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        :title="row.fileName"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon
+                        class="attachment-download"
+                        title="下载"
+                        @click.stop="downloadAttachment(row)"
+                      >
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane label="资金" name="fund">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="申报编号">{{ viewFund?.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报标题">{{ viewFund?.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报类别">
+                    {{ dictLabel('shen_bao_lei_bie', viewFund?.category) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报类型">
+                    {{ dictLabel('shen_bao_lei_xing', viewFund?.type) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报金额">{{ formatMoney(viewFund?.budget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="申报内容" :span="2">{{ viewFund?.declareContent || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">申报材料附件</el-divider>
+                <el-empty
+                  v-if="!viewFund?.attachments?.length"
+                  description="暂无申报材料附件"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewFund.attachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        :title="row.fileName"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon
+                        class="attachment-download"
+                        title="下载"
+                        @click.stop="downloadAttachment(row)"
+                      >
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
+
+                <el-divider content-position="left">资金流水</el-divider>
+                <el-table :data="viewFund?.records || []" size="small" border>
+                  <el-table-column label="下拨类型" width="110">
+                    <template #default="{ row }">{{ dictLabel('xia_bo_lei_xing', row.fundType) || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="拨付金额（元）" width="130" align="right">
+                    <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createBy" label="操作人" width="100" />
+                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column label="附件" min-width="190">
+                    <template #default="{ row }">
+                      <template v-if="row.attachments?.length">
+                        <div v-for="file in row.attachments" :key="file.id" class="attachment-cell-line">
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            :title="file.fileName"
+                            @click="previewAttachment(file)"
+                          >{{ file.fileName || '-' }}</el-link>
+                          <el-icon
+                            class="attachment-download"
+                            title="下载"
+                            @click.stop="downloadAttachment(file)"
+                          >
+                            <Download />
+                          </el-icon>
+                        </div>
+                      </template>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
           </div>
         </template>
 
@@ -450,17 +690,100 @@
                   <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                     <template #default="{ row }">{{ row.content || '-' }}</template>
                   </el-table-column>
-                  <el-table-column label="附件" min-width="200">
+                  <el-table-column label="附件" width="100" align="center">
+                    <template #default="{ row }">
+                      <el-button
+                        v-if="row.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openHistoryAttachments(row)"
+                      >附件（{{ row.attachments.length }}）</el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane label="立项" name="approval">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="明细类型">{{ detailTypeLabel(viewNode.detailType) }}</el-descriptions-item>
+                  <el-descriptions-item label="农户/设施名称">{{ viewNode.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="户号/编码">{{ viewNode.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="所属区划">{{ viewNode.source || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报金额">{{ formatMoney(viewNode.amount) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="事项说明">{{ viewNode.remark || '-' }}</el-descriptions-item>
+                </el-descriptions>
+              </el-tab-pane>
+
+              <el-tab-pane label="资金" name="fund">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="农户/设施名称">{{ viewFund?.name || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="户号/编码">{{ viewFund?.code || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="所属区划">{{ viewFund?.type || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="事项说明">{{ viewFund?.detailRemark || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="申报金额">{{ formatMoney(viewFund?.budget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="拨付金额">{{ formatMoney(viewFund?.allocatedAmount) }} 元</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">申报材料附件</el-divider>
+                <el-empty
+                  v-if="!viewFund?.materialAttachments?.length"
+                  description="暂无申报材料附件"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewFund.materialAttachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        :title="row.fileName"
+                        @click="previewAttachment(row)"
+                      >{{ row.fileName || '-' }}</el-link>
+                      <el-icon
+                        class="attachment-download"
+                        title="下载"
+                        @click.stop="downloadAttachment(row)"
+                      >
+                        <Download />
+                      </el-icon>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
+
+                <el-divider content-position="left">资金流水</el-divider>
+                <el-table :data="viewFund?.records || []" size="small" border>
+                  <el-table-column label="下拨类型" width="110">
+                    <template #default="{ row }">{{ dictLabel('xia_bo_lei_xing', row.fundType) || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="拨付金额（元）" width="130" align="right">
+                    <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createBy" label="操作人" width="100" />
+                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column label="附件" min-width="190">
                     <template #default="{ row }">
                       <template v-if="row.attachments?.length">
                         <div v-for="file in row.attachments" :key="file.id" class="attachment-cell-line">
                           <el-link
                             type="primary"
                             :underline="false"
-                            class="attachment-name"
+                            :title="file.fileName"
                             @click="previewAttachment(file)"
-                          >{{ file.fileName }}</el-link>
-                          <el-icon class="attachment-download" title="下载" @click="downloadAttachment(file)">
+                          >{{ file.fileName || '-' }}</el-link>
+                          <el-icon
+                            class="attachment-download"
+                            title="下载"
+                            @click.stop="downloadAttachment(file)"
+                          >
                             <Download />
                           </el-icon>
                         </div>
@@ -477,6 +800,42 @@
 
       <template #footer>
         <el-button @click="viewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 明细页签：附件列表弹窗 -->
+    <el-dialog
+      v-model="historyAttachVisible"
+      title="附件"
+      width="720px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-table :data="historyAttachRow?.attachments || []" border size="small">
+        <el-table-column label="附件类型" width="180">
+          <template #default="{ row }">
+            {{ dictLabel('shi_gong_fu_jian_lei_xing', row.attachmentType) || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="附件" min-width="240">
+          <template #default="{ row }">
+            <template v-if="row.fileKey">
+              <el-link type="primary" :underline="false" @click="previewAttachment(row)">
+                {{ row.fileName || '查看附件' }}
+              </el-link>
+              <el-icon class="attachment-download" title="下载" @click.stop="downloadAttachment(row)">
+                <Download />
+              </el-icon>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="180">
+          <template #default="{ row }">{{ row.remark || '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="historyAttachVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -566,12 +925,12 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="施工状态" prop="buildStatus">
-                <el-select v-model="editForm.buildStatus" placeholder="请选择施工状态" style="width: 100%">
+                <el-select v-model="buildStatusDictValue" placeholder="请选择施工状态" style="width: 100%">
                   <el-option
-                    v-for="item in buildStatusOptions"
-                    :key="item.value"
-                    :label="item.label"
-                    :value="item.value"
+                    v-for="item in dictOptions('shi_gong_zhuang_tai')"
+                    :key="item.dictValue"
+                    :label="item.dictLabel"
+                    :value="item.dictValue"
                   />
                 </el-select>
               </el-form-item>
@@ -687,12 +1046,16 @@ import {
   getConstructionDetail,
   getDetailLog,
   getDetailLogHistory,
+  getConstructionFundDetail,
+  getConstructionDeclareFund,
+  getConstructionProjectFund,
   saveDetailLog,
   type ConstructionNodeVO,
   type ConstructionEditDTO,
   type ConstructionLogVO,
   type ConstructionAttachmentItem
 } from '@/api/construction'
+import type { FundNodeVO } from '@/api/fund'
 import { uploadFile, getPresignUrl } from '@/api/file'
 import { applyAcceptance } from '@/api/acceptance'
 
@@ -710,7 +1073,7 @@ const canEdit = computed(() => userStore.hasPerm('project:construction:edit'))
 
 /* ============ 字典 ============ */
 const dictMap = ref<Record<string, DictVO[]>>({})
-const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'xun_jian_zhuang_tai']
+const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'li_xiang_fu_jian_lei_xing', 'xia_bo_lei_xing', 'zi_jin_lai_yuan', 'zi_jin_lei_xing', 'xun_jian_zhuang_tai', 'shi_gong_zhuang_tai']
 const dictOptions = (type: string): DictVO[] => dictMap.value[type] || []
 const dictLabel = (type: string, value?: string): string => {
   if (!value) return ''
@@ -845,6 +1208,20 @@ const statusLabel = (status?: string): string => {
   return '未开工'
 }
 
+const approvalStatusLabel = (status?: string): string => {
+  if (status === 'PENDING') return '待审核'
+  if (status === 'APPROVED') return '已通过'
+  if (status === 'REJECTED') return '已驳回'
+  return status || '-'
+}
+
+const approvalStatusTagType = (status?: string): 'success' | 'warning' | 'danger' | 'info' => {
+  if (status === 'APPROVED') return 'success'
+  if (status === 'PENDING') return 'warning'
+  if (status === 'REJECTED') return 'danger'
+  return 'info'
+}
+
 const progressColor = (status?: string): string => {
   if (status === CONSTRUCTION_STATUS_COMPLETED) return '#67c23a'
   if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '#409eff'
@@ -864,14 +1241,9 @@ const toInspectionDictValue = (status?: string): string => (status === 'FAIL' ? 
 /** 字典值转回库内 PASS/FAIL */
 const toInspectionStatus = (dictValue?: string): string => (dictValue === '2' ? 'FAIL' : 'PASS')
 
-/** 文件大小展示：B / KB / MB / GB */
-const formatFileSize = (bytes?: number): string => {
-  if (!bytes || bytes <= 0) return '-'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let idx = 0
-  let size = bytes
-  while (size >= 1024 && idx < units.length - 1) { size /= 1024; idx++ }
-  return `${size.toFixed(2)} ${units[idx]}`
+const formatMoney = (value?: number): string => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+  return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /* ============ 查看弹窗 ============ */
@@ -881,10 +1253,19 @@ const viewDetail = ref<ConstructionNodeVO | null>(null)
 const viewLoading = ref(false)
 /** 三级施工记录（关联项目、巡检、施工内容与附件） */
 const detailLog = ref<ConstructionLogVO | null>(null)
+/** 一级/二级/三级资金查看（与资金管理对应查看一致） */
+const viewFund = ref<FundNodeVO | null>(null)
 const detailLogLoading = ref(false)
-/** 三级查看：详情/明细页签，明细为历次编辑记录 */
-const detailActiveTab = ref<'detail' | 'history'>('detail')
+/** 三级查看：详情/明细/立项/资金页签，明细为历次编辑记录 */
+const detailActiveTab = ref<'detail' | 'history' | 'approval' | 'fund'>('detail')
 const detailLogHistory = ref<ConstructionLogVO[]>([])
+/** 明细页签：某条历史记录的附件弹窗 */
+const historyAttachVisible = ref(false)
+const historyAttachRow = ref<ConstructionLogVO | null>(null)
+const openHistoryAttachments = (row?: ConstructionLogVO | null) => {
+  historyAttachRow.value = row || null
+  historyAttachVisible.value = true
+}
 
 /* ============ 附件预览 ============ */
 /** 图片类后缀：图片弹窗预览，其余类型直接下载 */
@@ -907,7 +1288,9 @@ const viewTitle = computed(() => {
 const projectView = computed(() => viewDetail.value || viewNode.value)
 
 /** 一级查看当前页签 */
-const viewActiveTab = ref<'detail' | 'builder'>('detail')
+const viewActiveTab = ref<'detail' | 'builder' | 'approval' | 'fund'>('detail')
+/** 二级查看当前页签 */
+const declareActiveTab = ref<'detail' | 'approval' | 'fund'>('detail')
 /** 一级查看：把所有申报下的三级明细展平，一户一条 */
 const projectDetails = computed(() => {
   if (!projectView.value?.children?.length) return []
@@ -918,22 +1301,32 @@ const openView = async (row: DisplayRow) => {
   viewNode.value = row.raw
   viewDetail.value = null
   detailLog.value = null
+  viewFund.value = null
   viewActiveTab.value = 'detail'
+  declareActiveTab.value = 'detail'
   viewVisible.value = true
   if (row.nodeType === 'project') {
     viewLoading.value = true
     try {
-      const res = await getConstructionDetail(row.approvalId)
+      const [res, fundRes] = await Promise.all([
+        getConstructionDetail(row.approvalId),
+        getConstructionProjectFund(row.approvalId)
+      ])
       viewDetail.value = res.data
+      viewFund.value = fundRes.data
     } finally {
       viewLoading.value = false
     }
-  } else if (row.nodeType === 'declare') {
+  } else if (row.nodeType === 'declare' && row.declareId) {
     // 二级查看需展示各三级最新施工内容/巡检状态/施工状态/附件，重新拉取项目详情（后端一次性聚合）
     viewLoading.value = true
     try {
-      const res = await getConstructionDetail(row.approvalId)
+      const [res, fundRes] = await Promise.all([
+        getConstructionDetail(row.approvalId),
+        getConstructionDeclareFund(row.declareId)
+      ])
       viewDetail.value = res.data
+      viewFund.value = fundRes.data
       const fetched = res.data.children?.find((item) => item.declareId === row.declareId)
       if (fetched) {
         viewNode.value = fetched
@@ -946,28 +1339,30 @@ const openView = async (row: DisplayRow) => {
     detailActiveTab.value = 'detail'
     detailLogHistory.value = []
     try {
-      const [detailRes, historyRes] = await Promise.all([
+      const [detailRes, historyRes, fundRes] = await Promise.all([
         getDetailLog(row.detailId),
-        getDetailLogHistory(row.detailId).catch(() => null)
+        getDetailLogHistory(row.detailId).catch(() => null),
+        getConstructionFundDetail(row.detailId)
       ])
       detailLog.value = detailRes.data
       detailLogHistory.value = historyRes?.data || []
+      viewFund.value = fundRes.data
     } finally {
       detailLogLoading.value = false
     }
   }
 }
 
-/* ============ 验收 ============ */
+/* ============ 完工 ============ */
 const openAcceptance = async (row: DisplayRow) => {
   try {
-    await ElMessageBox.confirm(`「${row.name}」全部明细已完工，是否进入验收管理？`, '发起验收', {
+    await ElMessageBox.confirm(`「${row.name}」全部明细已完工，确认完工并进入验收管理？`, '确认完工', {
       type: 'success',
-      confirmButtonText: '发起验收'
+      confirmButtonText: '确认完工'
     })
-    // 调用后端发起验收接口，把项目标记为"验收中"
+    // 调用后端发起验收接口，将项目标记为"验收中"并进入验收管理
     await applyAcceptance(row.approvalId, userStore.userInfo?.username || '系统')
-    ElMessage.success('已发起验收，项目进入验收管理')
+    ElMessage.success('已完工，项目进入验收管理')
     router.push({ path: '/project/acceptance' })
   } catch {
     /* 用户取消 */
@@ -1008,11 +1403,19 @@ interface AttachmentRow {
   uploading: boolean
 }
 
-const buildStatusOptions = [
-  { value: CONSTRUCTION_STATUS_NOT_STARTED, label: '未开工' },
-  { value: CONSTRUCTION_STATUS_IN_PROGRESS, label: '施工中' },
-  { value: CONSTRUCTION_STATUS_COMPLETED, label: '已完工' }
-]
+/** 施工状态字典（shi_gong_zhuang_tai：1未开工 2施工中 3已完工）与库内枚举互转 */
+const toBuildStatusDictValue = (status?: string): string => {
+  if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '2'
+  if (status === CONSTRUCTION_STATUS_COMPLETED) return '3'
+  return '1'
+}
+
+/** 字典值转回库内施工状态枚举 */
+const toBuildStatus = (dictValue?: string): string => {
+  if (dictValue === '2') return CONSTRUCTION_STATUS_IN_PROGRESS
+  if (dictValue === '3') return CONSTRUCTION_STATUS_COMPLETED
+  return CONSTRUCTION_STATUS_NOT_STARTED
+}
 
 const editVisible = ref(false)
 const submitLoading = ref(false)
@@ -1033,6 +1436,12 @@ const editForm = reactive<EditForm>({
   inspector: '',
   inspectionStatus: 'PASS',
   content: ''
+})
+
+/** 施工状态下拉双向绑定：界面用字典值，表单内保存库内枚举 */
+const buildStatusDictValue = computed({
+  get: () => toBuildStatusDictValue(editForm.buildStatus),
+  set: (val: string) => { editForm.buildStatus = toBuildStatus(val) }
 })
 
 const editTitle = computed(() => (editForm.nodeLevel === 1 ? '编辑施工信息' : '编辑施工记录'))
