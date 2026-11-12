@@ -126,6 +126,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         // 4. declare + detail + 状态推进
         int declareCount = 0, detailCount = 0;
         for (Declaration d : parents) {
+            // bindDeclaration 内部已完成：declare 创建 + approved 明细立项 + 状态回算
             detailCount += bindDeclaration(approval, d, declareCount, userId, username, now);
             declareCount++;
         }

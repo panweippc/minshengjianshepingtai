@@ -17,6 +17,7 @@ import com.msjs.project.dto.DeclarationSubmitDTO;
 import com.msjs.project.entity.BaseFacility;
 import com.msjs.project.entity.Declaration;
 import com.msjs.project.entity.DeclarationAttachment;
+import com.msjs.project.entity.DeclarationDetailAuditLog;
 import com.msjs.project.entity.DeclarationHousehold;
 import com.msjs.project.entity.DeclarationPublicFacility;
 import com.msjs.project.entity.Household;
@@ -24,6 +25,7 @@ import com.msjs.project.entity.SysRegion;
 import com.msjs.project.entity.SysUser;
 import com.msjs.project.mapper.BaseFacilityMapper;
 import com.msjs.project.mapper.DeclarationAttachmentMapper;
+import com.msjs.project.mapper.DeclarationDetailAuditLogMapper;
 import com.msjs.project.mapper.DeclarationHouseholdMapper;
 import com.msjs.project.mapper.DeclarationMapper;
 import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
@@ -31,14 +33,24 @@ import com.msjs.project.mapper.HouseholdMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.mapper.SysUserMapper;
 import com.msjs.project.service.DeclarationService;
+import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
 import com.msjs.project.vo.UserRegionVO;
+import com.msjs.project.vo.DeclarationStatisticsVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+
+
+
+
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,6 +81,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final HouseholdMapper baseHouseholdMapper;
     private final BaseFacilityMapper baseFacilityMapper;
     private final SysUserMapper userMapper;
+    private final DeclarationDetailAuditLogMapper auditLogMapper;
 
     /** 业务编号前缀 */
     private static final String CODE_PREFIX = "DEC";
@@ -83,6 +96,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                                             String status, String townCode, String villageGroupCode) {
         Page<Declaration> page = new Page<>(pageNum, pageSize);
         // tab → 明细 auditStatus 匹配集合
+        // 注意：approved 只放 auditStatus=approved（已立项 established 归已立项 tab），tab 语义必须严格互斥
         List<String> targetAuditStatuses = null;
         if ("submitted".equals(status)) targetAuditStatuses = Arrays.asList("unsubmitted", "pending");
         else if ("approved".equals(status)) targetAuditStatuses = Collections.singletonList("approved");
@@ -111,6 +125,9 @@ public class DeclarationServiceImpl implements DeclarationService {
 
         Page<Declaration> result = declarationMapper.selectPage(page, wrapper);
         List<DeclarationDetailVO> records = new ArrayList<>();
+        // 用同一个 targetAuditStatuses 过滤子明细：只查属于本 tab 语义的 auditStatus，
+        // 避免 mixed 场景下 approved tab 出现 rejected 子行、rejected tab 出现 approved 子行。
+        // 若 status 参数为空（全部 tab），则 targetAuditStatuses=null，子明细全量返回。
         for (Declaration d : result.getRecords()) {
             records.add(buildListVO(d, targetAuditStatuses));
         }
@@ -251,6 +268,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         // 5. 保存主表
         Declaration declaration = new Declaration();
         declaration.setBusinessCode(businessCode);
+        declaration.setDeclarationDate(dto.getDeclarationDate() != null ? dto.getDeclarationDate() : java.time.LocalDate.now());
         declaration.setTitle(trimToNull(dto.getTitle()));
         declaration.setTownCode(userRegion.getTownCode());
         declaration.setTownName(userRegion.getTownName());
@@ -313,6 +331,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
 
         // 更新主表（业务编号、乡镇、类别不可改）
+        if (dto.getDeclarationDate() != null) {
+            exist.setDeclarationDate(dto.getDeclarationDate());
+        }
         exist.setTitle(trimToNull(dto.getTitle()));
         exist.setVillageGroupCode(vgRegion.getCode());
         exist.setVillageGroupName(vgRegion.getName());
@@ -380,14 +401,39 @@ public class DeclarationServiceImpl implements DeclarationService {
         declarationMapper.updateById(update);
 
         // 提交/重提：未提交 + 被驳回的明细 reset 为 pending；已通过的不动
-        householdMapper.update(null, new LambdaUpdateWrapper<DeclarationHousehold>()
-                .eq(DeclarationHousehold::getDeclarationId, exist.getId())
-                .in(DeclarationHousehold::getAuditStatus, "unsubmitted", "rejected")
-                .set(DeclarationHousehold::getAuditStatus, "pending"));
-        facilityMapper.update(null, new LambdaUpdateWrapper<DeclarationPublicFacility>()
-                .eq(DeclarationPublicFacility::getDeclarationId, exist.getId())
-                .in(DeclarationPublicFacility::getAuditStatus, "unsubmitted", "rejected")
-                .set(DeclarationPublicFacility::getAuditStatus, "pending"));
+        LoginUser me2 = UserContext.get();
+        String submitterName = me2 == null ? null : (me2.getRealName() == null ? me2.getUsername() : me2.getRealName());
+
+        // 提交/重提：日志 action 按 beforeAuditStatus 区分：
+        //   before = unsubmitted → SUBMIT_FIRST          首次提交审核
+        //   before = rejected   → SUBMIT_RESUBMITTED    重新提交审核（驳回后重提）
+        List<DeclarationHousehold> pendingHouseholds = householdMapper.selectList(
+                new LambdaQueryWrapper<DeclarationHousehold>()
+                        .eq(DeclarationHousehold::getDeclarationId, exist.getId())
+                        .in(DeclarationHousehold::getAuditStatus, "unsubmitted", "rejected"));
+        for (DeclarationHousehold hh : pendingHouseholds) {
+            String before = hh.getAuditStatus();
+            hh.setAuditStatus("pending");
+            householdMapper.updateById(hh);
+            String action = "unsubmitted".equals(before) ? "SUBMIT_FIRST" : "SUBMIT_RESUBMITTED";
+            writeAuditLog(action, exist.getId(), "household", hh.getId(),
+                    hh.getSnapshotHeadName(), before, "pending",
+                    null, me2 == null ? null : me2.getUserId(), submitterName);
+        }
+
+        List<DeclarationPublicFacility> pendingFacilities = facilityMapper.selectList(
+                new LambdaQueryWrapper<DeclarationPublicFacility>()
+                        .eq(DeclarationPublicFacility::getDeclarationId, exist.getId())
+                        .in(DeclarationPublicFacility::getAuditStatus, "unsubmitted", "rejected"));
+        for (DeclarationPublicFacility pf : pendingFacilities) {
+            String before = pf.getAuditStatus();
+            pf.setAuditStatus("pending");
+            facilityMapper.updateById(pf);
+            String action = "unsubmitted".equals(before) ? "SUBMIT_FIRST" : "SUBMIT_RESUBMITTED";
+            writeAuditLog(action, exist.getId(), "public_facility", pf.getId(),
+                    pf.getSnapshotFacilityName(), before, "pending",
+                    null, me2 == null ? null : me2.getUserId(), submitterName);
+        }
     }
 
     @Override
@@ -399,6 +445,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             throw new BizException("登录已过期");
         }
         // tab status → auditStatus 匹配集合（审核人端 submitted 只匹配 pending，unsubmitted 是申报人还没点提交）
+        // 注意：approved 只放 auditStatus=approved（已立项 established 归已立项 tab），tab 语义必须严格互斥
         List<String> targetAuditStatuses = null;
         if ("submitted".equals(status)) targetAuditStatuses = Collections.singletonList("pending");
         else if ("approved".equals(status)) targetAuditStatuses = Collections.singletonList("approved");
@@ -423,6 +470,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         wrapper.orderByDesc(Declaration::getCreateTime);
         Page<Declaration> result = declarationMapper.selectPage(page, wrapper);
         List<DeclarationDetailVO> records = new ArrayList<>();
+        // 用同一个 targetAuditStatuses 过滤子明细，避免 mixed 场景下脏明细穿透到本 tab
         for (Declaration d : result.getRecords()) {
             records.add(buildListVO(d, targetAuditStatuses));
         }
@@ -483,6 +531,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 throw new BizException("农户明细不存在或已删除");
             }
             declarationId = hh.getDeclarationId();
+            // 先存 beforeStatus（改 hh 会覆盖）
+            String beforeStatus = hh.getAuditStatus();
             hh.setAuditStatus("approve".equals(dto.getAction()) ? "approved"
                               : "reject".equals(dto.getAction()) ? "rejected"
                               : "revoke".equals(dto.getAction()) ? "pending" : null);
@@ -493,12 +543,22 @@ public class DeclarationServiceImpl implements DeclarationService {
             hh.setAuditTime(LocalDateTime.now());
             hh.setAuditRemark(trimToNull(dto.getAuditRemark()));
             householdMapper.updateById(hh);
+
+            // 写审核历史日志（updateById 之后，hh.auditStatus 已是新值 = afterStatus）
+            writeAuditLog(
+                    auditLogAction(dto.getAction()),
+                    declarationId, "household", hh.getId(),
+                    hh.getSnapshotHeadName(),
+                    beforeStatus, hh.getAuditStatus(),
+                    dto.getAuditRemark(),
+                    me.getUserId(), me.getRealName() == null ? me.getUsername() : me.getRealName());
         } else {
             DeclarationPublicFacility pf = facilityMapper.selectById(dto.getDetailId());
             if (pf == null) {
                 throw new BizException("公建设施明细不存在或已删除");
             }
             declarationId = pf.getDeclarationId();
+            String beforeStatus = pf.getAuditStatus();
             pf.setAuditStatus("approve".equals(dto.getAction()) ? "approved"
                               : "reject".equals(dto.getAction()) ? "rejected"
                               : "revoke".equals(dto.getAction()) ? "pending" : null);
@@ -509,6 +569,14 @@ public class DeclarationServiceImpl implements DeclarationService {
             pf.setAuditTime(LocalDateTime.now());
             pf.setAuditRemark(trimToNull(dto.getAuditRemark()));
             facilityMapper.updateById(pf);
+
+            writeAuditLog(
+                    auditLogAction(dto.getAction()),
+                    declarationId, "public_facility", pf.getId(),
+                    pf.getSnapshotFacilityName(),
+                    beforeStatus, pf.getAuditStatus(),
+                    dto.getAuditRemark(),
+                    me.getUserId(), me.getRealName() == null ? me.getUsername() : me.getRealName());
         }
         parent = declarationMapper.selectById(declarationId);
         if (parent == null) {
@@ -549,22 +617,35 @@ public class DeclarationServiceImpl implements DeclarationService {
             DeclarationHousehold hh = householdMapper.selectById(dto.getDetailId());
             if (hh == null) throw new BizException("农户明细不存在或已删除");
             declarationId = hh.getDeclarationId();
+            String beforeStatus = hh.getAuditStatus();
             householdMapper.update(null, new LambdaUpdateWrapper<DeclarationHousehold>()
                     .eq(DeclarationHousehold::getId, hh.getId())
                     .set(DeclarationHousehold::getAuditStatus, "pending")
                     .set(DeclarationHousehold::getAuditBy, null)
                     .set(DeclarationHousehold::getAuditTime, null)
                     .set(DeclarationHousehold::getAuditRemark, auditRemark));   // 撤销备注留痕，重新审核时会被覆盖
+
+            // 写审核撤销日志（afterStatus 固定 pending，beforeStatus 就是 LambdaUpdateWrapper 之前的值）
+            writeAuditLog("AUDIT_REVOKE", declarationId, "household", hh.getId(),
+                    hh.getSnapshotHeadName(), beforeStatus, "pending",
+                    auditRemark, me.getUserId(),
+                    me.getRealName() == null ? me.getUsername() : me.getRealName());
         } else {
             DeclarationPublicFacility pf = facilityMapper.selectById(dto.getDetailId());
             if (pf == null) throw new BizException("公建设施明细不存在或已删除");
             declarationId = pf.getDeclarationId();
+            String beforeStatus = pf.getAuditStatus();
             facilityMapper.update(null, new LambdaUpdateWrapper<DeclarationPublicFacility>()
                     .eq(DeclarationPublicFacility::getId, pf.getId())
                     .set(DeclarationPublicFacility::getAuditStatus, "pending")
                     .set(DeclarationPublicFacility::getAuditBy, null)
                     .set(DeclarationPublicFacility::getAuditTime, null)
                     .set(DeclarationPublicFacility::getAuditRemark, auditRemark));
+
+            writeAuditLog("AUDIT_REVOKE", declarationId, "public_facility", pf.getId(),
+                    pf.getSnapshotFacilityName(), beforeStatus, "pending",
+                    auditRemark, me.getUserId(),
+                    me.getRealName() == null ? me.getUsername() : me.getRealName());
         }
 
         // 2. 父申报单存在性校验
@@ -1152,13 +1233,39 @@ public class DeclarationServiceImpl implements DeclarationService {
             throw new BizException("已通过/已驳回的申报单不允许修改明细");
         }
 
-        // 2. 更新单户金额 + 事项说明
+        // 2. 先存 DB 原值（对比 diff 用），再更新单户金额 + 事项说明
+        String oldAmount = hh.getAmount() == null ? null : hh.getAmount().toPlainString();
+        String oldRemark = hh.getRemark();
+        String beforeAuditStatus = hh.getAuditStatus();
         hh.setAmount(dto.getAmount());
         hh.setRemark(trimToNull(dto.getRemark()));
         householdMapper.updateById(hh);
 
-        // 3. 明细级附件：owner_type=household, owner_id=明细ID
-        syncDetailAttachments("household", hh.getId(), dto.getAttachments());
+        // 3. 明细级附件：owner_type=household, owner_id=明细ID；返回 true 表示有增删改
+        boolean attChanged = syncDetailAttachments("household", hh.getId(), dto.getAttachments());
+
+        // 4. 写 USER_EDIT 日志的守卫条件：
+        //    ❌ 从未提交过审核流程的草稿阶段（parent=draft + 明细 audit_status=unsubmitted）→ 不写
+        //       因为用户新建单据后反复填改金额、换附件，这些"草稿修改"全部不进时间线。
+        //    ✅ 以下场景才写：
+        //       (a) 明细被驳回 / 撤销过（beforeAuditStatus=rejected / 曾被 approve 后 revoke）
+        //       (b) 主表已提交过（parent.status=submitted / approved / established / rejected 等）
+        //       判定方式：neverSubmitted = parent.draft && before=unsubmitted  → 取反
+        boolean neverSubmitted = "draft".equals(parent.getStatus()) && "unsubmitted".equals(beforeAuditStatus);
+        String newAmount = hh.getAmount() == null ? null : hh.getAmount().toPlainString();
+        String fieldDiffJson = buildFieldDiff(oldAmount, newAmount, oldRemark, hh.getRemark());
+        if (!neverSubmitted && (fieldDiffJson != null || attChanged)) {
+            LoginUser me = UserContext.get();
+            String name = me == null ? null : (me.getRealName() == null ? me.getUsername() : me.getRealName());
+            writeUserEditLog(
+                    hh.getDeclarationId(), "household", hh.getId(),
+                    hh.getSnapshotHeadName(),
+                    beforeAuditStatus, hh.getAuditStatus(),
+                    fieldDiffJson, attChanged,
+                    null,
+                    me == null ? null : me.getUserId(),
+                    name);
+        }
     }
 
     @Override
@@ -1179,25 +1286,52 @@ public class DeclarationServiceImpl implements DeclarationService {
             throw new BizException("已通过/已驳回的申报单不允许修改明细");
         }
 
+        // 2. 先存 DB 原值（对比 diff 用），再更新
+        String oldAmount = pf.getAmount() == null ? null : pf.getAmount().toPlainString();
+        String oldRemark = pf.getRemark();
+        String beforeAuditStatus = pf.getAuditStatus();
         pf.setAmount(dto.getAmount());
         pf.setRemark(trimToNull(dto.getRemark()));
         facilityMapper.updateById(pf);
-        syncDetailAttachments("public_facility", pf.getId(), dto.getAttachments());
+        boolean attChanged = syncDetailAttachments("public_facility", pf.getId(), dto.getAttachments());
+
+        // 3. USER_EDIT 日志守卫：草稿+未提交 → 不写
+        boolean neverSubmitted = "draft".equals(parent.getStatus()) && "unsubmitted".equals(beforeAuditStatus);
+        String newAmount = pf.getAmount() == null ? null : pf.getAmount().toPlainString();
+        String fieldDiffJson = buildFieldDiff(oldAmount, newAmount, oldRemark, pf.getRemark());
+        if (!neverSubmitted && (fieldDiffJson != null || attChanged)) {
+            LoginUser me = UserContext.get();
+            String name = me == null ? null : (me.getRealName() == null ? me.getUsername() : me.getRealName());
+            writeUserEditLog(
+                    pf.getDeclarationId(), "public_facility", pf.getId(),
+                    pf.getSnapshotFacilityName(),
+                    beforeAuditStatus, pf.getAuditStatus(),
+                    fieldDiffJson, attChanged,
+                    null,
+                    me == null ? null : me.getUserId(),
+                    name);
+        }
     }
 
     /**
      * 明细级附件同步：对比已有附件做增删改
      * 和主表级附件不同的是 owner_type 用 "household" / "public_facility"（不是 "declaration"）
      */
-    private void syncDetailAttachments(String ownerType, Long ownerId,
-                                       List<DeclarationDetailEditDTO.AttachmentRow> attachments) {
+    /**
+     * 同步明细级附件：逻辑删除前端没回传的 + 前端回传的做 insert/update。
+     * @return true 表示附件有增删改（前端没传 / 有删除 / 有新增 / 有字段更新），false 表示附件没变
+     */
+    private boolean syncDetailAttachments(String ownerType, Long ownerId,
+                                          List<DeclarationDetailEditDTO.AttachmentRow> attachments) {
         // 先查已有附件
         List<DeclarationAttachment> existList = attachmentMapper.selectList(
                 new LambdaQueryWrapper<DeclarationAttachment>()
                         .eq(DeclarationAttachment::getOwnerType, ownerType)
                         .eq(DeclarationAttachment::getOwnerId, ownerId));
         Set<Long> inputIds = new java.util.HashSet<>();
+        int inputSize = 0;
         if (attachments != null) {
+            inputSize = attachments.size();
             for (DeclarationDetailEditDTO.AttachmentRow row : attachments) {
                 if (row != null && row.getAttachmentId() != null) {
                     inputIds.add(row.getAttachmentId());
@@ -1205,25 +1339,36 @@ public class DeclarationServiceImpl implements DeclarationService {
             }
         }
         // 逻辑删除前端没回传的附件（前端把已存在的都带上了，没带上就是要删的）
+        boolean changed = false;
         for (DeclarationAttachment att : existList) {
             if (!inputIds.contains(att.getId())) {
                 attachmentMapper.deleteById(att.getId());
+                changed = true;
             }
         }
-        if (attachments == null) {
-            return;
-        }
+        // 数量变化 → 一定有增有删
+        if (attachments == null) return changed || !existList.isEmpty();
+        if (inputSize != existList.size()) changed = true;
         // 遍历前端回传：已有附件更新，新增附件插
         for (DeclarationDetailEditDTO.AttachmentRow row : attachments) {
             if (row == null) continue;
             if (row.getAttachmentId() != null) {
                 DeclarationAttachment att = attachmentMapper.selectById(row.getAttachmentId());
                 if (att != null) {
-                    att.setAttachmentType(trimToNull(row.getAttachmentType()));
-                    att.setRemark(trimToNull(row.getRemark()));
-                    attachmentMapper.updateById(att);
+                    if (!Objects.equals(trimToNull(row.getAttachmentType()), trimToNull(att.getAttachmentType()))
+                            || !Objects.equals(trimToNull(row.getRemark()), trimToNull(att.getRemark()))) {
+                        att.setAttachmentType(trimToNull(row.getAttachmentType()));
+                        att.setRemark(trimToNull(row.getRemark()));
+                        attachmentMapper.updateById(att);
+                        changed = true;
+                    }
                     continue;
+                } else {
+                    // attachmentId 带了但 DB 查不到 → 当成新增
+                    changed = true;
                 }
+            } else {
+                changed = true; // 没带 attachmentId → 新增附件
             }
             DeclarationAttachment att = new DeclarationAttachment();
             att.setOwnerType(ownerType);
@@ -1238,12 +1383,14 @@ public class DeclarationServiceImpl implements DeclarationService {
             att.setCreateTime(LocalDateTime.now());
             attachmentMapper.insert(att);
         }
+        return changed;
     }
 
     private DeclarationDetailVO toSimpleVO(Declaration d) {
         DeclarationDetailVO vo = new DeclarationDetailVO();
         vo.setId(d.getId());
         vo.setBusinessCode(d.getBusinessCode());
+        vo.setDeclarationDate(d.getDeclarationDate());
         vo.setTitle(d.getTitle());
         vo.setTownCode(d.getTownCode());
         vo.setTownName(d.getTownName());
@@ -1312,7 +1459,538 @@ public class DeclarationServiceImpl implements DeclarationService {
     private String trimToNull(String value) {
         return isNotBlank(value) ? value.trim() : null;
     }
+
+    // ======================== 明细级审核 / 用户修改历史日志 ========================
+    // 统一入口：auditDetail / revertDetail / editHouseholdDetail / editPublicFacilityDetail / submit 里 reset rejected→pending
+    // 所有 insert 都用这同一个方法，保证字段不缺、快照名不丢。
+
+    /**
+     * 写一条"审核类"日志（AUDIT_PASS / AUDIT_REJECT / AUDIT_REVOKE / SUBMIT_UNSUBMITTED）。
+     * @param action           动作类型常量（见 Entity 注释）
+     * @param declarationId    申报单 ID
+     * @param detailKind       household / public_facility
+     * @param detailId         明细 ID
+     * @param detailSnapshotName 快照展示名（冗余，从明细实体拿）
+     * @param beforeStatus     操作前 audit_status（String 或 null）
+     * @param afterStatus      操作后 audit_status（String 或 null）
+     * @param remark           审核意见 / reset 说明（可为 null）
+     * @param operatorId       操作人 ID（审核人或申报人）
+     * @param operatorName     操作人姓名（调用方自己好传）
+     */
+    private void writeAuditLog(String action, Long declarationId, String detailKind, Long detailId,
+                                String detailSnapshotName, String beforeStatus, String afterStatus,
+                                String remark, Long operatorId, String operatorName) {
+        DeclarationDetailAuditLog log = new DeclarationDetailAuditLog();
+        log.setDeclarationId(declarationId);
+        log.setDetailKind(detailKind);
+        log.setDetailId(detailId);
+        log.setDetailSnapshotName(detailSnapshotName);
+        log.setAction(action);
+        log.setBeforeAuditStatus(beforeStatus);
+        log.setAfterAuditStatus(afterStatus);
+        log.setRemark(trimToNull(remark));
+        log.setFieldDiff(null);                 // 审核类动作为 null
+        log.setAttachmentChanged(false);        // 审核不动附件
+        log.setOperatorId(operatorId);
+        log.setOperatorName(operatorName);
+        log.setCreateTime(LocalDateTime.now());
+        auditLogMapper.insert(log);
+    }
+
+    /**
+     * 写一条"用户修改明细"日志（USER_EDIT）。
+     * fieldDiffJson 是调用方自己拼的 JSON 字符串，比如：
+     *   [{"field":"amount","old":"200.00","new":"300.00"},
+     *    {"field":"remark","old":null,"new":"补充材料齐全"}]
+     */
+    private void writeUserEditLog(Long declarationId, String detailKind, Long detailId,
+                                  String detailSnapshotName, String beforeStatus, String afterStatus,
+                                  String fieldDiffJson,
+                                  boolean attachmentChanged, String remark,
+                                  Long operatorId, String operatorName) {
+        DeclarationDetailAuditLog log = new DeclarationDetailAuditLog();
+        log.setDeclarationId(declarationId);
+        log.setDetailKind(detailKind);
+        log.setDetailId(detailId);
+        log.setDetailSnapshotName(detailSnapshotName);
+        log.setAction("USER_EDIT");
+        log.setBeforeAuditStatus(beforeStatus);
+        log.setAfterAuditStatus(afterStatus);
+        log.setRemark(trimToNull(remark));
+        log.setFieldDiff(fieldDiffJson);
+        log.setAttachmentChanged(attachmentChanged);
+        log.setOperatorId(operatorId);
+        log.setOperatorName(operatorName);
+        log.setCreateTime(LocalDateTime.now());
+        auditLogMapper.insert(log);
+    }
+
+    /**
+     * 构造 USER_EDIT 的字段 diff JSON 字符串。
+     * 对比 amount / remark 两个字段，哪些变了就 push 哪个。
+     * 返回 null 表示没东西变更（调用方据此决定要不要写 USER_EDIT 日志）。
+     *
+     * 完全手工拼 JSON，避免引入 Jackson / Fastjson / Hutool。
+     * JSON 规范：字符串双引号 + 特殊字符转义 + null 原样输出。
+     */
+    private String buildFieldDiff(String oldAmount, String newAmount, String oldRemark, String newRemark) {
+        boolean amountChanged = !Objects.equals(oldAmount, newAmount);
+        boolean remarkChanged = !Objects.equals(trimToNull(oldRemark), trimToNull(newRemark));
+        if (!amountChanged && !remarkChanged) return null;
+
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        if (amountChanged) {
+            sb.append(buildFieldNode("amount", oldAmount, newAmount));
+            first = false;
+        }
+        if (remarkChanged) {
+            if (!first) sb.append(',');
+            sb.append(buildFieldNode("remark", oldRemark, newRemark));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    /** 把一个字段变成 JSON 对象：{"field":"xxx","old":"yyy","new":"zzz"} 或 null */
+    private StringBuilder buildFieldNode(String field, String oldVal, String newVal) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"field\":\"").append(field).append("\",\"old\":").append(toJsonValue(oldVal));
+        sb.append(",\"new\":").append(toJsonValue(newVal)).append('}');
+        return sb;
+    }
+
+    /** 安全地把一个 Java String 变 JSON 值：null → null，字符串 → "xxx"（含转义） */
+    private String toJsonValue(String v) {
+        if (v == null) return "null";
+        return "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    /**
+     * 获取指定申报单的全部明细审核/修改历史（时间线）
+     * 批量查 operator 姓名、按 create_time 升序返回。
+     */
+    @Override
+    public List<DeclarationDetailAuditLogVO> auditLogs(Long declarationId) {
+        Declaration parent = declarationMapper.selectById(declarationId);
+        if (parent == null) throw new BizException("申报单不存在");
+
+        List<DeclarationDetailAuditLog> list = auditLogMapper.selectList(
+                new LambdaQueryWrapper<DeclarationDetailAuditLog>()
+                        .eq(DeclarationDetailAuditLog::getDeclarationId, declarationId)
+                        .orderByAsc(DeclarationDetailAuditLog::getCreateTime));
+        if (list.isEmpty()) return java.util.Collections.emptyList();
+
+        // 批量查操作人姓名（避免 N+1）
+        List<Long> operatorIds = list.stream().map(DeclarationDetailAuditLog::getOperatorId)
+                .filter(Objects::nonNull).distinct().toList();
+        java.util.Map<Long, String> nameMap = operatorIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : batchUserNames(operatorIds);
+
+        // 组装 VO
+        java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        return list.stream().map(l -> {
+            DeclarationDetailAuditLogVO v = new DeclarationDetailAuditLogVO();
+            v.setId(l.getId());
+            v.setDeclarationId(l.getDeclarationId());
+            v.setDetailKind(l.getDetailKind());
+            v.setDetailId(l.getDetailId());
+            v.setDetailSnapshotName(l.getDetailSnapshotName());
+            v.setAction(l.getAction());
+            v.setBeforeAuditStatus(l.getBeforeAuditStatus());
+            v.setAfterAuditStatus(l.getAfterAuditStatus());
+            v.setRemark(l.getRemark());
+            v.setFieldDiff(l.getFieldDiff());
+            v.setAttachmentChanged(l.getAttachmentChanged() != null && l.getAttachmentChanged());
+            v.setOperatorId(l.getOperatorId());
+            v.setOperatorName(l.getOperatorName() != null ? l.getOperatorName() : nameMap.get(l.getOperatorId()));
+            v.setCreateTime(l.getCreateTime() == null ? null : l.getCreateTime().format(f));
+            return v;
+        }).toList();
+    }
+
+    /**
+     * 批量查 userId → 姓名 Map（selectBatchIds 替代 N 次 selectById）
+     */
+    private java.util.Map<Long, String> batchUserNames(java.util.List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return java.util.Collections.emptyMap();
+        return userMapper.selectBatchIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        SysUser::getId,
+                        u -> u.getRealName() == null ? u.getUsername() : u.getRealName(),
+                        (a, b) -> a));
+    }
+
+    /** auditDetail 的 action 参数 → 日志表 action 常量 */
+    private static String auditLogAction(String auditDetailAction) {
+        return switch (auditDetailAction) {
+            case "approve" -> "AUDIT_PASS";
+            case "reject"  -> "AUDIT_REJECT";
+            case "revoke"  -> "AUDIT_REVOKE";
+            default        -> "UNKNOWN_" + auditDetailAction;
+        };
+    }
+
+    /** 根据 action 映射成前端看得懂的中文标签 */
+    public static String actionLabel(String action) {
+        if (action == null) return "";
+        return switch (action) {
+            case "AUDIT_PASS"          -> "审核通过";
+            case "AUDIT_REJECT"        -> "审核驳回";
+            case "AUDIT_REVOKE"        -> "审核撤销";
+            case "SUBMIT_FIRST"        -> "首次提交审核";
+            case "SUBMIT_RESUBMITTED"  -> "重新提交审核";
+            case "USER_EDIT"           -> "用户修改明细";
+            default -> action;
+        };
+    }
+
+    /** 审批状态值 → 中文标签（按明细表 audit_status 维度） */
+    private static String mapAuditStatusLabel(String auditStatus) {
+        if ("pending".equals(auditStatus))  return "待审核";
+        if ("approved".equals(auditStatus)) return "已通过";
+        if ("rejected".equals(auditStatus)) return "已驳回";
+        if ("established".equals(auditStatus)) return "已立项";
+        if ("unsubmitted".equals(auditStatus)) return "未提交";
+        return auditStatus == null ? "" : auditStatus;
+    }
+
+    /** 排序 key 生成器（统一三个维度） */
+    private static List<String> orderedKeys(Set<String> keys, String groupBy) {
+        List<String> result = new ArrayList<>();
+        if ("category".equals(groupBy)) {
+            for (String k : new String[]{"1", "2"}) if (keys.contains(k)) result.add(k);
+            for (String k : keys) if (!"1".equals(k) && !"2".equals(k)) result.add(k);
+        } else if ("status".equals(groupBy)) {
+            for (String k : new String[]{"pending", "approved", "rejected", "established"})
+                if (keys.contains(k)) result.add(k);
+            for (String k : keys) {
+                boolean already = false;
+                for (String o : new String[]{"pending", "approved", "rejected", "established"})
+                    if (o.equals(k)) { already = true; break; }
+                if (!already) result.add(k);
+            }
+        } else { // village
+            result.addAll(keys);
+            java.util.Collections.sort(result);
+        }
+        return result;
+    }
+
+    /** 审批状态 / 分组标签映射 */
+    private static String auditStatusToLabel(String s) {
+        return mapAuditStatusLabel(s == null ? "" : s);
+    }
+
+    // ================ 申报综合查询统计 ================
+
+    /** 明细级扁平条目（把 household + facility 统一抽象成同结构，方便任意维度 groupBy） */
+    private static class FlatItem {
+        Long declarationId;           // 所属申报单（用于"申报单数"去重）
+        String declarationCategory;   // 1=到户 / 2=公建
+        String auditStatus;           // 明细审批状态（pending/approved/rejected/established）
+        String villageGroupCode;      // 申报单所属村组
+        String villageGroupName;
+        Long householdId;             // 非 null 表示农户明细
+        Long facilityId;              // 非 null 表示公建设施明细
+        java.math.BigDecimal amount;  // 明细金额
+    }
+
+    @Override
+    public DeclarationStatisticsVO statistics(String year, String regionCode, String groupBy,
+                                              String declarationCategory, String status, String villageGroupCode) {
+        DeclarationStatisticsVO vo = new DeclarationStatisticsVO();
+        vo.setGroupBy(groupBy == null || groupBy.isBlank() ? "category" : groupBy);
+
+        // 1) 前置过滤：按顶部条件过滤 declaration 主表
+        LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<>();
+        if (year != null && !year.isBlank()) {
+            try {
+                int y = Integer.parseInt(year.trim());
+                wrapper.apply("YEAR(create_time) = {0}", y);
+            } catch (NumberFormatException ignored) { }
+        }
+        if (regionCode != null && !regionCode.isBlank()) {
+            Set<String> regionCodes = collectDescendantRegionCodes(regionCode.trim());
+            if (!regionCodes.isEmpty()) wrapper.in(Declaration::getVillageGroupCode, regionCodes);
+            else wrapper.eq(Declaration::getVillageGroupCode, regionCode.trim());
+        }
+        // 注意：左侧三个筛选条件都是"在已选中分组维度内的子筛选"，
+        // 跟 groupBy 联动——groupBy==category 时 declarationCategory 生效、
+        // groupBy==status 时 status（明细 audit_status）生效、
+        // groupBy==village 时 villageGroupCode 生效
+        if ("category".equals(groupBy) && declarationCategory != null && !declarationCategory.isBlank()) {
+            wrapper.eq(Declaration::getDeclarationCategory, declarationCategory.trim());
+        }
+        if ("village".equals(groupBy) && villageGroupCode != null && !villageGroupCode.isBlank()) {
+            wrapper.eq(Declaration::getVillageGroupCode, villageGroupCode.trim());
+        }
+        wrapper.orderByDesc(Declaration::getCreateTime);
+        List<Declaration> declarations = declarationMapper.selectList(wrapper);
+
+        // 2) 构建扁平明细列表（ household + facility 拍平成 FlatItem）
+        Set<Long> declIds = declarations.stream().map(Declaration::getId).collect(Collectors.toSet());
+        // 主表查找 declId → 主表对象（用于回填 category/village 信息）
+        Map<Long, Declaration> declMap = declarations.stream()
+                .collect(Collectors.toMap(Declaration::getId, d -> d, (a, b) -> a));
+
+        // 查全部 household（按声明过滤后再按 status 子筛选）
+        List<DeclarationHousehold> hhList = declIds.isEmpty()
+                ? new ArrayList<>()
+                : householdMapper.selectList(new LambdaQueryWrapper<DeclarationHousehold>()
+                        .in(DeclarationHousehold::getDeclarationId, declIds)
+                        .eq(DeclarationHousehold::getDeleted, 0));
+        List<DeclarationPublicFacility> pfList = declIds.isEmpty()
+                ? new ArrayList<>()
+                : facilityMapper.selectList(new LambdaQueryWrapper<DeclarationPublicFacility>()
+                        .in(DeclarationPublicFacility::getDeclarationId, declIds)
+                        .eq(DeclarationPublicFacility::getDeleted, 0));
+
+        // 按 status 子筛选过滤明细（只有 groupBy==status 时才生效）
+        if ("status".equals(groupBy) && status != null && !status.isBlank()) {
+            hhList = hhList.stream().filter(h -> status.equals(h.getAuditStatus())).collect(Collectors.toList());
+            pfList = pfList.stream().filter(f -> status.equals(f.getAuditStatus())).collect(Collectors.toList());
+        }
+
+        // 拍平成 FlatItem
+        List<FlatItem> flatItems = new ArrayList<>();
+        for (DeclarationHousehold hh : hhList) {
+            Declaration d = declMap.get(hh.getDeclarationId());
+            if (d == null) continue;
+            FlatItem f = new FlatItem();
+            f.declarationId = d.getId();
+            f.declarationCategory = d.getDeclarationCategory();
+            f.auditStatus = hh.getAuditStatus();
+            f.villageGroupCode = d.getVillageGroupCode();
+            f.villageGroupName = d.getVillageGroupName();
+            f.householdId = hh.getHouseholdId();
+            f.facilityId = null;
+            f.amount = hh.getAmount() != null ? hh.getAmount() : java.math.BigDecimal.ZERO;
+            flatItems.add(f);
+        }
+        for (DeclarationPublicFacility pf : pfList) {
+            Declaration d = declMap.get(pf.getDeclarationId());
+            if (d == null) continue;
+            FlatItem f = new FlatItem();
+            f.declarationId = d.getId();
+            f.declarationCategory = d.getDeclarationCategory();
+            f.auditStatus = pf.getAuditStatus();
+            f.villageGroupCode = d.getVillageGroupCode();
+            f.villageGroupName = d.getVillageGroupName();
+            f.householdId = null;
+            f.facilityId = pf.getFacilityId();
+            f.amount = pf.getAmount() != null ? pf.getAmount() : java.math.BigDecimal.ZERO;
+            flatItems.add(f);
+        }
+
+        // 3) 按 groupBy 分组 → 再按村组拆二级 → 构建 rows
+        List<DeclarationStatisticsVO.Row> rows = new ArrayList<>();
+
+        // 主分组：从 FlatItem 提取 key
+        Map<String, List<FlatItem>> mainGroup = new HashMap<>();
+        Map<String, String> mainLabel = new HashMap<>();
+        for (FlatItem f : flatItems) {
+            String key;
+            String label;
+            if ("status".equals(groupBy)) {
+                key = f.auditStatus == null ? "" : f.auditStatus;
+                label = auditStatusToLabel(key);
+            } else if ("village".equals(groupBy)) {
+                key = f.villageGroupCode == null ? "" : f.villageGroupCode;
+                label = f.villageGroupName == null ? (key.isEmpty() ? "未知村组" : key) : f.villageGroupName;
+            } else { // category
+                key = f.declarationCategory == null ? "" : f.declarationCategory;
+                label = mapCategoryLabel(key);
+            }
+            mainLabel.putIfAbsent(key, label);
+            mainGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
+        }
+        List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy);
+
+        // 全局总计（基于 FlatItem 累加，不去重）
+        int grandDeclCount = 0;
+        int grandHouseholdCount = 0;
+        int grandFacilityCount = 0;
+        java.math.BigDecimal grandAmount = java.math.BigDecimal.ZERO;
+        for (FlatItem f : flatItems) {
+            if (f.declarationId != null) grandDeclCount++;
+            if (f.householdId != null) grandHouseholdCount++;
+            if (f.facilityId != null) grandFacilityCount++;
+            if (f.amount != null) grandAmount = grandAmount.add(f.amount);
+        }
+
+        for (String mainKey : orderedMainKeys) {
+            List<FlatItem> groupItems = mainGroup.get(mainKey);
+            String mainLbl = mainLabel.getOrDefault(mainKey, mainKey);
+
+            // 二级：按 villageGroupCode 再拆
+            Map<String, List<FlatItem>> byVillage = new HashMap<>();
+            Map<String, String> villageNameMap = new HashMap<>();
+            for (FlatItem f : groupItems) {
+                String vgKey = f.villageGroupCode == null ? "" : f.villageGroupCode;
+                byVillage.computeIfAbsent(vgKey, k -> new ArrayList<>()).add(f);
+                villageNameMap.putIfAbsent(vgKey, f.villageGroupName == null ? (vgKey.isEmpty() ? "未知村组" : vgKey) : f.villageGroupName);
+            }
+            List<String> vgKeys = new ArrayList<>(byVillage.keySet());
+            java.util.Collections.sort(vgKeys);
+
+            // 分组汇总行（一级）
+            DeclarationStatisticsVO.Row summaryRow = buildRow(groupItems, mainLbl, "全部村组", null, true, false);
+            rows.add(summaryRow);
+
+            // 二级：村组明细行
+            for (String vgKey : vgKeys) {
+                List<FlatItem> vgItems = byVillage.get(vgKey);
+                DeclarationStatisticsVO.Row detailRow = buildRow(vgItems, "",
+                        villageNameMap.getOrDefault(vgKey, vgKey),
+                        vgKey.isEmpty() ? null : vgKey, false, false);
+                rows.add(detailRow);
+            }
+        }
+
+        // 总计行
+        DeclarationStatisticsVO.Row totalRow = new DeclarationStatisticsVO.Row();
+        totalRow.setGroupSummary(true);
+        totalRow.setGrandTotal(true);
+        totalRow.setGroupLabel("总计");
+        totalRow.setVillageName("全部区划");
+        totalRow.setDeclarationCount(grandDeclCount);
+        totalRow.setHouseholdCount(grandHouseholdCount);
+        totalRow.setFacilityCount(grandFacilityCount);
+        totalRow.setAmount(grandAmount);
+        rows.add(totalRow);
+
+        vo.setRows(rows);
+
+        // 4) sidebar（左侧筛选面板）统计 —— 全部累加，不去重
+        DeclarationStatisticsVO.SidebarStats sidebar = new DeclarationStatisticsVO.SidebarStats();
+
+        // 按申报类别
+        List<DeclarationStatisticsVO.StatItem> byCategory = new ArrayList<>();
+        Map<String, Integer> catCount = new HashMap<>();
+        for (FlatItem f : flatItems) {
+            String c = f.declarationCategory == null ? "" : f.declarationCategory;
+            catCount.merge(c, 1, Integer::sum);
+        }
+        for (String c : new String[]{"1", "2"}) {
+            DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
+            it.setValue(c);
+            it.setLabel(mapCategoryLabel(c));
+            it.setCount(catCount.getOrDefault(c, 0));
+            byCategory.add(it);
+        }
+        sidebar.setByCategory(byCategory);
+
+        // 按审批状态（固定四项）
+        List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
+        Map<String, Integer> statusCount = new HashMap<>();
+        for (FlatItem f : flatItems) {
+            String s = f.auditStatus == null ? "" : f.auditStatus;
+            statusCount.merge(s, 1, Integer::sum);
+        }
+        for (String s : new String[]{"pending", "approved", "rejected", "established"}) {
+            DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
+            it.setValue(s);
+            it.setLabel(auditStatusToLabel(s));
+            it.setCount(statusCount.getOrDefault(s, 0));
+            byStatus.add(it);
+        }
+        sidebar.setByStatus(byStatus);
+
+        // 按所属村组
+        List<DeclarationStatisticsVO.StatItem> byVillage = new ArrayList<>();
+        Map<String, Integer> vgCount = new HashMap<>();
+        Map<String, String> vgNameMap = new HashMap<>();
+        for (FlatItem f : flatItems) {
+            String vg = f.villageGroupCode == null ? "" : f.villageGroupCode;
+            vgCount.merge(vg, 1, Integer::sum);
+            vgNameMap.putIfAbsent(vg, f.villageGroupName == null ? (vg.isEmpty() ? "未知村组" : vg) : f.villageGroupName);
+        }
+        List<String> vgKeysSorted = new ArrayList<>(vgCount.keySet());
+        java.util.Collections.sort(vgKeysSorted, (a, b) -> vgNameMap.getOrDefault(a, a).compareTo(vgNameMap.getOrDefault(b, b)));
+        for (String vg : vgKeysSorted) {
+            DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
+            it.setValue(vg.isEmpty() ? null : vg);
+            it.setLabel(vgNameMap.getOrDefault(vg, vg));
+            it.setCount(vgCount.getOrDefault(vg, 0));
+            byVillage.add(it);
+        }
+        sidebar.setByVillage(byVillage);
+
+        vo.setSidebar(sidebar);
+        return vo;
+    }
+
+    /** 把一组 FlatItem 聚合成一条 Row（用于分组汇总行 / 村组明细行） */
+    private DeclarationStatisticsVO.Row buildRow(List<FlatItem> items, String groupLabel,
+                                                  String villageName, String villageGroupCode,
+                                                  boolean groupSummary, boolean grandTotal) {
+        DeclarationStatisticsVO.Row row = new DeclarationStatisticsVO.Row();
+        row.setGroupSummary(groupSummary);
+        row.setGrandTotal(grandTotal);
+        row.setGroupLabel(groupLabel);
+        row.setVillageName(villageName);
+        row.setVillageGroupCode(villageGroupCode);
+        int declCount = 0;
+        int hhCount = 0;
+        int pfCount = 0;
+        java.math.BigDecimal amt = java.math.BigDecimal.ZERO;
+        for (FlatItem f : items) {
+            if (f.declarationId != null) declCount++;
+            if (f.householdId != null) hhCount++;
+            if (f.facilityId != null) pfCount++;
+            if (f.amount != null) amt = amt.add(f.amount);
+        }
+        row.setDeclarationCount(declCount);
+        row.setHouseholdCount(hhCount);
+        row.setFacilityCount(pfCount);
+        row.setAmount(amt);
+        return row;
+    }
+
+    /** 取给定 regionCode 及其全部子孙级区划 code（用于过滤 Declaration.village_group_code） */
+    private Set<String> collectDescendantRegionCodes(String regionCode) {
+        Set<String> result = new HashSet<>();
+        if (regionCode == null || regionCode.isBlank()) return result;
+        // 先把自身加进去
+        result.add(regionCode);
+        // 递归查子级（parent_code = 任意一个已收集 code）
+        Set<String> current = new HashSet<>();
+        current.add(regionCode);
+        while (!current.isEmpty()) {
+            List<SysRegion> children = regionMapper.selectList(
+                    new LambdaQueryWrapper<SysRegion>().in(SysRegion::getParentCode, current));
+            if (children.isEmpty()) break;
+            Set<String> next = new HashSet<>();
+            for (SysRegion r : children) {
+                if (r.getCode() != null && result.add(r.getCode())) {
+                    next.add(r.getCode());
+                }
+            }
+            current = next;
+        }
+        return result;
+    }
+
+    /** 申报类别值 → 中文标签 */
+    private static String mapCategoryLabel(String category) {
+        if ("1".equals(category)) return "到户申报";
+        if ("2".equals(category)) return "公建申报";
+        return category == null ? "" : category;
+    }
+
+    /** 审批状态值 → 中文标签（主表 status 字段） */
+    private static String mapStatusLabel(String status) {
+        if ("submitted".equals(status)) return "待审核";
+        if ("approved".equals(status)) return "已通过";
+        if ("rejected".equals(status)) return "已驳回";
+        if ("established".equals(status)) return "已立项";
+        if ("draft".equals(status)) return "草稿";
+        return status == null ? "" : status;
+    }
 }
+
 
 
 

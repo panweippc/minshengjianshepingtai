@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -27,6 +28,9 @@ public class DeclarationSaveDTO {
     @Size(max = 32, message = "申报编号长度不超过32")
     @Schema(description = "申报编号（业务编码，可选，重复时保存会提示）")
     private String businessCode;
+
+    @Schema(description = "申报日期（业务字段，实际申报时点；不填则默认当天）")
+    private LocalDate declarationDate;
 
     @NotBlank(message = "请输入申报标题")
     @Size(max = 128, message = "申报标题长度不超过128")

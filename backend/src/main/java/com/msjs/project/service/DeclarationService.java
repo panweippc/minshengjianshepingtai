@@ -7,7 +7,9 @@ import com.msjs.project.dto.DeclarationDetailEditDTO;
 import com.msjs.project.dto.DeclarationDetailRevertDTO;
 import com.msjs.project.dto.DeclarationSaveDTO;
 import com.msjs.project.dto.DeclarationSubmitDTO;
+import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
+import com.msjs.project.vo.DeclarationStatisticsVO;
 import com.msjs.project.vo.UserRegionVO;
 
 import java.util.List;
@@ -120,7 +122,26 @@ public interface DeclarationService {
     List<Map<String, Object>> listHouseholdsByVillageGroup(String villageGroupCode);
 
     /**
+     * 获取指定申报单的全部明细审核/修改历史（时间线）
+     * 按 create_time 升序，前端直接渲染 el-timeline
+     */
+    List<DeclarationDetailAuditLogVO> auditLogs(Long declarationId);
+
+    /**
      * 获取指定村组下的全部公建设施（多选数据源，弹窗用）
      */
     List<Map<String, Object>> listFacilitiesByVillageGroup(String villageGroupCode);
+
+    /**
+     * 申报综合查询统计
+     *
+     * @param year                年度（格式 yyyy，按申报单 create_time 年份过滤）
+     * @param regionCode          区划编码（乡镇 / 村组；若为上级则自动包含子级）
+     * @param groupBy             分组维度：category 按申报类别 / status 按审批状态 / village 按所属村组
+     * @param declarationCategory 左侧选中的申报类别（可空）
+     * @param status              左侧选中的审批状态（可空）
+     * @param villageGroupCode    左侧选中的所属村组（可空）
+     */
+    DeclarationStatisticsVO statistics(String year, String regionCode, String groupBy,
+                                      String declarationCategory, String status, String villageGroupCode);
 }

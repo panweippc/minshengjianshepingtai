@@ -56,6 +56,12 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '申报审核', icon: 'Checked' }
       },
       {
+        path: 'query/declaration',
+        name: 'DeclarationQuery',
+        component: () => import('@/views/query/DeclarationQuery.vue'),
+        meta: { title: '申报综合查询', icon: 'DataAnalysis' }
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/User.vue'),
