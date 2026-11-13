@@ -73,6 +73,15 @@ public class AcceptanceNodeVO implements Serializable {
     @Schema(description = "验收状态（仅三级：PENDING待验收 ACCEPTED已验收）")
     private String acceptStatus;
 
+    @Schema(description = "施工状态（与施工管理同步）：NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工")
+    private String buildStatus;
+
+    @Schema(description = "施工进度分子：施工中为已开工数，已完工为已完工数")
+    private Integer buildNumerator;
+
+    @Schema(description = "施工进度百分比（0-100）：施工进度分子 / 全部明细数")
+    private Integer buildPercent;
+
     @Schema(description = "验收时间（仅三级已验收时）")
     private LocalDateTime acceptTime;
 
@@ -82,14 +91,20 @@ public class AcceptanceNodeVO implements Serializable {
     @Schema(description = "验收备注（仅三级）")
     private String acceptRemark;
 
-    @Schema(description = "事项说明（仅三级）")
+    @Schema(description = "验收结果（字典 yan_shou_jie_guo，仅三级）")
+    private String acceptResult;
+
+    @Schema(description = "事项说明（仅三级，申报明细原始值）")
     private String detailRemark;
 
     @Schema(description = "申报内容（仅二级）")
     private String declareContent;
 
-    @Schema(description = "验收资料附件（仅三级）")
+    @Schema(description = "验收资料附件（仅三级，取最新一次验收记录）")
     private List<ProjectAcceptanceAttachment> acceptanceAttachments;
+
+    @Schema(description = "验收记录（仅三级，按时间倒序，第一条为最新一次）")
+    private List<AcceptanceRecordVO> acceptanceRecords;
 
     @Schema(description = "立项资料附件（仅一级查看弹窗使用）")
     private List<ProjectApprovalAttachment> approvalAttachments;

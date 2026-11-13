@@ -38,8 +38,11 @@ public class ProjectAcceptance implements Serializable {
     private Long declareId;
 
     @JsonSerialize(using = ToStringSerializer.class)
-    @Schema(description = "明细ID（关联 t_project_approval_detail.id）")
+    @Schema(description = "明细ID（关联 t_project_approval_detail.id，三级明细验收时有值）")
     private Long detailId;
+
+    @Schema(description = "验收层级：PROJECT项目 DECLARE申报 DETAIL明细")
+    private String nodeType;
 
     @Schema(description = "验收状态：PENDING待验收 ACCEPTED已验收")
     private String acceptStatus;
@@ -51,7 +54,10 @@ public class ProjectAcceptance implements Serializable {
     @Schema(description = "验收人")
     private String acceptBy;
 
-    @Schema(description = "备注")
+    @Schema(description = "验收结果（字典 yan_shou_jie_guo）")
+    private String acceptResult;
+
+    @Schema(description = "验收备注")
     private String remark;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

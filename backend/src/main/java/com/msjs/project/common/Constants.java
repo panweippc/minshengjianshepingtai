@@ -129,6 +129,19 @@ public final class Constants {
     /** 验收状态：部分验收（施工管理二级节点聚合展示用） */
     public static final String ACCEPTANCE_STATUS_PARTIAL = "PARTIAL";
 
+    /** 验收状态：未通过 */
+    public static final String ACCEPTANCE_STATUS_REJECTED = "REJECTED";
+
+    /** 验收结果（字典 yan_shou_jie_guo）：未通过；1验收通过、2整改后验收通过均视为通过 */
+    public static final String ACCEPTANCE_RESULT_REJECTED = "3";
+
+    /** 验收记录层级：项目（一级） */
+    public static final String ACCEPTANCE_RECORD_PROJECT = "PROJECT";
+    /** 验收记录层级：申报（二级） */
+    public static final String ACCEPTANCE_RECORD_DECLARE = "DECLARE";
+    /** 验收记录层级：明细（三级） */
+    public static final String ACCEPTANCE_RECORD_DETAIL = "DETAIL";
+
     /** 验收状态：已归档 */
     public static final String ARCHIVE_STATUS_ARCHIVED = "ARCHIVED";
 
