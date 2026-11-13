@@ -179,7 +179,12 @@
               <span :class="{ 'grand-total': row.grandTotal }">{{ row.facilityCount }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="申报金额（元）" min-width="160" align="right">
+          <el-table-column
+            v-if="query.groupBy !== 'status'"
+            label="申报金额（元）"
+            min-width="160"
+            align="right"
+          >
             <template #default="{ row }">
               <span :class="{ 'grand-total': row.grandTotal }">
                 {{ formatMoney(row.amount) }}
@@ -404,13 +409,14 @@ async function handleExport() {
   exporting.value = true
   try {
     const isVillageGroup = query.groupBy === 'village'
-    const hideDeclCount = query.groupBy === 'status'
+    const isStatusGroup = query.groupBy === 'status'
     // 组装表头（分三种情况）
     let headers: string[]
     if (isVillageGroup) {
       headers = [groupHeader.value, '申报单数（单）', '涉及户数（户）', '公建设施数（个）', '申报金额（元）']
-    } else if (hideDeclCount) {
-      headers = [groupHeader.value, '村组', '涉及户数（户）', '公建设施数（个）', '申报金额（元）']
+    } else if (isStatusGroup) {
+      // 按审批状态：隐藏申报单数 + 隐藏申报金额
+      headers = [groupHeader.value, '村组', '涉及户数（户）', '公建设施数（个）']
     } else {
       headers = [groupHeader.value, '村组', '申报单数（单）', '涉及户数（户）', '公建设施数（个）', '申报金额（元）']
     }
@@ -420,8 +426,8 @@ async function handleExport() {
       let rowCells: (string | number | null | undefined)[]
       if (isVillageGroup) {
         rowCells = [firstCol, r.declarationCount, r.householdCount, r.facilityCount, r.amount]
-      } else if (hideDeclCount) {
-        rowCells = [firstCol, r.villageName, r.householdCount, r.facilityCount, r.amount]
+      } else if (isStatusGroup) {
+        rowCells = [firstCol, r.villageName, r.householdCount, r.facilityCount]
       } else {
         rowCells = [firstCol, r.villageName, r.declarationCount, r.householdCount, r.facilityCount, r.amount]
       }
