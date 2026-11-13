@@ -381,11 +381,22 @@
       <div v-else>
         <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
           <el-row :gutter="16">
-            <el-col :span="12">
+            <el-col :span="24">
               <el-form-item label="申报编号" prop="businessCode">
                 <el-input v-model="form.businessCode" placeholder="请填写申报编号" maxlength="64" />
               </el-form-item>
             </el-col>
+          </el-row>
+
+          <el-row :gutter="16">
+            <el-col :span="24">
+              <el-form-item label="申报标题" prop="title">
+                <el-input v-model="form.title" placeholder="请输入申报标题" maxlength="128" show-word-limit />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="申报日期" prop="declarationDate">
                 <el-date-picker
@@ -397,12 +408,33 @@
                 />
               </el-form-item>
             </el-col>
+            <el-col :span="12">
+              <el-form-item label="申报金额" prop="amount">
+                <el-input-number
+                  v-model="form.amount"
+                  :min="0.01"
+                  :precision="2"
+                  :step="100"
+                  style="width: 100%"
+                  placeholder="元"
+                />
+              </el-form-item>
+            </el-col>
           </el-row>
 
           <el-row :gutter="16">
-            <el-col :span="24">
-              <el-form-item label="申报标题" prop="title">
-                <el-input v-model="form.title" placeholder="请输入申报标题" maxlength="128" show-word-limit />
+            <el-col :span="12">
+              <el-form-item label="申报类型" prop="declarationType">
+                <el-select v-model="form.declarationType" placeholder="请选择" style="width: 100%">
+                  <el-option v-for="d in declarationTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="申报类别" prop="declarationCategory">
+                <el-select v-model="form.declarationCategory" placeholder="请选择" style="width: 100%" @change="onCategoryChange" :disabled="dialogMode === 'edit'">
+                  <el-option v-for="d in declarationCategoryOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
+                </el-select>
               </el-form-item>
             </el-col>
           </el-row>
@@ -429,35 +461,6 @@
                     :value="item.code"
                   />
                 </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <el-row :gutter="16">
-            <el-col :span="8">
-              <el-form-item label="申报类型" prop="declarationType">
-                <el-select v-model="form.declarationType" placeholder="请选择" style="width: 100%">
-                  <el-option v-for="d in declarationTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="申报类别" prop="declarationCategory">
-                <el-select v-model="form.declarationCategory" placeholder="请选择" style="width: 100%" @change="onCategoryChange" :disabled="dialogMode === 'edit'">
-                  <el-option v-for="d in declarationCategoryOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="申报金额" prop="amount">
-                <el-input-number
-                  v-model="form.amount"
-                  :min="0.01"
-                  :precision="2"
-                  :step="100"
-                  style="width: 100%"
-                  placeholder="元"
-                />
               </el-form-item>
             </el-col>
           </el-row>
