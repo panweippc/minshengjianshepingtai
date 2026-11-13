@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.msjs.project.entity.MaterialItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
@@ -11,6 +12,14 @@ import org.apache.ibatis.annotations.Update;
  */
 @Mapper
 public interface MaterialItemMapper extends BaseMapper<MaterialItem> {
+
+    /**
+     * 统计在库物资总数：全部未删除物品的库存数量之和
+     *
+     * @return 库存总数，无数据时返回 0
+     */
+    @Select("SELECT IFNULL(SUM(stock_qty), 0) FROM t_material_item WHERE deleted = 0")
+    Long sumStockQty();
 
     /**
      * 原子增减库存，避免读-改-写并发导致库存丢失更新

@@ -16,9 +16,24 @@ export interface UserInfoVO {
   realName: string
   regionCode: string
   regionName: string
+  phone?: string
+  status?: number
+  createTime?: string
   roles: string[]
   perms: string[]
   menus: MenuVO[]
+}
+
+/** 个人资料修改入参 */
+export interface ProfileUpdateDTO {
+  realName: string
+  phone?: string
+}
+
+/** 修改登录密码入参 */
+export interface ChangePasswordDTO {
+  oldPassword: string
+  newPassword: string
 }
 
 /** 菜单树节点 */

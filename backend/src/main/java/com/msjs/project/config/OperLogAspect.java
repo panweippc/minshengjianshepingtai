@@ -133,7 +133,7 @@ public class OperLogAspect {
                     })
                     .collect(Collectors.joining(","));
             // 密码不落日志
-            json = json.replaceAll("\"(password|newPassword)\":\"[^\"]*\"", "\"$1\":\"******\"");
+            json = json.replaceAll("\"(password|newPassword|oldPassword)\":\"[^\"]*\"", "\"$1\":\"******\"");
             return truncate(json);
         } catch (Exception e) {
             return null;

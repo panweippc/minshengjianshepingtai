@@ -178,7 +178,8 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport report = new MaterialReport();
         report.setReportName(reportName);
         report.setReportType(reportType);
-        report.setReportDate(reportDate != null ? reportDate : LocalDate.now());
+        // 审核日期由用户填写，未填写时保持为空，不能用当前日期兜底
+        report.setReportDate(reportDate);
         // 经办人未传时取当前登录人
         report.setHandler(StringUtils.hasText(handler) ? handler : currentUserName());
         report.setHandoverPerson(handoverPerson);

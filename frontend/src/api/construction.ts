@@ -1,6 +1,5 @@
 import { get, put } from './request'
 import type { PageQuery, PageVO, Result } from '@/types/common'
-import type { ApprovalAttachmentVO } from '@/api/approval'
 import type { FundNodeVO } from '@/api/fund'
 
 /** 施工状态：未开工 */
@@ -75,6 +74,8 @@ export interface ConstructionNodeVO {
   detailType?: string
   /** NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工 */
   status: string
+  /** 验收状态：一级 NONE待验收 APPLYING验收中 ARCHIVED已归档；二级 PENDING待验收 PARTIAL部分验收 ACCEPTED已验收；三级 PENDING待验收 ACCEPTED已验收 */
+  acceptStatus?: string
   /** 全部户数/设施数 */
   totalCount: number
   /** 已开工数 */
@@ -87,24 +88,6 @@ export interface ConstructionNodeVO {
   percent: number
   /** 补助/投入金额（元）：三级为明细金额，一级/二级为明细合计 */
   amount?: number
-  /** 一级立项页签：原始项目预算 */
-  approvalBudget?: number
-  /** 一级立项页签：项目负责人 */
-  approvalLeader?: string
-  /** 一级立项页签：提交时间 */
-  approvalSubmitTime?: string
-  /** 一级立项页签：审核状态 */
-  approvalStatus?: string
-  /** 一级立项页签：原始备注 */
-  approvalRemark?: string
-  /** 一级立项页签：立项资料附件 */
-  approvalAttachments?: ApprovalAttachmentVO[]
-  /** 二级立项页签：原始申报金额 */
-  declareBudget?: number
-  /** 二级立项页签：原始申报内容 */
-  declareContent?: string
-  /** 二级立项页签：申报材料附件 */
-  declareAttachments?: ApprovalAttachmentVO[]
   /** 是否可发起验收（全部明细已完工） */
   canAccept: boolean
   /** 三级节点施工状态原始值 */

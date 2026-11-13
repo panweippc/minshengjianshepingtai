@@ -3,18 +3,18 @@
     <!-- 筛选区 -->
     <el-card shadow="never" class="query-card">
       <el-form :inline="true" :model="query" @submit.prevent>
-        <el-form-item label="物品名称">
+        <el-form-item label="物资名称">
           <el-input
             v-model="query.itemName"
-            placeholder="请输入物品名称"
+            placeholder="请输入物资名称"
             clearable
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="物品分类">
+        <el-form-item label="物资分类">
           <el-select
             v-model="query.itemCategory"
-            placeholder="请选择物品分类"
+            placeholder="请选择物资分类"
             clearable
             style="width: 100%"
           >
@@ -46,7 +46,7 @@
     <el-card shadow="never" class="list-card">
       <template #header>
         <div class="card-header">
-          <span>物品信息列表</span>
+          <span>物资信息列表</span>
           <div class="header-actions">
             <el-button
               type="success"
@@ -76,8 +76,8 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" reserve-selection />
-        <el-table-column prop="itemName" label="物品名称" min-width="180" show-overflow-tooltip />
-        <el-table-column label="物品分类" min-width="110" align="center">
+        <el-table-column prop="itemName" label="物资名称" min-width="180" show-overflow-tooltip />
+        <el-table-column label="物资分类" min-width="110" align="center">
           <template #default="{ row }">{{ categoryLabel(row.itemCategory) }}</template>
         </el-table-column>
         <el-table-column label="预警数量" min-width="100" align="center">
@@ -135,18 +135,18 @@
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="editDialogVisible"
-      :title="editMode === 'edit' ? '编辑物品' : '新增物品'"
+      :title="editMode === 'edit' ? '编辑物资' : '新增物资'"
       width="600px"
       destroy-on-close
     >
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
-        <el-form-item label="物品名称" prop="itemName">
-          <el-input v-model="form.itemName" placeholder="请输入物品名称" maxlength="128" />
+        <el-form-item label="物资名称" prop="itemName">
+          <el-input v-model="form.itemName" placeholder="请输入物资名称" maxlength="128" />
         </el-form-item>
-        <el-form-item label="物品分类" prop="itemCategory">
+        <el-form-item label="物资分类" prop="itemCategory">
           <el-select
             v-model="form.itemCategory"
-            placeholder="请选择物品分类"
+            placeholder="请选择物资分类"
             clearable
             style="width: 100%"
           >
@@ -188,10 +188,10 @@
     </el-dialog>
 
     <!-- 查看弹窗：固定两列布局，每行两个字段 -->
-    <el-dialog v-model="detailDialogVisible" title="物品详情" width="640px" destroy-on-close>
+    <el-dialog v-model="detailDialogVisible" title="物资详情" width="640px" destroy-on-close>
       <el-descriptions v-if="detail" :column="2" border class="detail-desc">
-        <el-descriptions-item label="物品名称">{{ detail.itemName || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="物品分类">{{ categoryLabel(detail.itemCategory) }}</el-descriptions-item>
+        <el-descriptions-item label="物资名称">{{ detail.itemName || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="物资分类">{{ categoryLabel(detail.itemCategory) }}</el-descriptions-item>
         <el-descriptions-item label="预警数量">
           {{ detail.warningQty ?? 0 }}<span v-if="detail.unit"> {{ detail.unit }}</span>
         </el-descriptions-item>
@@ -235,12 +235,12 @@ const store = useUserStore()
 
 type EditMode = 'add' | 'edit'
 
-/** 物品分类字典缺失时兜底选项（与字典 wu_pin_fen_lei 保持一致） */
+/** 物资分类字典缺失时兜底选项（与字典 wu_zi_fen_lei 保持一致） */
 const DEFAULT_CATEGORIES = [
-  { label: '办公物品', value: '1' },
-  { label: '食堂用品', value: '2' },
-  { label: '办公家具', value: '3' },
-  { label: '办公设备', value: '4' }
+  { label: '应急物资', value: '1' },
+  { label: '生活物资', value: '2' },
+  { label: '食品物资', value: '3' },
+  { label: '防汛物资', value: '4' }
 ]
 const categoryDictItems = ref<DictVO[]>([])
 const categoryOptions = computed(() =>
@@ -277,9 +277,9 @@ const handleSelectionChange = (rows: MaterialItemVO[]) => {
   selectedIds.value = rows.map((r) => r.id)
 }
 
-/** 加载字典（物品分类联动字典 wu_pin_fen_lei） */
+/** 加载字典（物资分类联动字典 wu_zi_fen_lei） */
 const loadDict = async () => {
-  const res = await getDictByType('wu_pin_fen_lei')
+  const res = await getDictByType('wu_zi_fen_lei')
   categoryDictItems.value = res.data || []
 }
 
@@ -431,10 +431,10 @@ const handleExport = async () => {
 
     const workbook = new ExcelJS.Workbook()
     workbook.creator = '民生建设项目管理平台'
-    const sheet = workbook.addWorksheet('物品信息')
+    const sheet = workbook.addWorksheet('物资信息')
     sheet.columns = [
-      { header: '物品名称', key: 'itemName', width: 24 },
-      { header: '物品分类', key: 'itemCategoryLabel', width: 14 },
+      { header: '物资名称', key: 'itemName', width: 24 },
+      { header: '物资分类', key: 'itemCategoryLabel', width: 14 },
       { header: '预警数量', key: 'warningQty', width: 12 },
       { header: '库存数量', key: 'stockQty', width: 12 },
       { header: '单位', key: 'unit', width: 10 },
@@ -464,12 +464,12 @@ const handleExport = async () => {
     })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `物品信息_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.download = `物资信息_${new Date().toISOString().slice(0, 10)}.xlsx`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
-    ElMessage.success(`已导出 ${rows.length} 条物品信息`)
+    ElMessage.success(`已导出 ${rows.length} 条物资信息`)
   } catch (e) {
     console.error(e)
     ElMessage.error('导出失败，请重试')

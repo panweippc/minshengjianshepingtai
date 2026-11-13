@@ -3,7 +3,9 @@ package com.msjs.project.controller;
 import com.msjs.project.common.Constants;
 import com.msjs.project.common.Result;
 import com.msjs.project.common.annotation.OperLog;
+import com.msjs.project.dto.ChangePasswordDTO;
 import com.msjs.project.dto.LoginDTO;
+import com.msjs.project.dto.ProfileUpdateDTO;
 import com.msjs.project.service.AuthService;
 import com.msjs.project.vo.LoginVO;
 import com.msjs.project.vo.UserInfoVO;
@@ -14,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,6 +51,22 @@ public class AuthController {
     @GetMapping("/info")
     public Result<UserInfoVO> info() {
         return Result.ok(authService.currentUserInfo());
+    }
+
+    @Operation(summary = "修改个人资料")
+    @OperLog(module = "个人中心", operation = "修改个人资料")
+    @PutMapping("/profile")
+    public Result<Void> updateProfile(@Valid @RequestBody ProfileUpdateDTO dto) {
+        authService.updateProfile(dto);
+        return Result.ok();
+    }
+
+    @Operation(summary = "修改登录密码")
+    @OperLog(module = "个人中心", operation = "修改登录密码")
+    @PutMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO dto) {
+        authService.changePassword(dto);
+        return Result.ok();
     }
 
     /** 从请求头解析 Bearer 令牌 */

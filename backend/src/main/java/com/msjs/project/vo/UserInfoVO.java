@@ -6,6 +6,7 @@ import com.msjs.project.entity.SysMenu;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -32,6 +33,15 @@ public class UserInfoVO {
 
     @Schema(description = "所属行政区划名称")
     private String regionName;
+
+    @Schema(description = "手机号")
+    private String phone;
+
+    @Schema(description = "账号状态：1启用 0停用")
+    private Integer status;
+
+    @Schema(description = "首次创建时间")
+    private LocalDateTime createTime;
 
     @Schema(description = "角色标识集合")
     private Set<String> roles;

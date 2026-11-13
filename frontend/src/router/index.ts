@@ -95,7 +95,7 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         path: 'material/item',
         name: 'MaterialItem',
         component: () => import('@/views/material/Item.vue'),
-        meta: { title: '物品信息', icon: 'Goods' }
+        meta: { title: '物资信息', icon: 'Goods' }
       },
       {
         path: 'material/warehouse',

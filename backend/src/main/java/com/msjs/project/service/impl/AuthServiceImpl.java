@@ -1,11 +1,14 @@
 package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.UserContext;
+import com.msjs.project.dto.ChangePasswordDTO;
 import com.msjs.project.dto.LoginDTO;
+import com.msjs.project.dto.ProfileUpdateDTO;
 import com.msjs.project.entity.SysMenu;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.entity.SysRole;
@@ -107,10 +110,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserInfoVO currentUserInfo() {
-        LoginUser user = UserContext.get();
-        if (user == null) {
-            throw new BizException(401, "未登录或登录已过期，请重新登录");
-        }
+        LoginUser user = requireLoginUser();
         UserInfoVO vo = new UserInfoVO();
         vo.setUserId(user.getUserId());
         vo.setUsername(user.getUsername());
@@ -119,6 +119,16 @@ public class AuthServiceImpl implements AuthService {
         vo.setRoles(user.getRoleKeys());
         vo.setPerms(user.getPerms());
         vo.setDataScope(user.getDataScope());
+
+        // 姓名、手机号、状态、创建时间以数据库为准，避免个人资料修改后缓存与页面不一致
+        SysUser current = userMapper.selectById(user.getUserId());
+        if (current != null) {
+            vo.setRealName(current.getRealName());
+            vo.setPhone(current.getPhone());
+            vo.setStatus(current.getStatus());
+            vo.setCreateTime(current.getCreateTime());
+        }
+
         if (user.getRegionCode() != null) {
             SysRegion region = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
                     .eq(SysRegion::getCode, user.getRegionCode()));
@@ -138,6 +148,42 @@ public class AuthServiceImpl implements AuthService {
                 .filter(m -> !"F".equals(m.getMenuType()))
                 .collect(Collectors.toList())));
         return vo;
+    }
+
+    @Override
+    public void updateProfile(ProfileUpdateDTO dto) {
+        LoginUser loginUser = requireLoginUser();
+        // 使用 UpdateWrapper 显式 set，支持将联系电话清空为 null
+        userMapper.update(null, new LambdaUpdateWrapper<SysUser>()
+                .eq(SysUser::getId, loginUser.getUserId())
+                .set(SysUser::getRealName, dto.getRealName())
+                .set(SysUser::getPhone, dto.getPhone()));
+    }
+
+    @Override
+    public void changePassword(ChangePasswordDTO dto) {
+        LoginUser loginUser = requireLoginUser();
+        SysUser exist = userMapper.selectById(loginUser.getUserId());
+        if (exist == null) {
+            throw new BizException("用户不存在");
+        }
+        if (!passwordEncoder.matches(dto.getOldPassword(), exist.getPassword())) {
+            throw new BizException("原密码不正确");
+        }
+        if (dto.getOldPassword().equals(dto.getNewPassword())) {
+            throw new BizException("新密码不能与原密码相同");
+        }
+        exist.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        userMapper.updateById(exist);
+    }
+
+    /** 获取当前登录用户，未登录抛出业务异常 */
+    private LoginUser requireLoginUser() {
+        LoginUser user = UserContext.get();
+        if (user == null) {
+            throw new BizException(401, "未登录或登录已过期，请重新登录");
+        }
+        return user;
     }
 
     /** 构建登录用户：聚合角色、权限、数据范围 */

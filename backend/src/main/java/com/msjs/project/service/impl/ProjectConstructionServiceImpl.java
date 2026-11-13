@@ -10,13 +10,13 @@ import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.ConstructionEditDTO;
 import com.msjs.project.dto.ConstructionLogEditDTO;
 import com.msjs.project.entity.ProjectApproval;
-import com.msjs.project.entity.ProjectApprovalAttachment;
 import com.msjs.project.entity.ProjectApprovalDeclare;
 import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.entity.ProjectConstruction;
 import com.msjs.project.entity.ProjectConstructionAttachment;
 import com.msjs.project.entity.ProjectConstructionLog;
-import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
+import com.msjs.project.entity.ProjectAcceptance;
+import com.msjs.project.mapper.ProjectAcceptanceMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
 import com.msjs.project.mapper.ProjectApprovalDetailMapper;
 import com.msjs.project.mapper.ProjectApprovalMapper;
@@ -24,7 +24,6 @@ import com.msjs.project.mapper.ProjectConstructionAttachmentMapper;
 import com.msjs.project.mapper.ProjectConstructionLogMapper;
 import com.msjs.project.mapper.ProjectConstructionMapper;
 import com.msjs.project.service.ProjectConstructionService;
-import com.msjs.project.vo.ApprovalAttachmentVO;
 import com.msjs.project.vo.ConstructionAttachmentVO;
 import com.msjs.project.vo.ConstructionLogVO;
 import com.msjs.project.vo.ConstructionNodeVO;
@@ -59,10 +58,10 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
     private final ProjectApprovalMapper approvalMapper;
     private final ProjectApprovalDeclareMapper declareMapper;
     private final ProjectApprovalDetailMapper detailMapper;
-    private final ProjectApprovalAttachmentMapper approvalAttachmentMapper;
     private final ProjectConstructionMapper constructionMapper;
     private final ProjectConstructionLogMapper constructionLogMapper;
     private final ProjectConstructionAttachmentMapper constructionAttachmentMapper;
+    private final ProjectAcceptanceMapper acceptanceMapper;
 
     @Override
     public PageVO<ConstructionNodeVO> page(long pageNum, long pageSize, String projectCode, String projectName,
@@ -517,24 +516,18 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                     .orderByAsc(ProjectApprovalDetail::getId));
         }
 
-        // 一级/二级立项页签：批量组装项目级立项资料附件与申报级材料附件
-        List<ProjectApprovalAttachment> approvalAttachments = approvalAttachmentMapper.selectList(
-                new LambdaQueryWrapper<ProjectApprovalAttachment>()
-                        .in(ProjectApprovalAttachment::getApprovalId, approvalIds)
-                        .orderByAsc(ProjectApprovalAttachment::getId));
-        Map<Long, List<ApprovalAttachmentVO>> attachmentsByDeclare = approvalAttachments.stream()
-                .filter(item -> item.getDeclareId() != null)
-                .collect(Collectors.groupingBy(ProjectApprovalAttachment::getDeclareId,
-                        Collectors.mapping(this::toApprovalAttachmentVO, Collectors.toList())));
-        Map<Long, List<ApprovalAttachmentVO>> attachmentsByApproval = approvalAttachments.stream()
-                .filter(item -> item.getDeclareId() == null)
-                .collect(Collectors.groupingBy(ProjectApprovalAttachment::getApprovalId,
-                        Collectors.mapping(this::toApprovalAttachmentVO, Collectors.toList())));
-
         // 施工记录：一级按立项ID取，三级按明细ID取
         List<ProjectConstruction> constructions = constructionMapper.selectList(
                 new LambdaQueryWrapper<ProjectConstruction>()
                         .in(ProjectConstruction::getApprovalId, approvalIds));
+
+        // 验收记录：验收状态与验收管理同源，按明细ID匹配
+        Map<Long, ProjectAcceptance> acceptMap = acceptanceMapper.selectList(
+                        new LambdaQueryWrapper<ProjectAcceptance>()
+                                .in(ProjectAcceptance::getApprovalId, approvalIds))
+                .stream()
+                .filter(item -> item.getDetailId() != null)
+                .collect(Collectors.toMap(ProjectAcceptance::getDetailId, Function.identity(), (a, b) -> b));
         Map<Long, ProjectConstruction> projectMap = constructions.stream()
                 .filter(item -> Constants.CONSTRUCTION_LEVEL_PROJECT == item.getNodeLevel())
                 .collect(Collectors.toMap(ProjectConstruction::getApprovalId, Function.identity(), (a, b) -> a));
@@ -550,19 +543,30 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         List<ConstructionNodeVO> records = new ArrayList<>(approvals.size());
         for (ProjectApproval approval : approvals) {
             ConstructionNodeVO projectNode = buildProjectNode(approval, projectMap.get(approval.getId()));
-            projectNode.setApprovalAttachments(
-                    attachmentsByApproval.getOrDefault(approval.getId(), Collections.emptyList()));
             List<ConstructionNodeVO> declareNodes = new ArrayList<>();
             for (ProjectApprovalDeclare declare : declaresByApproval.getOrDefault(approval.getId(), Collections.emptyList())) {
                 ConstructionNodeVO declareNode = buildDeclareNode(approval.getId(), declare);
-                declareNode.setDeclareAttachments(
-                        attachmentsByDeclare.getOrDefault(declare.getId(), Collections.emptyList()));
                 List<ConstructionNodeVO> detailNodes = new ArrayList<>();
                 for (ProjectApprovalDetail detail : detailsByDeclare.getOrDefault(declare.getId(), Collections.emptyList())) {
-                    detailNodes.add(buildDetailNode(approval.getId(), detail, detailMap.get(detail.getId())));
+                    ConstructionNodeVO detailNode = buildDetailNode(approval.getId(), detail, detailMap.get(detail.getId()));
+                    // 三级验收状态直接取验收记录，与验收管理明细状态保持一致
+                    ProjectAcceptance acceptance = acceptMap.get(detail.getId());
+                    detailNode.setAcceptStatus(acceptance != null
+                            && Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(acceptance.getAcceptStatus())
+                            ? Constants.ACCEPTANCE_STATUS_ACCEPTED : Constants.ACCEPTANCE_STATUS_PENDING);
+                    detailNodes.add(detailNode);
                 }
                 declareNode.setChildren(detailNodes);
                 aggregate(declareNode, detailNodes);
+                // 二级验收状态按明细聚合：全部已验收为已验收，部分已验收为验收中
+                int declareAcceptedCount = (int) detailNodes.stream()
+                        .filter(item -> Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(item.getAcceptStatus()))
+                        .count();
+                declareNode.setAcceptStatus(declareAcceptedCount == 0
+                        ? Constants.ACCEPTANCE_STATUS_PENDING
+                        : declareAcceptedCount == detailNodes.size()
+                        ? Constants.ACCEPTANCE_STATUS_ACCEPTED
+                        : Constants.ACCEPTANCE_STATUS_PARTIAL);
                 declareNodes.add(declareNode);
             }
             projectNode.setChildren(declareNodes);
@@ -571,6 +575,17 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                     .flatMap(item -> item.getChildren().stream())
                     .toList();
             aggregate(projectNode, allDetails);
+            // 一级验收状态：已归档直接取立项验收状态，其余按明细聚合
+            int projectAcceptedCount = (int) allDetails.stream()
+                    .filter(item -> Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(item.getAcceptStatus()))
+                    .count();
+            projectNode.setAcceptStatus(Constants.APPROVAL_ACCEPT_ARCHIVED.equals(approval.getAcceptStatus())
+                    ? Constants.APPROVAL_ACCEPT_ARCHIVED
+                    : projectAcceptedCount == 0
+                    ? Constants.ACCEPTANCE_STATUS_PENDING
+                    : projectAcceptedCount == allDetails.size()
+                    ? Constants.ACCEPTANCE_STATUS_ACCEPTED
+                    : Constants.ACCEPTANCE_STATUS_PARTIAL);
             // 验收按钮仅在项目层级、且全部明细完工时展示
             projectNode.setCanAccept(Boolean.TRUE.equals(projectNode.getCanAccept()));
             records.add(projectNode);
@@ -587,11 +602,6 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         node.setName(approval.getProjectName());
         node.setCategory(approval.getProjectCategory());
         node.setSource(approval.getProjectSource());
-        node.setApprovalBudget(approval.getBudget());
-        node.setApprovalLeader(approval.getLeader());
-        node.setApprovalSubmitTime(approval.getSubmitTime());
-        node.setApprovalStatus(approval.getStatus());
-        node.setApprovalRemark(approval.getRemark());
         if (construction != null) {
             node.setId(construction.getId());
             node.setBuilder(construction.getBuilder());
@@ -616,24 +626,7 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         node.setName(declare.getDeclareName());
         node.setCategory(declare.getDeclareCategory());
         node.setSource(declare.getDeclareType());
-        node.setDeclareBudget(declare.getBudget());
-        node.setDeclareContent(declare.getDeclareContent());
         return node;
-    }
-
-    private ApprovalAttachmentVO toApprovalAttachmentVO(ProjectApprovalAttachment attachment) {
-        ApprovalAttachmentVO vo = new ApprovalAttachmentVO();
-        vo.setId(attachment.getId());
-        vo.setApprovalId(attachment.getApprovalId());
-        vo.setDeclareId(attachment.getDeclareId());
-        vo.setAttachmentType(attachment.getAttachmentType());
-        vo.setFileName(attachment.getFileName());
-        vo.setFileKey(attachment.getFileKey());
-        vo.setBucket(attachment.getBucket());
-        vo.setFileSize(attachment.getFileSize());
-        vo.setRemark(attachment.getRemark());
-        vo.setCreateTime(attachment.getCreateTime());
-        return vo;
     }
 
     private ConstructionNodeVO buildDetailNode(Long approvalId, ProjectApprovalDetail detail,
