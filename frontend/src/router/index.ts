@@ -62,6 +62,12 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '申报综合查询', icon: 'DataAnalysis' }
       },
       {
+        path: 'query/fund-record',
+        name: 'FundRecordQuery',
+        component: () => import('@/views/query/FundRecordQuery.vue'),
+        meta: { title: '资金记录查询', icon: 'Money' }
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/User.vue'),
@@ -95,7 +101,7 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         path: 'material/item',
         name: 'MaterialItem',
         component: () => import('@/views/material/Item.vue'),
-        meta: { title: '物品信息', icon: 'Goods' }
+        meta: { title: '物资信息', icon: 'Goods' }
       },
       {
         path: 'material/warehouse',

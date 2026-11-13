@@ -80,4 +80,30 @@ public class ProjectFundController {
         fundService.save(dto);
         return Result.ok();
     }
+
+    // ============ 节点详情接口（供资金管理 / 综合查询 公共复用） ============
+
+    @Operation(summary = "一级项目节点详情（含申报树 + 资金流水）")
+    @RequirePerm("project:fund:view")
+    @GetMapping("/approval-detail")
+    public Result<com.msjs.project.vo.FundNodeVO> approvalDetail(
+            @Parameter(description = "立项ID") @RequestParam Long approvalId) {
+        return Result.ok(fundService.approvalDetail(approvalId));
+    }
+
+    @Operation(summary = "二级申报节点详情（含明细树 + 资金流水）")
+    @RequirePerm("project:fund:view")
+    @GetMapping("/declare-detail")
+    public Result<com.msjs.project.vo.FundNodeVO> declareDetail(
+            @Parameter(description = "申报ID") @RequestParam Long declareId) {
+        return Result.ok(fundService.declareDetail(declareId));
+    }
+
+    @Operation(summary = "三级明细节点详情（含资金流水）")
+    @RequirePerm("project:fund:view")
+    @GetMapping("/detail")
+    public Result<com.msjs.project.vo.FundNodeVO> detail(
+            @Parameter(description = "明细ID") @RequestParam Long detailId) {
+        return Result.ok(fundService.detail(detailId));
+    }
 }

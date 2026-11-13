@@ -1,7 +1,9 @@
 package com.msjs.project.service;
 
 import com.msjs.project.common.LoginUser;
+import com.msjs.project.dto.ChangePasswordDTO;
 import com.msjs.project.dto.LoginDTO;
+import com.msjs.project.dto.ProfileUpdateDTO;
 import com.msjs.project.vo.LoginVO;
 import com.msjs.project.vo.UserInfoVO;
 
@@ -21,4 +23,10 @@ public interface AuthService {
 
     /** 当前登录用户完整信息（权限、菜单树） */
     UserInfoVO currentUserInfo();
+
+    /** 修改当前登录用户个人资料 */
+    void updateProfile(ProfileUpdateDTO dto);
+
+    /** 修改当前登录用户登录密码（校验原密码） */
+    void changePassword(ChangePasswordDTO dto);
 }

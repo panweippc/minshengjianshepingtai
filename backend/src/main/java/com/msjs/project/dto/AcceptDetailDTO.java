@@ -32,6 +32,10 @@ public class AcceptDetailDTO implements Serializable {
     @Schema(description = "验收时间（yyyy-MM-dd HH:mm:ss，可由后端自动填充当前时间）")
     private LocalDateTime acceptTime;
 
+    @NotBlank(message = "验收结果不能为空")
+    @Schema(description = "验收结果（字典 yan_shou_jie_guo）")
+    private String acceptResult;
+
     @Schema(description = "验收备注")
     private String remark;
 

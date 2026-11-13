@@ -1,5 +1,10 @@
 package com.msjs.project.config;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.msjs.project.entity.SysMenu;
+import com.msjs.project.entity.SysRoleMenu;
+import com.msjs.project.mapper.SysMenuMapper;
+import com.msjs.project.mapper.SysRoleMenuMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Component;
  *   1. t_declaration_household 新增 snapshot_household_no 列并回填户号
  *   2. t_project_approval_detail 历史数据中农户 target_code 由身份证号修正为户号
  *   3. t_project_approval 新增 project_type 列 + 字典初始化（V15）
+ *   4. 左侧菜单新增一级菜单「首页」（V15）
  * 跑完可保留，再次启动会被幂等检查短路。
  */
 @Slf4j
@@ -20,7 +26,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SchemaMigrationRunner implements ApplicationRunner {
 
+    /** 角色ID：区级经办人（首页对其同样可见） */
+    private static final long ROLE_OPERATOR = 1002L;
+
     private final JdbcTemplate jdbcTemplate;
+    private final SysMenuMapper menuMapper;
+    private final SysRoleMenuMapper roleMenuMapper;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -28,6 +39,7 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         migrateSnapshotHouseholdNo();
         fixApprovalDetailTargetCode();
         migrateApprovalProjectType();
+        ensureHomeMenu();
     }
 
     /**
@@ -145,6 +157,49 @@ public class SchemaMigrationRunner implements ApplicationRunner {
             log.info("[Migration] 已回填 {} 条立项记录的 project_type", filled);
         } else {
             log.info("[Migration] 立项记录的 project_type 已全部回填，无需更新");
+        }
+    }
+
+    /**
+     * 左侧菜单新增一级菜单「首页」：sort=0 置于「基础信息管理」等一级目录之前。
+     * 幂等：已存在则仅校正排序，不存在才插入，可重复启动不产生重复数据。
+     */
+    private void ensureHomeMenu() {
+        SysMenu home = menuMapper.selectOne(new LambdaQueryWrapper<SysMenu>()
+                .eq(SysMenu::getMenuName, "首页")
+                .eq(SysMenu::getParentId, 0L)
+                .last("LIMIT 1"));
+        if (home == null) {
+            home = new SysMenu();
+            home.setParentId(0L);
+            home.setMenuName("首页");
+            home.setMenuType("C");
+            home.setPath("/home");
+            home.setIcon("HomeFilled");
+            home.setSort(0);
+            home.setStatus(1);
+            menuMapper.insert(home);
+            log.info("[Migration] 已新增一级菜单「首页」");
+        } else if (home.getSort() == null || home.getSort() != 0) {
+            home.setSort(0);
+            home.setIcon("HomeFilled");
+            home.setPath("/home");
+            menuMapper.updateById(home);
+            log.info("[Migration] 已校正一级菜单「首页」排序为 0");
+        } else {
+            log.info("[Migration] 一级菜单「首页」已存在，无需处理");
+        }
+
+        // 区级经办人授予首页菜单，保证非管理员登录同样可见
+        Long granted = roleMenuMapper.selectCount(new LambdaQueryWrapper<SysRoleMenu>()
+                .eq(SysRoleMenu::getRoleId, ROLE_OPERATOR)
+                .eq(SysRoleMenu::getMenuId, home.getId()));
+        if (granted == null || granted == 0) {
+            SysRoleMenu rm = new SysRoleMenu();
+            rm.setRoleId(ROLE_OPERATOR);
+            rm.setMenuId(home.getId());
+            roleMenuMapper.insert(rm);
+            log.info("[Migration] 已为区级经办人授予「首页」菜单");
         }
     }
 }

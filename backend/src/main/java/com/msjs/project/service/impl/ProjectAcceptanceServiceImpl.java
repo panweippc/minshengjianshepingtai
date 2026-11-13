@@ -6,6 +6,8 @@ import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.AcceptDetailDTO;
+import com.msjs.project.dto.AcceptNodeDTO;
+import com.msjs.project.dto.AcceptRecordUpdateDTO;
 import com.msjs.project.dto.ArchiveDTO;
 import com.msjs.project.entity.ProjectAcceptance;
 import com.msjs.project.entity.ProjectAcceptanceAttachment;
@@ -25,6 +27,7 @@ import com.msjs.project.mapper.ProjectArchiveMapper;
 import com.msjs.project.mapper.ProjectConstructionMapper;
 import com.msjs.project.service.ProjectAcceptanceService;
 import com.msjs.project.vo.AcceptanceNodeVO;
+import com.msjs.project.vo.AcceptanceRecordVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,10 +43,10 @@ import java.util.stream.Collectors;
 
 /**
  * 验收管理服务实现
- * 数据来源：立项管理中审核通过且含申报明细的项目
+ * 数据来源：立项管理中审核通过且含申报明细的项目（立项通过即进入验收管理）
  * 三级树形：项目 → 申报内容 → 农户/公共基础设施明细
  * 验收进度 = 已验收明细数 / 全部明细数 × 100%
- * 归档约束：验收进度达到 100% 方可归档
+ * 归档规则：点击归档即把该项目写入档案管理，验收管理中不再显示
  */
 @Service
 @RequiredArgsConstructor
@@ -61,15 +64,18 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
     @Override
     public PageVO<AcceptanceNodeVO> page(long pageNum, long pageSize, String projectName,
                                          String projectCategory, String projectSource) {
-        // 数据来源：审核通过 + 已发起验收（accept_status = APPLYING）的立项
+        // 数据来源：审核通过的立项。立项通过后即进入验收管理（accept_status 为 NONE 或 APPLYING），
+        // 与资金管理、施工管理的数据口径保持一致，无需等待施工发起验收
         Page<ProjectApproval> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<ProjectApproval> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
-                .eq(ProjectApproval::getAcceptStatus, Constants.APPROVAL_ACCEPT_APPLYING)
+                .in(ProjectApproval::getAcceptStatus,
+                        Constants.APPROVAL_ACCEPT_NONE, Constants.APPROVAL_ACCEPT_APPLYING)
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
                 .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
-                .orderByDesc(ProjectApproval::getAcceptApplyTime);
+                .orderByDesc(ProjectApproval::getSubmitTime)
+                .orderByDesc(ProjectApproval::getId);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
         List<AcceptanceNodeVO> nodes = result.getRecords().isEmpty()
@@ -82,6 +88,16 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         vo.setPageNum(result.getCurrent());
         vo.setPageSize(result.getSize());
         return vo;
+    }
+
+    @Override
+    public AcceptanceNodeVO detail(Long approvalId) {
+        ProjectApproval approval = approvalMapper.selectById(approvalId);
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+        // 复用分页树组装逻辑，返回项目 → 申报 → 明细三级验收数据（含各级验收记录）
+        return buildTree(Collections.singletonList(approval)).get(0);
     }
 
     @Override
@@ -176,16 +192,42 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             detailMap = details.stream().collect(Collectors.groupingBy(ProjectApprovalDetail::getDeclareId));
         }
 
-        // 一次性查询所有验收记录
-        Map<Long, ProjectAcceptance> acceptMap = new HashMap<>();
+        // 一次性查询三级明细施工状态，口径与施工管理完全一致（t_project_construction 三级记录）
+        Map<Long, String> detailBuildStatusMap = new HashMap<>();
+        List<Long> allDetailIds = detailMap.values().stream()
+                .flatMap(List::stream)
+                .map(ProjectApprovalDetail::getId)
+                .toList();
+        if (!allDetailIds.isEmpty()) {
+            constructionMapper.selectList(
+                            new LambdaQueryWrapper<ProjectConstruction>()
+                                    .in(ProjectConstruction::getDetailId, allDetailIds)
+                                    .eq(ProjectConstruction::getNodeLevel, Constants.CONSTRUCTION_LEVEL_DETAIL))
+                    .forEach(construction -> {
+                        String buildStatus = construction.getBuildStatus();
+                        detailBuildStatusMap.put(construction.getDetailId(),
+                                buildStatus == null ? Constants.CONSTRUCTION_STATUS_NOT_STARTED : buildStatus);
+                    });
+        }
+
+        // 一次性查询所有验收记录，按验收层级分组（每级只维护自己的验收状态）
+        Map<Long, List<ProjectAcceptance>> detailAcceptMap = new HashMap<>();
+        Map<Long, List<ProjectAcceptance>> projectAcceptMap = new HashMap<>();
+        Map<Long, List<ProjectAcceptance>> declareAcceptMap = new HashMap<>();
         Map<Long, List<ProjectAcceptanceAttachment>> acceptAttachMap = new HashMap<>();
-        Map<Long, Long> acceptByDetailId = new HashMap<>();
         List<ProjectAcceptance> acceptances = acceptanceMapper.selectList(
                 new LambdaQueryWrapper<ProjectAcceptance>()
-                        .in(ProjectAcceptance::getApprovalId, approvalIds));
+                        .in(ProjectAcceptance::getApprovalId, approvalIds)
+                        .orderByDesc(ProjectAcceptance::getCreateTime)
+                        .orderByDesc(ProjectAcceptance::getId));
         for (ProjectAcceptance acc : acceptances) {
-            acceptByDetailId.put(acc.getDetailId(), acc.getId());
-            acceptMap.put(acc.getDetailId(), acc);
+            if (Constants.ACCEPTANCE_RECORD_PROJECT.equals(acc.getNodeType())) {
+                projectAcceptMap.computeIfAbsent(acc.getApprovalId(), k -> new ArrayList<>()).add(acc);
+            } else if (Constants.ACCEPTANCE_RECORD_DECLARE.equals(acc.getNodeType())) {
+                declareAcceptMap.computeIfAbsent(acc.getDeclareId(), k -> new ArrayList<>()).add(acc);
+            } else if (acc.getDetailId() != null) {
+                detailAcceptMap.computeIfAbsent(acc.getDetailId(), k -> new ArrayList<>()).add(acc);
+            }
         }
         if (!acceptances.isEmpty()) {
             List<Long> acceptanceIds = acceptances.stream().map(ProjectAcceptance::getId).toList();
@@ -224,6 +266,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             List<AcceptanceNodeVO> declareNodes = new ArrayList<>();
             int approvalTotalCount = 0;
             int approvalAcceptedCount = 0;
+            int approvalStartedCount = 0;
+            int approvalCompletedCount = 0;
 
             for (ProjectApprovalDeclare declare : approvalDeclares) {
                 List<ProjectApprovalDetail> declareDetails = detailMap.getOrDefault(
@@ -231,11 +275,28 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 List<AcceptanceNodeVO> detailNodes = new ArrayList<>();
                 int declareTotalCount = declareDetails.size();
                 int declareAcceptedCount = 0;
+                int declareStartedCount = 0;
+                int declareCompletedCount = 0;
 
                 for (ProjectApprovalDetail detail : declareDetails) {
-                    ProjectAcceptance acceptance = acceptMap.get(detail.getId());
-                    boolean isAccepted = acceptance != null
-                            && Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(acceptance.getAcceptStatus());
+                    // 施工状态：无三级施工记录或未维护时按未开工处理
+                    String buildStatus = detailBuildStatusMap.getOrDefault(
+                            detail.getId(), Constants.CONSTRUCTION_STATUS_NOT_STARTED);
+                    if (Constants.CONSTRUCTION_STATUS_COMPLETED.equals(buildStatus)) {
+                        declareCompletedCount++;
+                    } else if (Constants.CONSTRUCTION_STATUS_IN_PROGRESS.equals(buildStatus)) {
+                        declareStartedCount++;
+                    }
+
+                    // 同一条明细可多次验收，倒序排列后第一条为最新一次
+                    List<ProjectAcceptance> records = detailAcceptMap.getOrDefault(
+                            detail.getId(), Collections.emptyList());
+                    ProjectAcceptance latest = records.isEmpty() ? null : records.get(0);
+                    // 三级验收状态：以最新一次验收记录为准（PENDING待验收 / ACCEPTED已验收 / REJECTED未通过）
+                    String acceptStatus = latest != null && latest.getAcceptStatus() != null
+                            ? latest.getAcceptStatus()
+                            : Constants.ACCEPTANCE_STATUS_PENDING;
+                    boolean isAccepted = Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(acceptStatus);
                     if (isAccepted) {
                         declareAcceptedCount++;
                     }
@@ -254,19 +315,23 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                     detailNode.setTotalCount(1);
                     detailNode.setAcceptedCount(isAccepted ? 1 : 0);
                     detailNode.setPercent(isAccepted ? 100 : 0);
-                    detailNode.setAcceptStatus(isAccepted
-                            ? Constants.ACCEPTANCE_STATUS_ACCEPTED
-                            : Constants.ACCEPTANCE_STATUS_PENDING);
-                    if (acceptance != null) {
-                        detailNode.setAcceptTime(acceptance.getAcceptTime());
-                        detailNode.setAcceptBy(acceptance.getAcceptBy());
-                        detailNode.setAcceptRemark(acceptance.getRemark());
-                        Long accId = acceptByDetailId.get(detail.getId());
-                        detailNode.setAcceptanceAttachments(acceptAttachMap.getOrDefault(
-                                accId, Collections.emptyList()));
-                    } else {
-                        detailNode.setAcceptanceAttachments(Collections.emptyList());
+                    detailNode.setAcceptStatus(acceptStatus);
+                    detailNode.setBuildStatus(buildStatus);
+                    // 三级明细施工进度：未开工 0/1，施工中或已完工 1/1
+                    int detailBuildNumerator = Constants.CONSTRUCTION_STATUS_NOT_STARTED.equals(buildStatus) ? 0 : 1;
+                    detailNode.setBuildNumerator(detailBuildNumerator);
+                    detailNode.setBuildPercent(detailBuildNumerator * 100);
+                    // 基础信息展示最新一次验收情况
+                    if (latest != null) {
+                        detailNode.setAcceptTime(latest.getAcceptTime());
+                        detailNode.setAcceptBy(latest.getAcceptBy());
+                        detailNode.setAcceptResult(latest.getAcceptResult());
+                        detailNode.setAcceptRemark(latest.getRemark());
                     }
+                    detailNode.setAcceptanceAttachments(latest != null
+                            ? acceptAttachMap.getOrDefault(latest.getId(), Collections.emptyList())
+                            : Collections.emptyList());
+                    detailNode.setAcceptanceRecords(toAcceptanceRecords(records, acceptAttachMap));
                     detailNode.setDetailRemark(detail.getRemark());
                     detailNode.setVillageName(detail.getRegionName());
                     detailNodes.add(detailNode);
@@ -275,6 +340,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 declareTotalCount = detailNodes.size();
                 approvalTotalCount += declareTotalCount;
                 approvalAcceptedCount += declareAcceptedCount;
+                approvalStartedCount += declareStartedCount;
+                approvalCompletedCount += declareCompletedCount;
 
                 AcceptanceNodeVO declareNode = new AcceptanceNodeVO();
                 declareNode.setNodeType(Constants.ACCEPTANCE_NODE_DECLARE);
@@ -289,10 +356,15 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 declareNode.setTotalCount(declareTotalCount);
                 declareNode.setAcceptedCount(declareAcceptedCount);
                 declareNode.setPercent(calcPercent(declareAcceptedCount, declareTotalCount));
+                fillBuildProgress(declareNode, declareTotalCount, declareCompletedCount, declareStartedCount);
                 declareNode.setDeclareContent(declare.getDeclareContent());
                 declareNode.setTownName(declare.getTownName());
                 declareNode.setVillageName(declare.getVillageName());
                 declareNode.setChildren(detailNodes);
+                // 二级验收状态与二级验收记录
+                fillNodeAcceptance(declareNode,
+                        declareAcceptMap.getOrDefault(declare.getId(), Collections.emptyList()),
+                        acceptAttachMap);
                 declareNodes.add(declareNode);
             }
 
@@ -309,10 +381,15 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             projectNode.setTotalCount(approvalTotalCount);
             projectNode.setAcceptedCount(approvalAcceptedCount);
             projectNode.setPercent(calcPercent(approvalAcceptedCount, approvalTotalCount));
+            fillBuildProgress(projectNode, approvalTotalCount, approvalCompletedCount, approvalStartedCount);
             projectNode.setArchived(archiveMap.containsKey(approval.getId()));
             projectNode.setApprovalAttachments(approvalAttachMap.getOrDefault(
                     approval.getId(), Collections.emptyList()));
             projectNode.setChildren(declareNodes);
+            // 一级验收状态与一级验收记录
+            fillNodeAcceptance(projectNode,
+                    projectAcceptMap.getOrDefault(approval.getId(), Collections.emptyList()),
+                    acceptAttachMap);
             roots.add(projectNode);
         }
         return roots;
@@ -344,35 +421,108 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        ProjectAcceptance acceptance = acceptanceMapper.selectOne(
-                new LambdaQueryWrapper<ProjectAcceptance>()
-                        .eq(ProjectAcceptance::getDetailId, dto.getDetailId()));
-
-        if (acceptance == null) {
-            // 首次验收，新建记录
-            acceptance = new ProjectAcceptance();
-            acceptance.setApprovalId(approval.getId());
-            acceptance.setDeclareId(detail.getDeclareId());
-            acceptance.setDetailId(detail.getId());
-            acceptance.setAcceptStatus(Constants.ACCEPTANCE_STATUS_ACCEPTED);
-            acceptance.setAcceptTime(dto.getAcceptTime() != null ? dto.getAcceptTime() : now);
-            acceptance.setAcceptBy(trimToNull(dto.getAcceptBy()));
-            acceptance.setRemark(trimToNull(dto.getRemark()));
-            acceptance.setCreateTime(now);
-            acceptance.setUpdateTime(now);
-            acceptanceMapper.insert(acceptance);
-        } else {
-            // 已存在记录（可能是 PENDING），更新为 ACCEPTED
-            acceptance.setAcceptStatus(Constants.ACCEPTANCE_STATUS_ACCEPTED);
-            acceptance.setAcceptTime(dto.getAcceptTime() != null ? dto.getAcceptTime() : now);
-            acceptance.setAcceptBy(trimToNull(dto.getAcceptBy()));
-            acceptance.setRemark(trimToNull(dto.getRemark()));
-            acceptance.setUpdateTime(now);
-            acceptanceMapper.updateById(acceptance);
-        }
+        // 验收结果决定三级验收状态：未通过 → REJECTED，验收通过/整改后验收通过 → ACCEPTED
+        String acceptStatus = Constants.ACCEPTANCE_RESULT_REJECTED.equals(dto.getAcceptResult())
+                ? Constants.ACCEPTANCE_STATUS_REJECTED
+                : Constants.ACCEPTANCE_STATUS_ACCEPTED;
+        // 每次验收都新增一条记录，保留历史验收记录（未通过后整改可再次验收）
+        ProjectAcceptance acceptance = new ProjectAcceptance();
+        acceptance.setApprovalId(approval.getId());
+        acceptance.setDeclareId(detail.getDeclareId());
+        acceptance.setDetailId(detail.getId());
+        acceptance.setNodeType(Constants.ACCEPTANCE_RECORD_DETAIL);
+        acceptance.setAcceptStatus(acceptStatus);
+        acceptance.setAcceptTime(dto.getAcceptTime() != null ? dto.getAcceptTime() : now);
+        acceptance.setAcceptBy(trimToNull(dto.getAcceptBy()));
+        acceptance.setAcceptResult(trimToNull(dto.getAcceptResult()));
+        acceptance.setRemark(trimToNull(dto.getRemark()));
+        acceptance.setCreateTime(now);
+        acceptance.setUpdateTime(now);
+        acceptanceMapper.insert(acceptance);
 
         // 保存验收资料附件
         saveAcceptanceAttachments(acceptance.getId(), dto.getAttachments(), now);
+    }
+
+    /**
+     * 一级项目 / 二级申报验收
+     * 每一级只维护自己的验收状态，不联动下级明细
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void acceptNode(AcceptNodeDTO dto) {
+        ProjectApproval approval = approvalMapper.selectById(dto.getApprovalId());
+        if (approval == null) {
+            throw new BizException("立项信息不存在");
+        }
+        if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
+            throw new BizException("仅审核通过的立项可进行验收");
+        }
+
+        ProjectAcceptance record = new ProjectAcceptance();
+        record.setApprovalId(approval.getId());
+        if (Constants.ACCEPTANCE_NODE_PROJECT.equals(dto.getNodeType())) {
+            record.setNodeType(Constants.ACCEPTANCE_RECORD_PROJECT);
+        } else if (Constants.ACCEPTANCE_NODE_DECLARE.equals(dto.getNodeType())) {
+            if (dto.getDeclareId() == null) {
+                throw new BizException("申报ID不能为空");
+            }
+            ProjectApprovalDeclare declare = declareMapper.selectById(dto.getDeclareId());
+            if (declare == null || !declare.getApprovalId().equals(approval.getId())) {
+                throw new BizException("申报内容不属于该立项项目");
+            }
+            record.setNodeType(Constants.ACCEPTANCE_RECORD_DECLARE);
+            record.setDeclareId(declare.getId());
+        } else {
+            throw new BizException("不支持的验收层级");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        // 验收结果决定该层级验收状态：未通过 → REJECTED，验收通过/整改后验收通过 → ACCEPTED
+        String acceptStatus = Constants.ACCEPTANCE_RESULT_REJECTED.equals(dto.getAcceptResult())
+                ? Constants.ACCEPTANCE_STATUS_REJECTED
+                : Constants.ACCEPTANCE_STATUS_ACCEPTED;
+        record.setAcceptStatus(acceptStatus);
+        record.setAcceptTime(dto.getAcceptTime() != null ? dto.getAcceptTime() : now);
+        record.setAcceptBy(trimToNull(dto.getAcceptBy()));
+        record.setAcceptResult(trimToNull(dto.getAcceptResult()));
+        record.setRemark(trimToNull(dto.getRemark()));
+        record.setCreateTime(now);
+        record.setUpdateTime(now);
+        acceptanceMapper.insert(record);
+
+        // 保存验收资料附件
+        saveAcceptanceAttachments(record.getId(), dto.getAttachments(), now);
+    }
+
+    /**
+     * 编辑验收记录
+     * 可修改验收结果、验收时间、验收人、验收备注及验收资料附件；验收状态随验收结果联动
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateRecord(AcceptRecordUpdateDTO dto) {
+        ProjectAcceptance record = acceptanceMapper.selectById(dto.getId());
+        if (record == null) {
+            throw new BizException("验收记录不存在");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        // 验收结果决定该层级验收状态：未通过 → REJECTED，验收通过/整改后验收通过 → ACCEPTED
+        String acceptStatus = Constants.ACCEPTANCE_RESULT_REJECTED.equals(dto.getAcceptResult())
+                ? Constants.ACCEPTANCE_STATUS_REJECTED
+                : Constants.ACCEPTANCE_STATUS_ACCEPTED;
+        record.setAcceptStatus(acceptStatus);
+        record.setAcceptResult(trimToNull(dto.getAcceptResult()));
+        record.setAcceptTime(dto.getAcceptTime() != null ? dto.getAcceptTime() : now);
+        record.setAcceptBy(trimToNull(dto.getAcceptBy()));
+        record.setRemark(trimToNull(dto.getRemark()));
+        record.setUpdateTime(now);
+        acceptanceMapper.updateById(record);
+
+        // 附件整体替换：先移除原附件，再保存本次提交的附件
+        acceptanceAttachmentMapper.delete(new LambdaQueryWrapper<ProjectAcceptanceAttachment>()
+                .eq(ProjectAcceptanceAttachment::getAcceptanceId, record.getId()));
+        saveAcceptanceAttachments(record.getId(), dto.getAttachments(), now);
     }
 
     /**
@@ -398,17 +548,6 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             throw new BizException("该项目已归档，不可重复操作");
         }
 
-        // 校验验收进度 100%
-        int totalCount = calcProjectDetailCount(dto.getApprovalId());
-        int acceptedCount = calcProjectAcceptedCount(dto.getApprovalId());
-        if (totalCount == 0) {
-            throw new BizException("该项目无验收明细，不可归档");
-        }
-        if (acceptedCount < totalCount) {
-            int percent = calcPercent(acceptedCount, totalCount);
-            throw new BizException("验收进度未达 100%，当前进度 " + percent + "%，不可归档");
-        }
-
         // 执行归档
         LocalDateTime now = LocalDateTime.now();
         ProjectArchive archive = new ProjectArchive();
@@ -430,30 +569,48 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
     }
 
     /**
-     * 统计项目明细总数
+     * 回填项目 / 申报层级的验收状态（取最新一次记录，records 已按时间倒序）
      */
-    private int calcProjectDetailCount(Long approvalId) {
-        List<Long> declareIds = declareMapper.selectList(
-                new LambdaQueryWrapper<ProjectApprovalDeclare>()
-                        .eq(ProjectApprovalDeclare::getApprovalId, approvalId))
-                .stream().map(ProjectApprovalDeclare::getId).toList();
-        if (declareIds.isEmpty()) {
-            return 0;
+    private void fillNodeAcceptance(AcceptanceNodeVO node,
+                                    List<ProjectAcceptance> records,
+                                    Map<Long, List<ProjectAcceptanceAttachment>> attachMap) {
+        ProjectAcceptance latest = records == null || records.isEmpty() ? null : records.get(0);
+        node.setAcceptStatus(latest != null && latest.getAcceptStatus() != null
+                ? latest.getAcceptStatus()
+                : Constants.ACCEPTANCE_STATUS_PENDING);
+        if (latest != null) {
+            node.setAcceptResult(latest.getAcceptResult());
+            node.setAcceptTime(latest.getAcceptTime());
+            node.setAcceptBy(latest.getAcceptBy());
+            node.setAcceptRemark(latest.getRemark());
         }
-        return detailMapper.selectCount(
-                new LambdaQueryWrapper<ProjectApprovalDetail>()
-                        .in(ProjectApprovalDetail::getDeclareId, declareIds)).intValue();
+        node.setAcceptanceAttachments(latest != null
+                ? attachMap.getOrDefault(latest.getId(), Collections.emptyList())
+                : Collections.emptyList());
+        node.setAcceptanceRecords(toAcceptanceRecords(records, attachMap));
     }
 
     /**
-     * 统计项目已验收明细数
+     * 验收记录转 VO，附件按记录回填（records 已按时间倒序）
      */
-    private int calcProjectAcceptedCount(Long approvalId) {
-        Long count = acceptanceMapper.selectCount(
-                new LambdaQueryWrapper<ProjectAcceptance>()
-                        .eq(ProjectAcceptance::getApprovalId, approvalId)
-                        .eq(ProjectAcceptance::getAcceptStatus, Constants.ACCEPTANCE_STATUS_ACCEPTED));
-        return count != null ? count.intValue() : 0;
+    private List<AcceptanceRecordVO> toAcceptanceRecords(List<ProjectAcceptance> records,
+                                                         Map<Long, List<ProjectAcceptanceAttachment>> attachMap) {
+        if (records == null || records.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<AcceptanceRecordVO> list = new ArrayList<>(records.size());
+        for (ProjectAcceptance record : records) {
+            AcceptanceRecordVO vo = new AcceptanceRecordVO();
+            vo.setId(record.getId());
+            vo.setAcceptStatus(record.getAcceptStatus());
+            vo.setAcceptResult(record.getAcceptResult());
+            vo.setAcceptTime(record.getAcceptTime());
+            vo.setAcceptBy(record.getAcceptBy());
+            vo.setRemark(record.getRemark());
+            vo.setAttachments(attachMap.getOrDefault(record.getId(), Collections.emptyList()));
+            list.add(vo);
+        }
+        return list;
     }
 
     /**
@@ -490,6 +647,29 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             return 0;
         }
         return (int) Math.round(acceptedCount * 100.0 / totalCount);
+    }
+
+    /**
+     * 按三级明细聚合一级/二级施工状态与进度，与施工管理保持同一口径：
+     * 有已完工 → 已完工（分子=完工数）；否则有施工中 → 施工中（分子=已开工数）；否则未开工
+     */
+    private void fillBuildProgress(AcceptanceNodeVO node, int totalCount,
+                                   int completedCount, int startedCount) {
+        String buildStatus;
+        int numerator;
+        if (completedCount > 0) {
+            buildStatus = Constants.CONSTRUCTION_STATUS_COMPLETED;
+            numerator = completedCount;
+        } else if (startedCount > 0) {
+            buildStatus = Constants.CONSTRUCTION_STATUS_IN_PROGRESS;
+            numerator = startedCount;
+        } else {
+            buildStatus = Constants.CONSTRUCTION_STATUS_NOT_STARTED;
+            numerator = 0;
+        }
+        node.setBuildStatus(buildStatus);
+        node.setBuildNumerator(numerator);
+        node.setBuildPercent(calcPercent(numerator, totalCount));
     }
 
     /**

@@ -367,6 +367,11 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         ProjectApproval update = new ProjectApproval();
         update.setId(approval.getId());
         update.setStatus(toStatus);
+        // 审核通过后项目即进入验收管理（与资金管理、施工管理同源），显式初始化验收状态，
+        // 避免历史数据 accept_status 为空导致验收列表查不到
+        if (Constants.APPROVAL_STATUS_APPROVED.equals(toStatus)) {
+            update.setAcceptStatus(Constants.APPROVAL_ACCEPT_NONE);
+        }
         update.setUpdateBy(currentUser());
         update.setUpdateTime(LocalDateTime.now());
         approvalMapper.updateById(update);

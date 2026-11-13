@@ -6,10 +6,10 @@
         <!-- ==================== 明细页签 ==================== -->
         <el-tab-pane label="明细" name="detail">
           <el-form :inline="true" :model="detailQuery" class="query-form detail-query-form" @submit.prevent>
-            <el-form-item label="物品名称">
+            <el-form-item label="物资名称">
               <el-input
                 v-model="detailQuery.itemName"
-                placeholder="请输入物品名称"
+                placeholder="请输入物资名称"
                 clearable
                 @keyup.enter="handleDetailQuery"
               />
@@ -28,10 +28,10 @@
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="物品分类">
+            <el-form-item label="物资分类">
               <el-select
                 v-model="detailQuery.itemCategory"
-                placeholder="请选择物品分类"
+                placeholder="请选择物资分类"
                 clearable
               >
                 <el-option
@@ -84,7 +84,7 @@
           >
             <el-table-column type="selection" width="55" align="center" reserve-selection />
             <el-table-column prop="orderName" label="出库单名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="itemName" label="物品名称" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="itemName" label="物资名称" min-width="150" show-overflow-tooltip />
             <el-table-column prop="quantity" label="出库数量" width="100" align="center" />
             <el-table-column prop="outTime" label="出库日期" width="120" align="center">
               <template #default="{ row }">{{ row.outTime || '—' }}</template>
@@ -92,7 +92,7 @@
             <el-table-column prop="warehouseName" label="存储库房" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ row.warehouseName || '—' }}</template>
             </el-table-column>
-            <el-table-column label="物品分类" width="120" align="center">
+            <el-table-column label="物资分类" width="120" align="center">
               <template #default="{ row }">{{ categoryLabel(row.itemCategory) }}</template>
             </el-table-column>
             <el-table-column prop="handler" label="经办人" width="110" align="center">
@@ -242,7 +242,7 @@
       </el-form>
 
       <div class="table-toolbar">
-        <span class="table-title">物品信息</span>
+        <span class="table-title">物资信息</span>
         <el-button type="primary" plain icon="Plus" @click="addItemRow">添加物品</el-button>
       </div>
 
@@ -259,7 +259,7 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="物品分类" width="130">
+        <el-table-column label="物资分类" width="130">
           <template #default="{ row }">
             <el-select
               v-model="row.itemCategory"
@@ -276,7 +276,7 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="物品名称" width="190">
+        <el-table-column label="物资名称" width="190">
           <template #default="{ row }">
             <el-select
               v-model="row.itemName"
@@ -359,10 +359,10 @@
         <el-table :data="viewDetail.items" border stripe class="view-item-table">
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="warehouseName" label="仓库" min-width="130" show-overflow-tooltip />
-          <el-table-column label="物品分类" width="110" align="center">
+          <el-table-column label="物资分类" width="110" align="center">
             <template #default="{ row }">{{ categoryLabel(row.itemCategory) }}</template>
           </el-table-column>
-          <el-table-column prop="itemName" label="物品名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="itemName" label="物资名称" min-width="150" show-overflow-tooltip />
           <el-table-column prop="quantity" label="数量" width="90" align="center" />
           <el-table-column label="出库类型" width="110" align="center">
             <template #default="{ row }">{{ outTypeLabel(row.outType) }}</template>
@@ -419,12 +419,12 @@ const store = useUserStore()
 type TabName = 'detail' | 'order'
 type FormMode = 'add' | 'edit'
 
-/** 物品分类字典缺失时兜底选项（与字典 wu_pin_fen_lei 保持一致） */
+/** 物资分类字典缺失时兜底选项（与字典 wu_zi_fen_lei 保持一致） */
 const DEFAULT_CATEGORIES = [
-  { label: '办公物品', value: '1' },
-  { label: '食堂用品', value: '2' },
-  { label: '办公家具', value: '3' },
-  { label: '办公设备', value: '4' }
+  { label: '应急物资', value: '1' },
+  { label: '生活物资', value: '2' },
+  { label: '食品物资', value: '3' },
+  { label: '防汛物资', value: '4' }
 ]
 /** 出库类型字典缺失时兜底选项（与字典 chu_ku_lei_xing 保持一致） */
 const DEFAULT_OUT_TYPES = [
@@ -691,7 +691,7 @@ const addItemRow = () => {
 
 const removeItemRow = (index: number) => {
   if (form.items.length <= 1) {
-    ElMessage.warning('至少保留一条物品信息')
+    ElMessage.warning('至少保留一条物资信息')
     return
   }
   form.items.splice(index, 1)
@@ -743,7 +743,7 @@ const validateForm = () => {
       return false
     }
     if (!row.itemName || !row.itemName.trim()) {
-      ElMessage.warning(`第 ${i + 1} 条物品：请选择或输入物品名称`)
+      ElMessage.warning(`第 ${i + 1} 条物资：请选择或输入物资名称`)
       return false
     }
     if (!row.quantity || row.quantity < 1) {
@@ -859,11 +859,11 @@ const handleExport = async () => {
     const sheet = workbook.addWorksheet('出库明细')
     sheet.columns = [
       { header: '出库单名称', key: 'orderName', width: 24 },
-      { header: '物品名称', key: 'itemName', width: 20 },
+      { header: '物资名称', key: 'itemName', width: 20 },
       { header: '出库数量', key: 'quantity', width: 12 },
       { header: '出库日期', key: 'outTime', width: 14 },
       { header: '存储库房', key: 'warehouseName', width: 18 },
-      { header: '物品分类', key: 'itemCategoryLabel', width: 14 },
+      { header: '物资分类', key: 'itemCategoryLabel', width: 14 },
       { header: '经办人', key: 'handler', width: 12 },
       { header: '备注', key: 'remark', width: 30 }
     ]
@@ -905,7 +905,7 @@ const handleExport = async () => {
 /** 加载字典与下拉选项 */
 const loadBaseData = async () => {
   const [categoryRes, outTypeRes, warehouseRes, itemRes] = await Promise.all([
-    getDictByType('wu_pin_fen_lei'),
+    getDictByType('wu_zi_fen_lei'),
     getDictByType('chu_ku_lei_xing'),
     getMaterialWarehousePage({ pageNum: 1, pageSize: 1000 }),
     getMaterialItemPage({ pageNum: 1, pageSize: 1000 })

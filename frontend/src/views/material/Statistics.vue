@@ -118,10 +118,10 @@
       <!-- 明细筛选区 -->
       <el-card shadow="never" class="detail-query-card">
         <el-form :inline="true" :model="detailQuery" @submit.prevent>
-          <el-form-item v-if="editType !== 'DAMAGE'" label="物品名称">
+          <el-form-item v-if="editType !== 'DAMAGE'" label="物资名称">
             <el-input
               v-model="detailQuery.itemName"
-              placeholder="请输入物品名称"
+              placeholder="请输入物资名称"
               clearable
               @keyup.enter="handleDetailQuery"
             />
@@ -142,10 +142,10 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="editType !== 'DAMAGE'" label="物品分类">
+          <el-form-item v-if="editType !== 'DAMAGE'" label="物资分类">
             <el-select
               v-model="detailQuery.itemCategory"
-              placeholder="请选择物品分类"
+              placeholder="请选择物资分类"
               clearable
               style="width: 100%"
             >
@@ -193,7 +193,7 @@
         >
           <el-table-column type="index" label="序号" width="64" align="center" />
           <el-table-column
-            :label="editType === 'DAMAGE' ? '物品名' : '物品名称'"
+            :label="editType === 'DAMAGE' ? '物资名' : '物资名称'"
             min-width="170"
             align="center"
             show-overflow-tooltip
@@ -319,7 +319,7 @@
           <el-table :data="detail.items || []" border class="sheet-table view-table">
             <el-table-column type="index" label="序号" width="64" align="center" />
             <el-table-column
-              :label="detail.reportType === 'DAMAGE' ? '物品名' : '物品名称'"
+              :label="detail.reportType === 'DAMAGE' ? '物资名' : '物资名称'"
               min-width="170"
               align="center"
               show-overflow-tooltip
@@ -493,10 +493,10 @@ const reportTypeOptions = computed(() =>
 )
 
 const DEFAULT_CATEGORIES = [
-  { label: '办公物品', value: '1' },
-  { label: '食堂用品', value: '2' },
-  { label: '办公家具', value: '3' },
-  { label: '办公设备', value: '4' }
+  { label: '应急物资', value: '1' },
+  { label: '生活物资', value: '2' },
+  { label: '食品物资', value: '3' },
+  { label: '防汛物资', value: '4' }
 ]
 const categoryDictItems = ref<{ dictLabel: string; dictValue: string }[]>([])
 const categoryOptions = computed(() =>
@@ -509,7 +509,7 @@ const warehouseOptions = ref<string[]>([])
 const loadDict = async () => {
   try {
     const [categoryRes, reportTypeRes] = await Promise.all([
-      getDictByType('wu_pin_fen_lei'),
+      getDictByType('wu_zi_fen_lei'),
       getDictByType('baobiao_leixing')
     ])
     categoryDictItems.value = (categoryRes.data as any[]) || []
@@ -584,7 +584,7 @@ const viewTimeText = computed(() => {
 })
 
 
-/** 从入库/出库按物品+库房汇总库存，自动带出库房与账面数量 */
+/** 从入库/出库按物资+库房汇总库存，自动带出库房与账面数量 */
 const loadInventorySourceItems = async () => {
   detailLoading.value = true
   try {
@@ -622,7 +622,7 @@ const loadInventorySourceItems = async () => {
       remark: ''
     }))
     if (!list.length) {
-      ElMessage.info('未查询到物品库存数据')
+      ElMessage.info('未查询到物资库存数据')
     }
   } finally {
     detailLoading.value = false
@@ -684,7 +684,8 @@ const openAdd = (type: MaterialReportType) => {
   editId.value = undefined
   Object.assign(headerForm, {
     reportName: '',
-    reportDate: new Date().toISOString().slice(0, 10),
+    // 审核日期由用户手动选择，默认留空
+    reportDate: '',
     reportType: type,
     remark: ''
   })
@@ -773,7 +774,7 @@ const handleSubmit = async () => {
     return
   }
 
-  // 校验明细：至少有一行且物品名称不为空
+  // 校验明细：至少有一行且物资名称不为空
   let items: any[] = []
   if (editType.value === 'INVENTORY') {
     items = inventoryItems.value.filter((it) => it.itemName?.trim())
@@ -809,7 +810,7 @@ const handleSubmit = async () => {
       const payload = {
         id: editId.value,
         reportName: headerForm.reportName,
-        reportDate: headerForm.reportDate,
+        reportDate: headerForm.reportDate || undefined,
         handler: footerForm.handler || undefined,
         handoverPerson: footerForm.handoverPerson || undefined,
         auditor: footerForm.auditor || undefined,
@@ -826,7 +827,7 @@ const handleSubmit = async () => {
       const payload = {
         id: editId.value,
         reportName: headerForm.reportName,
-        reportDate: headerForm.reportDate,
+        reportDate: headerForm.reportDate || undefined,
         handler: footerForm.handler || undefined,
         auditor: footerForm.auditor || undefined,
         department: footerForm.department || undefined,
@@ -871,8 +872,8 @@ const handlePrint = async (row: MaterialReportVO) => {
 
     const isDamage = d.reportType === 'DAMAGE'
     const headers = isDamage
-      ? ['序号', '物品名', '库房', '单位', '数量', '经办人', '备注']
-      : ['序号', '物品名称', '库房', '单位', '账面数量', '盘点数量', '盈亏数量']
+      ? ['序号', '物资名', '库房', '单位', '数量', '经办人', '备注']
+      : ['序号', '物资名称', '库房', '单位', '账面数量', '盘点数量', '盈亏数量']
 
     const bodyRows = (d.items || []).map((it, i) => {
       const cells = isDamage

@@ -39,6 +39,9 @@ public class ProjectArchive implements Serializable {
     @Schema(description = "档案类型")
     private String archiveType;
 
+    @Schema(description = "存储位置（档案室/档案柜等物理位置）")
+    private String storageLocation;
+
     @Schema(description = "备注")
     private String remark;
 

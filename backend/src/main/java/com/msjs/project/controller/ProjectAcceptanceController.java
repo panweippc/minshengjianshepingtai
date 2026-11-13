@@ -5,6 +5,8 @@ import com.msjs.project.common.Result;
 import com.msjs.project.common.annotation.OperLog;
 import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.AcceptDetailDTO;
+import com.msjs.project.dto.AcceptNodeDTO;
+import com.msjs.project.dto.AcceptRecordUpdateDTO;
 import com.msjs.project.dto.ArchiveDTO;
 import com.msjs.project.service.ProjectAcceptanceService;
 import com.msjs.project.vo.AcceptanceNodeVO;
@@ -15,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 验收管理接口
- * 数据来源：施工管理"验收"按钮发起的项目（accept_status = APPLYING）
+ * 数据来源：立项管理中审核通过的项目（accept_status 为 NONE / APPLYING）
  * 三级树形：项目 → 申报内容 → 农户/公共基础设施明细
  * 验收进度 = 已验收明细数 / 全部明细数 × 100%
  */
@@ -34,7 +37,7 @@ public class ProjectAcceptanceController {
 
     private final ProjectAcceptanceService acceptanceService;
 
-    @Operation(summary = "验收分页查询（仅已发起验收的项目）")
+    @Operation(summary = "验收分页查询（审核通过、未归档的项目）")
     @RequirePerm("project:acceptance:list")
     @GetMapping("/page")
     public Result<PageVO<AcceptanceNodeVO>> page(
@@ -66,7 +69,25 @@ public class ProjectAcceptanceController {
         return Result.ok();
     }
 
-    @Operation(summary = "项目归档（验收进度必须 100%）")
+    @Operation(summary = "一级项目 / 二级申报验收确认（批量验收该节点下全部明细）")
+    @RequirePerm("project:acceptance:accept")
+    @OperLog(module = "验收管理", operation = "项目/申报验收")
+    @PostMapping("/accept/node")
+    public Result<Void> acceptNode(@Valid @RequestBody AcceptNodeDTO dto) {
+        acceptanceService.acceptNode(dto);
+        return Result.ok();
+    }
+
+    @Operation(summary = "编辑验收记录（修改结果/时间/人/备注/附件，状态随结果联动）")
+    @RequirePerm("project:acceptance:accept")
+    @OperLog(module = "验收管理", operation = "编辑验收记录")
+    @PutMapping("/record")
+    public Result<Void> updateRecord(@Valid @RequestBody AcceptRecordUpdateDTO dto) {
+        acceptanceService.updateRecord(dto);
+        return Result.ok();
+    }
+
+    @Operation(summary = "项目归档（归档到档案管理，验收管理中不再显示）")
     @RequirePerm("project:acceptance:archive")
     @OperLog(module = "验收管理", operation = "项目归档")
     @PostMapping("/archive")

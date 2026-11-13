@@ -143,3 +143,18 @@ export function registerFund(data: FundSaveDTO) {
 export function allocateFund(data: FundSaveDTO) {
   return post<Result<void>>('/api/project/fund/allocate', data)
 }
+
+/** 一级项目节点详情（含申报树 + 资金流水，供资金管理 / 综合查询公共复用） */
+export function fetchFundApprovalDetail(approvalId: string) {
+  return get<Result<FundNodeVO>>('/api/project/fund/approval-detail', { params: { approvalId } }).then(r => r.data)
+}
+
+/** 二级申报节点详情（含明细树 + 资金流水） */
+export function fetchFundDeclareDetail(declareId: string) {
+  return get<Result<FundNodeVO>>('/api/project/fund/declare-detail', { params: { declareId } }).then(r => r.data)
+}
+
+/** 三级明细节点详情（含资金流水） */
+export function fetchFundDetail(detailId: string) {
+  return get<Result<FundNodeVO>>('/api/project/fund/detail', { params: { detailId } }).then(r => r.data)
+}

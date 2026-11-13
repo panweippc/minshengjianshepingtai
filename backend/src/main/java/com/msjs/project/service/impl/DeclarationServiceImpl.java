@@ -1808,13 +1808,13 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy);
 
-        // 全局总计（基于 FlatItem 累加，不去重）
-        int grandDeclCount = 0;
+        // 全局总计（申报单数按 distinct declarationId；户数/设施数不去重累加）
+        Set<Long> grandDeclIds = new HashSet<>();
         int grandHouseholdCount = 0;
         int grandFacilityCount = 0;
         java.math.BigDecimal grandAmount = java.math.BigDecimal.ZERO;
         for (FlatItem f : flatItems) {
-            if (f.declarationId != null) grandDeclCount++;
+            if (f.declarationId != null) grandDeclIds.add(f.declarationId);
             if (f.householdId != null) grandHouseholdCount++;
             if (f.facilityId != null) grandFacilityCount++;
             if (f.amount != null) grandAmount = grandAmount.add(f.amount);
@@ -1855,7 +1855,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         totalRow.setGrandTotal(true);
         totalRow.setGroupLabel("总计");
         totalRow.setVillageName("全部区划");
-        totalRow.setDeclarationCount(grandDeclCount);
+        totalRow.setDeclarationCount(grandDeclIds.size());
         totalRow.setHouseholdCount(grandHouseholdCount);
         totalRow.setFacilityCount(grandFacilityCount);
         totalRow.setAmount(grandAmount);
@@ -1863,57 +1863,60 @@ public class DeclarationServiceImpl implements DeclarationService {
 
         vo.setRows(rows);
 
-        // 4) sidebar（左侧筛选面板）统计 —— 全部累加，不去重
+        // 4) sidebar（左侧筛选面板）统计 —— 申报单数按 distinct declarationId
         DeclarationStatisticsVO.SidebarStats sidebar = new DeclarationStatisticsVO.SidebarStats();
 
         // 按申报类别
         List<DeclarationStatisticsVO.StatItem> byCategory = new ArrayList<>();
-        Map<String, Integer> catCount = new HashMap<>();
+        Map<String, Set<Long>> catDecl = new HashMap<>();
         for (FlatItem f : flatItems) {
             String c = f.declarationCategory == null ? "" : f.declarationCategory;
-            catCount.merge(c, 1, Integer::sum);
+            catDecl.computeIfAbsent(c, k -> new HashSet<>());
+            if (f.declarationId != null) catDecl.get(c).add(f.declarationId);
         }
         for (String c : new String[]{"1", "2"}) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
             it.setValue(c);
             it.setLabel(mapCategoryLabel(c));
-            it.setCount(catCount.getOrDefault(c, 0));
+            it.setCount(catDecl.getOrDefault(c, Collections.emptySet()).size());
             byCategory.add(it);
         }
         sidebar.setByCategory(byCategory);
 
         // 按审批状态（固定四项）
         List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
-        Map<String, Integer> statusCount = new HashMap<>();
+        Map<String, Set<Long>> statusDecl = new HashMap<>();
         for (FlatItem f : flatItems) {
             String s = f.auditStatus == null ? "" : f.auditStatus;
-            statusCount.merge(s, 1, Integer::sum);
+            statusDecl.computeIfAbsent(s, k -> new HashSet<>());
+            if (f.declarationId != null) statusDecl.get(s).add(f.declarationId);
         }
         for (String s : new String[]{"pending", "approved", "rejected", "established"}) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
             it.setValue(s);
             it.setLabel(auditStatusToLabel(s));
-            it.setCount(statusCount.getOrDefault(s, 0));
+            it.setCount(statusDecl.getOrDefault(s, Collections.emptySet()).size());
             byStatus.add(it);
         }
         sidebar.setByStatus(byStatus);
 
         // 按所属村组
         List<DeclarationStatisticsVO.StatItem> byVillage = new ArrayList<>();
-        Map<String, Integer> vgCount = new HashMap<>();
+        Map<String, Set<Long>> vgDecl = new HashMap<>();
         Map<String, String> vgNameMap = new HashMap<>();
         for (FlatItem f : flatItems) {
             String vg = f.villageGroupCode == null ? "" : f.villageGroupCode;
-            vgCount.merge(vg, 1, Integer::sum);
+            vgDecl.computeIfAbsent(vg, k -> new HashSet<>());
+            if (f.declarationId != null) vgDecl.get(vg).add(f.declarationId);
             vgNameMap.putIfAbsent(vg, f.villageGroupName == null ? (vg.isEmpty() ? "未知村组" : vg) : f.villageGroupName);
         }
-        List<String> vgKeysSorted = new ArrayList<>(vgCount.keySet());
+        List<String> vgKeysSorted = new ArrayList<>(vgDecl.keySet());
         java.util.Collections.sort(vgKeysSorted, (a, b) -> vgNameMap.getOrDefault(a, a).compareTo(vgNameMap.getOrDefault(b, b)));
         for (String vg : vgKeysSorted) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
             it.setValue(vg.isEmpty() ? null : vg);
             it.setLabel(vgNameMap.getOrDefault(vg, vg));
-            it.setCount(vgCount.getOrDefault(vg, 0));
+            it.setCount(vgDecl.getOrDefault(vg, Collections.emptySet()).size());
             byVillage.add(it);
         }
         sidebar.setByVillage(byVillage);
@@ -1932,17 +1935,17 @@ public class DeclarationServiceImpl implements DeclarationService {
         row.setGroupLabel(groupLabel);
         row.setVillageName(villageName);
         row.setVillageGroupCode(villageGroupCode);
-        int declCount = 0;
+        Set<Long> declIds = new HashSet<>();
         int hhCount = 0;
         int pfCount = 0;
         java.math.BigDecimal amt = java.math.BigDecimal.ZERO;
         for (FlatItem f : items) {
-            if (f.declarationId != null) declCount++;
+            if (f.declarationId != null) declIds.add(f.declarationId);
             if (f.householdId != null) hhCount++;
             if (f.facilityId != null) pfCount++;
             if (f.amount != null) amt = amt.add(f.amount);
         }
-        row.setDeclarationCount(declCount);
+        row.setDeclarationCount(declIds.size());
         row.setHouseholdCount(hhCount);
         row.setFacilityCount(pfCount);
         row.setAmount(amt);

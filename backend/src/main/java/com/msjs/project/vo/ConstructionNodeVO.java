@@ -8,7 +8,6 @@ import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -60,6 +59,9 @@ public class ConstructionNodeVO implements Serializable {
     @Schema(description = "施工状态：NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工")
     private String status;
 
+    @Schema(description = "验收状态：一级 NONE待验收 APPLYING验收中 ARCHIVED已归档；二级 PENDING待验收 PARTIAL部分验收 ACCEPTED已验收；三级 PENDING待验收 ACCEPTED已验收")
+    private String acceptStatus;
+
     @Schema(description = "全部户数/设施数")
     private Integer totalCount;
 
@@ -77,33 +79,6 @@ public class ConstructionNodeVO implements Serializable {
 
     @Schema(description = "补助/投入金额（元）：三级为明细金额，一级/二级为明细合计")
     private BigDecimal amount;
-
-    @Schema(description = "一级立项页签：原始项目预算")
-    private BigDecimal approvalBudget;
-
-    @Schema(description = "一级立项页签：项目负责人")
-    private String approvalLeader;
-
-    @Schema(description = "一级立项页签：提交时间")
-    private LocalDateTime approvalSubmitTime;
-
-    @Schema(description = "一级立项页签：审核状态")
-    private String approvalStatus;
-
-    @Schema(description = "一级立项页签：原始备注")
-    private String approvalRemark;
-
-    @Schema(description = "一级立项页签：立项资料附件")
-    private List<ApprovalAttachmentVO> approvalAttachments;
-
-    @Schema(description = "二级立项页签：原始申报金额")
-    private BigDecimal declareBudget;
-
-    @Schema(description = "二级立项页签：原始申报内容")
-    private String declareContent;
-
-    @Schema(description = "二级立项页签：申报材料附件")
-    private List<ApprovalAttachmentVO> declareAttachments;
 
     @Schema(description = "是否可发起验收：全部明细已完工")
     private Boolean canAccept;
