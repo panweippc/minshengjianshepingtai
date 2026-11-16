@@ -1,6 +1,6 @@
 import { get, post, put, del } from './request'
 import type { PageQuery, PageVO, Result } from '@/types/common'
-import type { FacilityVO, FacilityDetailVO, FacilitySaveDTO, RegionFacilityCountVO } from '@/types/system'
+import type { FacilityVO, FacilityDetailVO, FacilitySaveDTO, RegionFacilityCountVO, ProjectLifecycleVO } from '@/types/system'
 
 /** 公共基础设施分页查询入参 */
 export interface FacilityQuery extends PageQuery {
@@ -23,6 +23,11 @@ export function getFacilityDetail(id: string) {
 /** 各区划设施数量统计（左侧区划树徽标） */
 export function getFacilityRegionCounts() {
   return get<Result<RegionFacilityCountVO[]>>('/api/base/facility/region-counts')
+}
+
+/** 设施关联的项目全周期明细（申报→立项→施工→资金→验收） */
+export function getFacilityProjects(facilityId: string) {
+  return get<Result<ProjectLifecycleVO[]>>(`/api/base/facility/projects/${facilityId}`)
 }
 
 /** 新增设施 */

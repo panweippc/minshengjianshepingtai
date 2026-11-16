@@ -850,8 +850,23 @@ const total = ref(0)
 /** 三个页签的项目数量（按当前筛选条件） */
 const counts = reactive<Record<'pending' | 'rejected', number>>({ pending: 0, rejected: 0 })
 
-/** 已收起的节点集合（默认全部展开，与树形表格 default-expand-all 行为一致） */
+/** 已收起的节点集合（默认全部收起） */
 const collapsedKeys = ref<Set<string>>(new Set())
+
+/** 收集所有含子节点的行标识，用于默认收起全部树节点 */
+const collectExpandableKeys = (rows: DisplayRow[]): Set<string> => {
+  const keys = new Set<string>()
+  const walk = (list: DisplayRow[]) => {
+    list.forEach((row) => {
+      if (row.children?.length) {
+        keys.add(row.rowKey)
+        walk(row.children)
+      }
+    })
+  }
+  walk(rows)
+  return keys
+}
 
 /** 手写展开/收起，替代 el-table 树形模式，保证三个层级的缩进完全一致 */
 const toggleRow = (key: string) => {
@@ -943,6 +958,8 @@ const loadData = async () => {
     })
     const records = res.data.records || []
     tableData.value = records.map(toDisplay)
+    // 默认全部收起：仅展示一级立项行，展开后再逐级查看申报与明细
+    collapsedKeys.value = collectExpandableKeys(tableData.value)
     total.value = res.data.total
   } finally {
     loading.value = false

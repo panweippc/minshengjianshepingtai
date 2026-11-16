@@ -1087,8 +1087,23 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
-/** 已收起的节点集合（默认全部展开） */
+/** 已收起的节点集合（默认全部收起） */
 const collapsedKeys = ref<Set<string>>(new Set())
+
+/** 收集所有含子节点的行标识，用于默认收起全部树节点 */
+const collectExpandableKeys = (rows: DisplayRow[]): Set<string> => {
+  const keys = new Set<string>()
+  const walk = (list: DisplayRow[]) => {
+    list.forEach((row) => {
+      if (row.children?.length) {
+        keys.add(row.rowKey)
+        walk(row.children)
+      }
+    })
+  }
+  walk(rows)
+  return keys
+}
 
 /** 手写展开/收起，替代 el-table 树形模式，保证三个层级的缩进与立项管理完全一致 */
 const toggleRow = (key: string) => {
@@ -1164,6 +1179,8 @@ const loadData = async () => {
       projectSource: queryForm.projectSource || undefined
     })
     tableData.value = (res.data.records || []).map((node) => toDisplay(node, node.id))
+    // 默认全部收起：仅展示一级项目行，展开后再逐级查看申报与明细
+    collapsedKeys.value = collectExpandableKeys(tableData.value)
     total.value = res.data.total
   } finally {
     loading.value = false

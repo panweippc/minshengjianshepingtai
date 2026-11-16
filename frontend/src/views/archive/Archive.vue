@@ -63,28 +63,25 @@
         <el-table-column prop="storageLocation" label="存储位置" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.storageLocation || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button
                 v-if="canView"
                 link
                 type="primary"
-                icon="View"
                 @click="handleView(row)"
               >查看</el-button>
               <el-button
                 v-if="canEdit"
                 link
                 type="primary"
-                icon="Edit"
                 @click="openEdit(row)"
               >编辑</el-button>
               <el-button
                 v-if="canExport"
                 link
                 type="primary"
-                icon="Download"
                 :loading="exportingId === row.id"
                 @click="handleExport(row)"
               >导出</el-button>
@@ -203,10 +200,9 @@
                       <el-button
                         link
                         type="primary"
-                        icon="Paperclip"
                         @click="openAttachments('申报材料附件', row.attachments, 'li_xiang_fu_jian_lei_xing')"
                       >附件</el-button>
-                      <el-button link type="primary" icon="Tickets" @click="openDeclareDetails(row)">明细</el-button>
+                      <el-button link type="primary" @click="openDeclareDetails(row)">明细</el-button>
                     </div>
                   </template>
                 </el-table-column>
@@ -301,7 +297,7 @@
               </el-table-column>
               <el-table-column label="操作" width="130" fixed="right">
                 <template #default="{ row }">
-                  <el-button link type="primary" icon="View" @click="openFundRecords(row)">资金流水</el-button>
+                  <el-button link type="primary" @click="openFundRecords(row)">资金流水</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -336,7 +332,7 @@
                 </el-table-column>
                 <el-table-column label="操作" width="100">
                   <template #default="{ row }">
-                    <el-button link type="primary" icon="View" @click="openInspectionRecords(row)">详情</el-button>
+                    <el-button link type="primary" @click="openInspectionRecords(row)">详情</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -347,26 +343,34 @@
           <!-- 5. 验收 -->
           <el-tab-pane label="验收" name="acceptance">
             <el-empty v-if="!acceptanceRows.length" description="暂无验收数据" :image-size="80" />
-            <el-table v-else :data="acceptanceRows" border size="small">
-              <el-table-column label="层级" width="90">
-                <template #default="{ row }">{{ acceptanceLevelLabel(row.nodeType) }}</template>
-              </el-table-column>
+            <el-table
+              v-else
+              :data="acceptanceRows"
+              row-key="rowKey"
+              :tree-props="{ children: 'children' }"
+              default-expand-all
+              border
+              size="small"
+            >
               <el-table-column label="编号" width="190" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.code || '-' }}</template>
               </el-table-column>
               <el-table-column label="名称" min-width="190" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.name || '-' }}</template>
               </el-table-column>
+              <el-table-column label="层级" width="90">
+                <template #default="{ row }">{{ acceptanceLevelLabel(row.nodeType) }}</template>
+              </el-table-column>
               <el-table-column label="验收进度" width="110">
                 <template #default="{ row }">
-                  <template v-if="row.nodeType === 'detail'">-</template>
-                  <template v-else>{{ row.acceptedCount || 0 }}/{{ row.totalCount || 0 }}</template>
+                  {{ row.acceptedCount || 0 }}/{{ row.totalCount || 0 }}
                 </template>
               </el-table-column>
               <el-table-column label="验收状态" width="100">
                 <template #default="{ row }">
                   <el-tag v-if="row.acceptStatus === 'ACCEPTED'" type="success" size="small">已验收</el-tag>
-                  <el-tag v-else type="info" size="small">待验收</el-tag>
+                  <el-tag v-else-if="row.acceptStatus === 'REJECTED'" type="danger" size="small">未通过</el-tag>
+                  <el-tag v-else type="warning" size="small">待验收</el-tag>
                 </template>
               </el-table-column>
               <el-table-column prop="acceptTime" label="验收时间" width="170">
@@ -382,7 +386,7 @@
               </el-table-column>
               <el-table-column label="操作" width="110" fixed="right">
                 <template #default="{ row }">
-                  <el-button link type="primary" icon="View" @click="openAcceptanceRecords(row)">验收记录</el-button>
+                  <el-button link type="primary" @click="openAcceptanceRecords(row)">验收记录</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -443,7 +447,6 @@
               <el-button
                 link
                 type="primary"
-                icon="Paperclip"
                 @click="openAttachments('明细附件', row.attachments, 'fu_jian_lei_xing')"
               >附件</el-button>
             </template>
@@ -469,7 +472,6 @@
               <el-button
                 link
                 type="primary"
-                icon="Paperclip"
                 @click="openAttachments('明细附件', row.attachments, 'fu_jian_lei_xing')"
               >附件</el-button>
             </template>
@@ -507,7 +509,6 @@
             <el-button
               link
               type="primary"
-              icon="Paperclip"
               @click="openAttachments('资金凭证附件', row.attachments, 'zi_jin_fu_jian_lei_xing')"
             >附件</el-button>
           </template>
@@ -539,7 +540,6 @@
             <el-button
               link
               type="primary"
-              icon="Paperclip"
               @click="openAttachments('施工记录附件', row.attachments, 'shi_gong_fu_jian_lei_xing')"
             >附件</el-button>
           </template>
@@ -568,7 +568,6 @@
             <el-button
               link
               type="primary"
-              icon="Paperclip"
               @click="openAttachments('验收资料附件', row.attachments, 'yan_shou_fu_jian_lei_xing')"
             >附件</el-button>
           </template>
@@ -909,31 +908,27 @@ interface AcceptanceRow {
   acceptBy?: string
   acceptResult?: string
   records: AcceptanceRecordVO[]
+  children?: AcceptanceRow[]
 }
 
+/** 验收树：项目 → 申报 → 明细，按 el-table 树形结构（带展开箭头）展示 */
 const acceptanceRows = computed<AcceptanceRow[]>(() => {
-  const rows: AcceptanceRow[] = []
-  const walk = (node: AcceptanceNodeVO) => {
-    rows.push({
-      rowKey: `${node.nodeType}_${node.id}`,
-      nodeType: node.nodeType,
-      code: node.code,
-      name: node.name,
-      acceptedCount: node.acceptedCount,
-      totalCount: node.totalCount,
-      acceptStatus: node.acceptStatus,
-      acceptTime: node.acceptTime,
-      acceptBy: node.acceptBy,
-      acceptResult: node.acceptResult,
-      records: node.acceptanceRecords || []
-    })
-    node.children?.forEach(walk)
-  }
+  const convert = (node: AcceptanceNodeVO): AcceptanceRow => ({
+    rowKey: `${node.nodeType}_${node.id}`,
+    nodeType: node.nodeType,
+    code: node.code,
+    name: node.name,
+    acceptedCount: node.acceptedCount,
+    totalCount: node.totalCount,
+    acceptStatus: node.acceptStatus,
+    acceptTime: node.acceptTime,
+    acceptBy: node.acceptBy,
+    acceptResult: node.acceptResult,
+    records: node.acceptanceRecords || [],
+    children: (node.children || []).map(convert)
+  })
   const root = detail.value?.acceptance
-  if (root) {
-    walk(root)
-  }
-  return rows
+  return root ? [convert(root)] : []
 })
 
 const acceptanceLevelLabel = (nodeType?: string): string => {

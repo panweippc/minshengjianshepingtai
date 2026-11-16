@@ -314,7 +314,7 @@
     </el-dialog>
 
     <!-- 查看弹窗 -->
-    <el-dialog v-model="detailDialogVisible" title="公共基础设施详情" width="800px" destroy-on-close>
+    <el-dialog v-model="detailDialogVisible" title="公共基础设施详情" width="min(1180px, 94vw)" destroy-on-close>
       <el-tabs v-model="detailActiveTab">
         <!-- 档案信息 -->
         <el-tab-pane label="档案信息" name="info">
@@ -367,36 +367,9 @@
           <el-empty v-if="!groupedDetailAttachments.length" description="暂无附件" :image-size="60" />
         </el-tab-pane>
 
-        <!-- 项目信息 -->
-        <el-tab-pane label="项目信息" name="project">
-          <el-table :data="detail?.projects || []" border>
-            <el-table-column prop="projectCode" label="项目编码" min-width="130" />
-            <el-table-column prop="projectName" label="项目名称" min-width="180" />
-            <el-table-column prop="projectType" label="类型" width="100" align="center">
-              <template #default="{ row }">{{ row.projectType || '—' }}</template>
-            </el-table-column>
-            <el-table-column label="进度" width="120">
-              <template #default="{ row }">
-                <el-progress
-                  v-if="row.progress != null"
-                  :percentage="row.progress"
-                  :stroke-width="10"
-                  :show-text="true"
-                />
-                <span v-else>—</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="预算" width="130" align="right">
-              <template #default="{ row }">{{ row.budget != null ? formatMoney(row.budget) : '—' }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">{{ row.status || '—' }}</template>
-            </el-table-column>
-            <el-table-column prop="startYear" label="立项年度" width="100" align="center">
-              <template #default="{ row }">{{ row.startYear || '—' }}</template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-if="!detail?.projects?.length" description="暂无关联项目" :image-size="80" />
+        <!-- 项目信息：明细级全周期信息（申报 → 立项 → 施工 → 资金拨付 → 验收） -->
+        <el-tab-pane label="项目信息" name="project" lazy>
+          <ProjectLifecycleTable biz-type="facility" :target-id="detail?.id" />
         </el-tab-pane>
       </el-tabs>
       <template #footer>
@@ -442,6 +415,7 @@ import {
   getFacilityRegionCounts
 } from '@/api/facility'
 import { uploadFile as uploadFileApi, getPresignUrl } from '@/api/file'
+import ProjectLifecycleTable from '@/components/ProjectLifecycleTable.vue'
 import type { FacilityQuery } from '@/api/facility'
 import type {
   DictVO,
@@ -760,11 +734,6 @@ const attachmentTypeLabel = (value?: string) => {
   if (!value) return '—'
   const hit = attachmentTypeOptions.value.find((item) => item.value === value)
   return hit ? hit.label : value
-}
-
-/** 金额格式化 */
-const formatMoney = (value: number) => {
-  return '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /** 加载字典 */
