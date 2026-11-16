@@ -38,9 +38,6 @@ public class ProjectCycleRawVO implements Serializable {
     private String declareCategoryLabel;   // 翻译后的显示标签
     private String villageName;            // 村组名称
 
-    // ==== 字典翻译缓存（Service 层赋值） ====
-    private String projectSourceLabel;     // 项目来源翻译标签
-
     // ==== 明细计数 ====
     private Integer householdCount;    // 该 declare 下农户明细数量
     private Integer facilityCount;     // 该 declare 下公建设施明细数量
