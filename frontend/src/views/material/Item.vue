@@ -90,9 +90,6 @@
             <span :class="{ 'stock-warning': isLowWarning(row) }">
               {{ row.stockQty ?? 0 }}<span v-if="row.unit"> {{ row.unit }}</span>
             </span>
-            <el-tag v-if="isLowWarning(row)" type="danger" size="small" effect="plain" class="warning-tag">
-              预警
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip>

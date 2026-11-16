@@ -26,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ReportDataInitRunner implements ApplicationRunner {
 
+    /** 报表类型字典编码（与前端统计表筛选区联动一致） */
+    private static final String REPORT_TYPE_DICT_TYPE = "bao_biao_lei_xing";
+
     private final JdbcTemplate jdbcTemplate;
     private final MaterialReportMapper reportMapper;
     private final MaterialReportItemMapper reportItemMapper;
@@ -37,36 +40,52 @@ public class ReportDataInitRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         // 1. 建表
         createTablesIfNotExist();
-        // 2. 初始化字典（baobiao_leixing 报表类型）
+        // 2. 初始化字典（bao_biao_lei_xing 报表类型）
         initDict();
         // 3. 初始化菜单
         initMenu();
     }
 
     /**
-     * 初始化报表类型字典（baobiao_leixing）
-     * 三条记录：盘点表(INVENTORY)、交接表(HANDOVER)、损毁表(DAMAGE)
-     * 按 dict_type + dict_value 幂等处理：已存在则恢复并更新，不存在则用最大ID+1插入
+     * 初始化报表类型字典（bao_biao_lei_xing）
+     * 三条记录：盘点表(1)、交接表(2)、损毁表(3)
+     * 字典管理中若已存在该类型则跳过，避免与人工维护的字典项重复
      */
     private void initDict() {
-        insertDictIfAbsent("盘点表", "INVENTORY", 1);
-        insertDictIfAbsent("交接表", "HANDOVER", 2);
-        insertDictIfAbsent("损毁表", "DAMAGE", 3);
-        log.info("报表类型字典（baobiao_leixing）初始化完成");
+        // 清理历史遗留的旧字典编码，统一迁移到 bao_biao_lei_xing
+        cleanLegacyDict();
+        Integer exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM t_sys_dict WHERE dict_type = ?", Integer.class, REPORT_TYPE_DICT_TYPE);
+        if (exists != null && exists > 0) {
+            log.info("报表类型字典（{}）已存在，跳过初始化", REPORT_TYPE_DICT_TYPE);
+            return;
+        }
+        insertDictIfAbsent("盘点表", "1", 1);
+        insertDictIfAbsent("交接表", "2", 2);
+        insertDictIfAbsent("损毁表", "3", 3);
+        log.info("报表类型字典（{}）初始化完成", REPORT_TYPE_DICT_TYPE);
+    }
+
+    /** 删除旧编码 baobiao_leixing 的字典数据 */
+    private void cleanLegacyDict() {
+        int removed = jdbcTemplate.update("DELETE FROM t_sys_dict WHERE dict_type = 'baobiao_leixing'");
+        if (removed > 0) {
+            log.info("已删除旧报表类型字典（baobiao_leixing）{} 条", removed);
+        }
     }
 
     private void insertDictIfAbsent(String label, String value, int sort) {
         int updated = jdbcTemplate.update("""
             UPDATE t_sys_dict SET deleted = 0, dict_label = ?, description = '报表类型', sort = ?
-            WHERE dict_type = 'baobiao_leixing' AND dict_value = ?
-        """, label, sort, value);
+            WHERE dict_type = ? AND dict_value = ?
+        """, label, sort, REPORT_TYPE_DICT_TYPE, value);
         if (updated > 0) {
             return;
         }
         jdbcTemplate.update("""
             INSERT INTO t_sys_dict (id, dict_type, description, dict_label, dict_value, sort)
-            SELECT IFNULL(MAX(t.id), 0) + 1, 'baobiao_leixing', '报表类型', ?, ?, ? FROM t_sys_dict t
-        """, label, value, sort);
+            SELECT IFNULL(MAX(t.id), 0) + 1, ?, '报表类型', ?, ?, ? FROM t_sys_dict t
+        """, REPORT_TYPE_DICT_TYPE, label, value, sort);
     }
 
     private void createTablesIfNotExist() {

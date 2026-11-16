@@ -10,8 +10,12 @@ import com.msjs.project.mapper.ProjectApprovalMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.DashboardService;
 import com.msjs.project.vo.DashboardOverviewVO;
+import com.msjs.project.vo.ProjectProgressVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 首页概览统计服务实现
@@ -40,8 +44,35 @@ public class DashboardServiceImpl implements DashboardService {
         vo.setFacilityCount(facilityMapper.selectCount(null));
         // 在库物资总数：全部物品库存数量之和
         vo.setMaterialStockTotal(materialItemMapper.sumStockQty());
-        // 项目进度概览：一个项目一条记录，展示当前阶段
-        vo.setProjectProgress(projectApprovalMapper.selectProjectProgress());
+        // 项目进度概览：一个项目一条记录，可同时处于多个阶段
+        List<ProjectProgressVO> progressList = projectApprovalMapper.selectProjectProgress();
+        for (ProjectProgressVO item : progressList) {
+            List<Integer> stages = new ArrayList<>(4);
+            // 已归档为生命周期终点，优先判定：忽略可能残留的施工中明细状态，仅展示已归档
+            if (Constants.APPROVAL_ACCEPT_ARCHIVED.equalsIgnoreCase(item.getAcceptStatus())) {
+                stages.add(5);
+            } else {
+                // 按生命周期顺序收集当前所处阶段，允许同时命中多个
+                if (Constants.APPROVAL_STATUS_PENDING.equalsIgnoreCase(item.getApprovalStatus())) {
+                    stages.add(1);
+                }
+                // 已批准项目即已进入资金管理与验收管理（两个页面均按立项状态展示），
+                // 因此“资金”与“待验收”同时作为当前阶段，再叠加施工中
+                if (Constants.APPROVAL_STATUS_APPROVED.equalsIgnoreCase(item.getApprovalStatus())) {
+                    stages.add(2);
+                    if (Integer.valueOf(1).equals(item.getInProgress())) {
+                        stages.add(3);
+                    }
+                    stages.add(4);
+                }
+                // 兜底：状态缺失时按已批准处理
+                if (stages.isEmpty()) {
+                    stages.add(2);
+                }
+            }
+            item.setCurrentStages(stages);
+        }
+        vo.setProjectProgress(progressList);
         return vo;
     }
 }
