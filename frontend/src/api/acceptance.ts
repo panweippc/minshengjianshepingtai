@@ -165,6 +165,12 @@ export interface AcceptRecordUpdateDTO {
 /** 项目归档入参 */
 export interface ArchiveDTO {
   approvalId: string
+  /** 档案编号（不传则后端自动生成，允许人工覆盖） */
+  archiveNo?: string
+  /** 存储位置（档案室/档案柜等物理位置） */
+  storageLocation?: string
+  /** 归档时间（不传则取当前时间，格式 yyyy-MM-dd HH:mm:ss） */
+  archiveTime?: string
   archiveBy: string
   archiveName?: string
   archiveType?: string

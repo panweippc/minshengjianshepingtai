@@ -114,7 +114,16 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         approval.setApplyBy(dto.getApplyBy());
         approval.setRemark(dto.getRemark());
         approval.setStatus(Constants.APPROVAL_STATUS_PENDING);
-        approval.setSubmitTime(now);
+        // 立项日期优先用前端传入的 establishDate（以 00:00:00 存储为 submitTime），其次用 submitTime，最后用 now
+        LocalDateTime submitAt;
+        if (dto.getSubmitTime() != null) {
+            submitAt = dto.getSubmitTime();
+        } else if (dto.getEstablishDate() != null) {
+            submitAt = dto.getEstablishDate().atStartOfDay();
+        } else {
+            submitAt = now;
+        }
+        approval.setSubmitTime(submitAt);
         approval.setRegionCode(dto.getTownCode());
         approval.setRegionName(dto.getTownName());
         approval.setCreateBy(username);
@@ -634,6 +643,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         declare.setDeclareCategory(d.getDeclarationCategory());
         declare.setDeclareType(d.getDeclarationType());
         declare.setTownName(d.getTownName());
+        declare.setVillageName(d.getVillageGroupName()); // 拷贝所属村组（之前漏掉，导致 declare.village_name 为空）
         declare.setBudget(d.getAmount());
         declare.setSort(sort);
         declare.setCreateTime(now);

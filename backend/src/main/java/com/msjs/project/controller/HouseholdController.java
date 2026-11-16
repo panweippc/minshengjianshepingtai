@@ -8,6 +8,8 @@ import com.msjs.project.dto.HouseholdSaveDTO;
 import com.msjs.project.entity.Household;
 import com.msjs.project.entity.HouseholdAttachment;
 import com.msjs.project.service.HouseholdService;
+import com.msjs.project.service.ProjectLifecycleService;
+import com.msjs.project.vo.ProjectLifecycleVO;
 import com.msjs.project.vo.RegionHouseholdCountVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,6 +39,7 @@ import java.util.List;
 public class HouseholdController {
 
     private final HouseholdService householdService;
+    private final ProjectLifecycleService projectLifecycleService;
 
     @Operation(summary = "户基础信息分页查询")
     @RequirePerm("base:household:list")
@@ -69,6 +72,13 @@ public class HouseholdController {
     @GetMapping("/attachments/{householdId}")
     public Result<List<HouseholdAttachment>> attachments(@Parameter(description = "户基础信息ID") @PathVariable Long householdId) {
         return Result.ok(householdService.listAttachments(householdId));
+    }
+
+    @Operation(summary = "农户关联的项目全周期明细（申报→立项→施工→资金→验收）")
+    @RequirePerm("base:household:list")
+    @GetMapping("/projects/{householdId}")
+    public Result<List<ProjectLifecycleVO>> projects(@Parameter(description = "户基础信息ID") @PathVariable Long householdId) {
+        return Result.ok(projectLifecycleService.listByHousehold(householdId));
     }
 
     @Operation(summary = "新增户基础信息（含附件批量保存）")

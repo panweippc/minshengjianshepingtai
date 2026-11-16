@@ -1,462 +1,419 @@
 package com.msjs.project.service.impl;
 
 import com.msjs.project.common.Constants;
-import com.msjs.project.common.PageVO;
-import com.msjs.project.entity.SysDict;
 import com.msjs.project.entity.SysRegion;
+import com.msjs.project.entity.SysDict;
 import com.msjs.project.mapper.FundQueryMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectFundQueryService;
 import com.msjs.project.service.SysDictService;
-import com.msjs.project.vo.FundQueryVO;
+import com.msjs.project.vo.FundDetailRowVO;
+import com.msjs.project.vo.FundStatVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 资金记录查询服务实现
- * <p>核心思路：Mapper 返回扁平基础字段，Service 层一次性做：</p>
- * <ol>
- *   <li>递归收集区划后代 code（与 DeclarationServiceImpl.collectDescendantRegionCodes 同逻辑）</li>
- *   <li>查询并构建 4 张字典 value→label 映射</li>
- *   <li>调用 Mapper 拉平查询得到全量命中流水</li>
- *   <li>批量查附件数回填 attachCount</li>
- *   <li>遍历回填 nodeLevelLabel / fundTypeLabel / fundSourceLabel / 项目类别标签 / 项目类型标签 / 明细类型标签 / 时间字符串</li>
- *   <li>内存聚合 Summary + Sidebar</li>
- *   <li>内存分页得到 records 切片</li>
- * </ol>
+ * 资金记录查询 Service
+ *
+ * <p>和 FundQueryMapper 配套，负责：三段独立查询合并、字典翻译、附件回填、
+ * 内存聚合 GlobalSummary、按 groupType 分组出主统计表、内存分页。</p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
-
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    /** 明细类型 → 中文 */
-    private static final Map<String, String> DETAIL_TYPE_LABEL = Map.of(
-            "HOUSEHOLD", "农户",
-            "FACILITY", "公建设施"
-    );
 
     private final FundQueryMapper fundQueryMapper;
     private final SysDictService dictService;
     private final SysRegionMapper regionMapper;
 
-    /** 最后一次 page/export 产生的汇总卡统计（供 Controller 在一次请求中取出塞进 Result 扩展字段） */
-    private FundQueryVO.Summary lastSummary;
-    /** 最后一次 page/export 产生的左侧面板统计 */
-    private FundQueryVO.Sidebar lastSidebar;
+    // ============== 对外接口 ==============
 
     @Override
-    public PageVO<FundQueryVO.Record> page(
-            long pageNum, long pageSize,
-            String projectName, String approvalCode, String declareCode, String detailName,
-            Integer nodeLevel, String fundType, String fundSource,
-            String regionCode,
-            String startTime, String endTime,
-            String createBy, BigDecimal minAmount, BigDecimal maxAmount
-    ) {
-        List<FundQueryVO.Record> all = doQuery(projectName, approvalCode, declareCode, detailName,
-                nodeLevel, fundType, fundSource, regionCode, startTime, endTime,
-                createBy, minAmount, maxAmount);
+    public FundStatVO stat(String year, String regionCode, String groupType, String groupValue) {
+        List<FundDetailRowVO> allRaw = collectAll(regionCode, year);
+        applyDictLabels(allRaw);
 
-        // summary
-        FundQueryVO.Summary summary = buildSummary(all);
-        this.lastSummary = summary;
-        // sidebar
-        FundQueryVO.Sidebar sidebar = buildSidebar(all);
-        this.lastSidebar = sidebar;
+        FundStatVO vo = new FundStatVO();
+        // 全局 summary：recordCount 用于右上角 "共 N 条源记录"
+        FundStatVO.GlobalSummary gs = new FundStatVO.GlobalSummary();
+        gs.setRecordCount(allRaw.size());
+        gs.setProjectCount((int) allRaw.stream().map(FundDetailRowVO::getApprovalId).filter(Objects::nonNull).distinct().count());
+        gs.setDeclareCount((int) allRaw.stream().map(FundDetailRowVO::getDeclareId).filter(Objects::nonNull).distinct().count());
+        vo.setGlobalSummary(gs);
 
-        // 内存分页
-        long total = all.size();
-        long fromIndex = Math.max(0, (pageNum - 1) * pageSize);
-        long toIndex = Math.min(total, fromIndex + pageSize);
-        List<FundQueryVO.Record> records = fromIndex >= total
-                ? Collections.emptyList()
-                : all.subList((int) fromIndex, (int) toIndex);
+        // groupValue 预先过滤
+        List<FundDetailRowVO> filtered = allRaw;
+        if (groupType != null && groupValue != null && !groupValue.isBlank()) {
+            filtered = allRaw.stream().filter(r -> {
+                String v = extractGroupValue(r, groupType);
+                return v != null && v.equals(groupValue);
+            }).toList();
+        }
 
-        PageVO<FundQueryVO.Record> page = new PageVO<>();
-        page.setRecords(records);
-        page.setTotal(total);
-        page.setPageNum(pageNum);
-        page.setPageSize(pageSize);
-        return page;
+        List<FundStatVO.Row> rows = buildNestedRows(filtered, groupType);
+        vo.setRows(rows);
+        vo.setTotal((long) rows.size());
+        return vo;
     }
 
     @Override
-    public FundQueryVO.Summary lastSummary() {
-        return lastSummary;
-    }
+    public List<FundDetailRowVO> detailList(String year, String regionCode,
+                                            String groupType, String groupValue) {
+        List<FundDetailRowVO> all = collectAll(regionCode, year);
+        applyDictLabels(all);
+        attachAttachCount(all);
 
-    @Override
-    public FundQueryVO.Sidebar lastSidebar() {
-        return lastSidebar;
-    }
-
-    @Override
-    public byte[] export(
-            String projectName, String approvalCode, String declareCode, String detailName,
-            Integer nodeLevel, String fundType, String fundSource,
-            String regionCode,
-            String startTime, String endTime,
-            String createBy, BigDecimal minAmount, BigDecimal maxAmount
-    ) {
-        List<FundQueryVO.Record> all = doQuery(projectName, approvalCode, declareCode, detailName,
-                nodeLevel, fundType, fundSource, regionCode, startTime, endTime,
-                createBy, minAmount, maxAmount);
-        this.lastSummary = buildSummary(all);
-        this.lastSidebar = buildSidebar(all);
-        StringBuilder sb = new StringBuilder();
-        sb.append('\uFEFF'); // BOM，Excel 双击可识别 UTF-8
-        // 表头
-        String[] headers = {
-                "节点层级", "项目编号", "项目名称", "项目类别", "项目类型",
-                "申报编号", "申报标题", "明细名称", "明细类型",
-                "资金类型", "资金来源", "金额（元）",
-                "所属乡镇", "所属村组", "经办人", "经办时间", "拨付说明", "附件数"
-        };
-        sb.append(String.join(",", headers)).append("\r\n");
-        for (FundQueryVO.Record r : all) {
-            List<String> cells = new ArrayList<>();
-            cells.add(csvCell(r.getNodeLevelLabel()));
-            cells.add(csvCell(r.getApprovalCode()));
-            cells.add(csvCell(r.getProjectName()));
-            cells.add(csvCell(r.getProjectCategoryLabel()));
-            cells.add(csvCell(r.getProjectTypeLabel()));
-            cells.add(csvCell(r.getDeclareCode()));
-            cells.add(csvCell(r.getDeclareName()));
-            cells.add(csvCell(r.getDetailName()));
-            cells.add(csvCell(r.getDetailType() == null ? "" : DETAIL_TYPE_LABEL.getOrDefault(r.getDetailType(), r.getDetailType())));
-            cells.add(csvCell(r.getFundTypeLabel()));
-            cells.add(csvCell(r.getFundSourceLabel()));
-            cells.add(r.getAmount() == null ? "0" : r.getAmount().toPlainString());
-            cells.add(csvCell(r.getTownName()));
-            cells.add(csvCell(r.getVillageName()));
-            cells.add(csvCell(r.getCreateBy()));
-            cells.add(csvCell(r.getCreateTime() == null ? "" : r.getCreateTime().format(DTF)));
-            cells.add(csvCell(r.getRemark()));
-            cells.add(String.valueOf(r.getAttachCount() == null ? 0 : r.getAttachCount()));
-            sb.append(String.join(",", cells)).append("\r\n");
-        }
-        sb.append('\r');
-        sb.append("统计口径：资金记录按单条流水计数；登记合计指 nodeLevel=1 的金额合计；下拨合计指 nodeLevel∈{2,3} 的金额合计。");
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    // ==================== 内部实现 ====================
-
-    /** 一次全量查询 + 字典翻译 + 附件数回填 */
-    /** 3 段查询共用的 Mapper 参数 DTO */
-    private FundQueryMapper.CommonQueryParams buildParams(
-            String projectName, String approvalCode, String declareCode, String detailName,
-            String fundType, String fundSource,
-            String startTime, String endTime, String createBy,
-            BigDecimal minAmount, BigDecimal maxAmount, List<String> regionCodes
-    ) {
-        FundQueryMapper.CommonQueryParams p = new FundQueryMapper.CommonQueryParams();
-        p.setProjectName(blankToNull(projectName));
-        p.setApprovalCode(blankToNull(approvalCode));
-        p.setDeclareCode(blankToNull(declareCode));
-        p.setDetailName(blankToNull(detailName));
-        p.setFundType(blankToNull(fundType));
-        p.setFundSource(blankToNull(fundSource));
-        p.setStartTime(blankToNull(startTime));
-        p.setEndTime(blankToNull(endTime));
-        p.setCreateBy(blankToNull(createBy));
-        p.setMinAmount(minAmount);
-        p.setMaxAmount(maxAmount);
-        p.setRegionCodes(regionCodes.isEmpty() ? null : regionCodes);
-        return p;
-    }
-
-    private List<FundQueryVO.Record> doQuery(
-            String projectName, String approvalCode, String declareCode, String detailName,
-            Integer nodeLevel, String fundType, String fundSource,
-            String regionCode,
-            String startTime, String endTime,
-            String createBy, BigDecimal minAmount, BigDecimal maxAmount
-    ) {
-        // 1) 递归收集区划后代 code
-        List<String> regionCodes = collectDescendantRegionCodes(regionCode);
-
-        FundQueryMapper.CommonQueryParams p = buildParams(
-                projectName, approvalCode, declareCode, detailName,
-                fundType, fundSource, startTime, endTime, createBy,
-                minAmount, maxAmount, regionCodes
-        );
-
-        // 2) 分 3 段独立查询，避开 UNION 的 collation 不一致 + JSqlParser 对 COLLATE 的解析不兼容
-        List<FundQueryVO.Record> all = new ArrayList<>();
-        if (nodeLevel == null || nodeLevel == Constants.FUND_LEVEL_APPROVAL) {
-            List<FundQueryVO.Record> r1 = fundQueryMapper.selectLevel1(p);
-            if (r1 != null) all.addAll(r1);
-        }
-        if (nodeLevel == null || nodeLevel == Constants.FUND_LEVEL_DECLARE) {
-            List<FundQueryVO.Record> r2 = fundQueryMapper.selectLevel2(p);
-            if (r2 != null) all.addAll(r2);
-        }
-        if (nodeLevel == null || nodeLevel == Constants.FUND_LEVEL_DETAIL) {
-            List<FundQueryVO.Record> r3 = fundQueryMapper.selectLevel3(p);
-            if (r3 != null) all.addAll(r3);
-        }
-        // 合并后按时间倒序 + id 倒序（与原 UNION ALL ORDER BY 一致）
-        all.sort((a, b) -> {
-            LocalDateTime ta = a.getCreateTime(), tb = b.getCreateTime();
-            int c = (ta == null ? LocalDateTime.MIN : ta).compareTo(tb == null ? LocalDateTime.MIN : tb);
-            if (c != 0) return -c;
-            Long ia = a.getId(), ib = b.getId();
-            return Long.compare(ib == null ? 0 : ib, ia == null ? 0 : ia);
-        });
-
-        // 3) 字典缓存（5 种字典，一次构建全量复用）
-        Map<String, String> dictZjlx = dictToMap("zi_jin_lei_xing");
-        Map<String, String> dictXblx = dictToMap("xia_bo_lei_xing");
-        Map<String, String> dictZjly = dictToMap("zi_jin_lai_yuan");
-        Map<String, String> dictXmlb = dictToMap("xiang_mu_lei_bie");
-        Map<String, String> dictXmlx = dictToMap("xiang_mu_lei_xing");
-
-        // 4) 字典翻译 + 时间格式化 + 节点层级 label
-        for (FundQueryVO.Record r : all) {
-            r.setNodeLevelLabel(nodeLevelLabel(r.getNodeLevel()));
-            r.setFundTypeLabel(dictValueByNode(r.getNodeLevel(), r.getFundType(), dictZjlx, dictXblx));
-            r.setFundSourceLabel(dictZjly.getOrDefault(r.getFundSource(), r.getFundSource()));
-            r.setProjectCategoryLabel(dictXmlb.getOrDefault(r.getProjectCategory(), r.getProjectCategory()));
-            r.setProjectTypeLabel(dictXmlx.getOrDefault(r.getProjectType(), r.getProjectType()));
-            if (r.getDetailType() != null && !r.getDetailType().isBlank()) {
-                // 明细类型中文 label 交给前端按 detailType 值自行映射，VO 里保留原始值即可
-            }
-            // 时间不做手工格式化：VO.createTime 为 LocalDateTime，Jackson 用 @JsonFormat 自动序列化为 yyyy-MM-dd HH:mm:ss
-            // 空值兜底
-            if (r.getAttachCount() == null) r.setAttachCount(0);
-        }
-
-        // 5) 批量回填附件数
-        if (!all.isEmpty()) {
-            List<Long> fundIds = all.stream().map(FundQueryVO.Record::getId).filter(Objects::nonNull).toList();
-            List<Map<String, Object>> attachRows = fundQueryMapper.selectAttachCount(fundIds);
-            Map<Long, Integer> attMap = new HashMap<>();
-            if (attachRows != null) {
-                for (Map<String, Object> row : attachRows) {
-                    Object fidObj = row.get("fundId");
-                    Object cntObj = row.get("cnt");
-                    if (fidObj != null && cntObj != null) {
-                        Long fid = ((Number) fidObj).longValue();
-                        int cnt = ((Number) cntObj).intValue();
-                        attMap.put(fid, cnt);
-                    }
-                }
-            }
-            for (FundQueryVO.Record r : all) {
-                if (r.getId() != null) {
-                    r.setAttachCount(attMap.getOrDefault(r.getId(), 0));
-                }
-            }
+        if (groupType != null && groupValue != null && !groupValue.isBlank()) {
+            all = all.stream().filter(row -> matchGroup(row, groupType, groupValue))
+                    .collect(Collectors.toList());
         }
         return all;
     }
 
-    /** 顶部汇总卡 */
-    private FundQueryVO.Summary buildSummary(List<FundQueryVO.Record> all) {
-        FundQueryVO.Summary s = new FundQueryVO.Summary();
-        s.setRecordCount(all.size());
-        BigDecimal registerTotal = BigDecimal.ZERO;
-        BigDecimal allocateTotal = BigDecimal.ZERO;
-        Set<Long> projects = new HashSet<>();
-        Set<Long> declares = new HashSet<>();
-        Set<Long> details = new HashSet<>();
-        for (FundQueryVO.Record r : all) {
-            BigDecimal amt = r.getAmount() == null ? BigDecimal.ZERO : r.getAmount();
-            Integer lvl = r.getNodeLevel();
-            if (lvl != null && lvl == Constants.FUND_LEVEL_APPROVAL) {
-                registerTotal = registerTotal.add(amt);
-            } else {
-                allocateTotal = allocateTotal.add(amt);
-            }
-            if (r.getApprovalId() != null) projects.add(r.getApprovalId());
-            if (r.getNodeLevel() != null && r.getNodeLevel() >= Constants.FUND_LEVEL_DECLARE && r.getDeclareId() != null) {
-                declares.add(r.getDeclareId());
-            }
-            if (r.getNodeLevel() != null && r.getNodeLevel() == Constants.FUND_LEVEL_DETAIL && r.getDetailId() != null) {
-                details.add(r.getDetailId());
-            }
+    // ============== 内部 ==============
+
+    /** 三段独立查询合并，按 createTime DESC + id DESC 排序 */
+    private List<FundDetailRowVO> collectAll(String regionCode, String year) {
+        FundQueryMapper.QueryParams p = buildQueryParams(regionCode, year);
+        List<FundDetailRowVO> all = new ArrayList<>();
+        all.addAll(fundQueryMapper.selectLevel1(p));
+        all.addAll(fundQueryMapper.selectLevel2(p));
+        all.addAll(fundQueryMapper.selectLevel3(p));
+
+        // 合并后排序
+        all.sort((a, b) -> {
+            LocalDateTime ta = a.getCreateTime(), tb = b.getCreateTime();
+            int c = (ta == null ? LocalDateTime.MIN : ta).compareTo(tb == null ? LocalDateTime.MIN : tb);
+            if (c != 0) return -c;
+            return Long.compare(b.getId() == null ? 0 : b.getId(), a.getId() == null ? 0 : a.getId());
+        });
+        return all;
+    }
+
+    private FundQueryMapper.QueryParams buildQueryParams(String regionCode, String year) {
+        FundQueryMapper.QueryParams p = new FundQueryMapper.QueryParams();
+        p.setYear(blankToNull(year));
+        p.setRegionCodes(collectDescendantRegionCodes(regionCode));
+        if (p.getRegionCodes() != null && p.getRegionCodes().isEmpty()) {
+            p.setRegionCodes(null);
         }
-        s.setRegisterTotal(registerTotal);
-        s.setAllocateTotal(allocateTotal);
-        s.setProjectCount(projects.size());
-        s.setDeclareCount(declares.size());
-        s.setDetailCount(details.size());
-        return s;
+        return p;
     }
 
-    /** 左侧面板：按资金类型 / 资金来源 / 节点层级 / 村组 */
-    private FundQueryVO.Sidebar buildSidebar(List<FundQueryVO.Record> all) {
-        Map<String, String> dictZjlx = dictToMap("zi_jin_lei_xing");
-        Map<String, String> dictXblx = dictToMap("xia_bo_lei_xing");
-        Map<String, String> dictZjly = dictToMap("zi_jin_lai_yuan");
-
-        FundQueryVO.Sidebar sb = new FundQueryVO.Sidebar();
-
-        // byFundType：nodeLevel 合并后按 (nodeLevel, fundType) 分组
-        Map<String, FundQueryVO.StatItem> ftMap = new HashMap<>();
-        Map<String, FundQueryVO.StatItem> fsMap = new HashMap<>();
-        Map<Integer, FundQueryVO.StatItem> nlMap = new HashMap<>();
-        Map<String, FundQueryVO.StatItem> vgMap = new HashMap<>();
-
-        for (FundQueryVO.Record r : all) {
-            BigDecimal amt = r.getAmount() == null ? BigDecimal.ZERO : r.getAmount();
-
-            // 资金类型
-            if (r.getFundType() != null && !r.getFundType().isBlank()) {
-                String key = r.getFundType();
-                FundQueryVO.StatItem item = ftMap.computeIfAbsent(key, k -> new FundQueryVO.StatItem());
-                item.setValue(key);
-                item.setLabel(dictValueByNode(r.getNodeLevel(), key, dictZjlx, dictXblx));
-                item.setCount(item.getCount() + 1);
-                item.setAmount(item.getAmount() == null ? amt : item.getAmount().add(amt));
-            }
-
-            // 资金来源
-            if (r.getFundSource() != null && !r.getFundSource().isBlank()) {
-                String key = r.getFundSource();
-                FundQueryVO.StatItem item = fsMap.computeIfAbsent(key, k -> new FundQueryVO.StatItem());
-                item.setValue(key);
-                item.setLabel(dictZjly.getOrDefault(key, key));
-                item.setCount(item.getCount() + 1);
-                item.setAmount(item.getAmount() == null ? amt : item.getAmount().add(amt));
-            }
-
-            // 节点层级
-            if (r.getNodeLevel() != null) {
-                Integer lvl = r.getNodeLevel();
-                FundQueryVO.StatItem item = nlMap.computeIfAbsent(lvl, k -> new FundQueryVO.StatItem());
-                item.setValue(String.valueOf(lvl));
-                item.setLabel(nodeLevelLabel(lvl));
-                item.setCount(item.getCount() + 1);
-                item.setAmount(item.getAmount() == null ? amt : item.getAmount().add(amt));
-            }
-
-            // 村组
-            String village = r.getVillageName();
-            if (village == null || village.isBlank()) {
-                // nodeLevel=1 没有 villageName，退回项目的 regionName（作为所属村组）
-                village = r.getTownName();
-            }
-            if (village != null && !village.isBlank()) {
-                FundQueryVO.StatItem item = vgMap.computeIfAbsent(village, k -> new FundQueryVO.StatItem());
-                item.setValue(village);
-                item.setLabel(village);
-                item.setCount(item.getCount() + 1);
-                item.setAmount(item.getAmount() == null ? amt : item.getAmount().add(amt));
-            }
-        }
-
-        sb.setByFundType(sortedStatItems(ftMap.values()));
-        sb.setByFundSource(sortedStatItems(fsMap.values()));
-        sb.setByNodeLevel(sortedStatItems(nlMap.values()));
-        sb.setByVillage(sortedStatItems(vgMap.values()));
-        return sb;
-    }
-
-    /** StatItem 按 count 倒序，count 相同按 amount 倒序 */
-    private List<FundQueryVO.StatItem> sortedStatItems(Collection<FundQueryVO.StatItem> items) {
-        return items.stream()
-                .sorted((a, b) -> {
-                    int c = Long.compare(b.getCount(), a.getCount());
-                    if (c != 0) return c;
-                    BigDecimal ba = a.getAmount() == null ? BigDecimal.ZERO : a.getAmount();
-                    BigDecimal bb = b.getAmount() == null ? BigDecimal.ZERO : b.getAmount();
-                    return bb.compareTo(ba);
-                })
-                .collect(Collectors.toList());
-    }
-
-    /** 递归收集后代区划 code（与 DeclarationServiceImpl.collectDescendantRegionCodes 同逻辑，独立实现避免依赖） */
+    /** 递归收集本级区划 + 全部后代区划 code */
     private List<String> collectDescendantRegionCodes(String regionCode) {
-        List<String> result = new ArrayList<>();
-        if (regionCode == null || regionCode.isBlank()) return result;
-        Set<String> collected = new HashSet<>();
-        collected.add(regionCode.trim());
-        Set<String> current = new HashSet<>();
-        current.add(regionCode.trim());
-        while (!current.isEmpty()) {
-            List<SysRegion> children = regionMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
-                            .in(SysRegion::getParentCode, current));
-            if (children.isEmpty()) break;
-            Set<String> next = new HashSet<>();
-            for (SysRegion r : children) {
-                if (r.getCode() != null && collected.add(r.getCode())) {
-                    next.add(r.getCode());
+        if (regionCode == null || regionCode.isBlank()) return Collections.emptyList();
+        // 先看 regionMapper 有没有 listByParentCode 或全量查询
+        // 没有就直接查 t_sys_region 全量，内存递归
+        List<SysRegion> all = regionMapper.selectList(null);
+        Set<String> targets = new HashSet<>();
+        collectChildren(all, regionCode.trim(), targets);
+        return new ArrayList<>(targets);
+    }
+
+    private void collectChildren(List<SysRegion> all, String parent, Set<String> out) {
+        // SysRegion.code / parentCode 字段
+        out.add(parent);
+        for (SysRegion r : all) {
+            if (parent.equals(r.getParentCode())) {
+                collectChildren(all, r.getCode(), out);
+            }
+        }
+    }
+
+    /** 字典一次性构建 */
+    private static final String[] DICT_TYPES = {
+            "zi_jin_lei_xing",  // nodeLevel=1 资金类型
+            "xia_bo_lei_xing",  // nodeLevel=2/3 下拨类型
+            "zi_jin_lai_yuan",  // 资金来源
+            "xiang_mu_lei_bie", // 项目类别
+            "xiang_mu_lei_xing" // 项目类型
+    };
+
+    private Map<String, Map<String, String>> buildDictCache() {
+        Map<String, Map<String, String>> cache = new HashMap<>();
+        for (String type : DICT_TYPES) {
+            List<SysDict> dicts = dictService.listByType(type);
+            Map<String, String> inner = new HashMap<>();
+            if (dicts != null) {
+                for (SysDict d : dicts) {
+                    if (d.getDictValue() != null) {
+                        inner.put(d.getDictValue(), d.getDictLabel());
+                    }
                 }
             }
-            current = next;
+            cache.put(type, inner);
         }
-        result.addAll(collected);
-        return result;
+        return cache;
     }
 
-    /** 按字典类型构建 value→label 映射（空 Map 兜底） */
-    private Map<String, String> dictToMap(String dictType) {
-        List<SysDict> items;
-        try {
-            items = dictService.listByType(dictType);
-        } catch (Exception e) {
-            return Collections.emptyMap();
+    private void applyDictLabels(List<FundDetailRowVO> rows) {
+        if (rows == null || rows.isEmpty()) return;
+        Map<String, Map<String, String>> cache = buildDictCache();
+        Map<String, String> zjlx   = cache.getOrDefault("zi_jin_lei_xing",   Collections.emptyMap());
+        Map<String, String> xblx   = cache.getOrDefault("xia_bo_lei_xing",   Collections.emptyMap());
+        Map<String, String> zjly   = cache.getOrDefault("zi_jin_lai_yuan",   Collections.emptyMap());
+        Map<String, String> xmlb   = cache.getOrDefault("xiang_mu_lei_bie",  Collections.emptyMap());
+        Map<String, String> xmlx   = cache.getOrDefault("xiang_mu_lei_xing", Collections.emptyMap());
+
+        for (FundDetailRowVO row : rows) {
+            // 节点层级
+            if (row.getNodeLevel() != null) {
+                switch (row.getNodeLevel()) {
+                    case 1 -> row.setNodeLevelLabel("项目级资金登记");
+                    case 2 -> row.setNodeLevelLabel("申报单下拨资金");
+                    case 3 -> row.setNodeLevelLabel("到户/公建下拨资金");
+                    default -> row.setNodeLevelLabel("未知");
+                }
+            }
+            // 资金类型：1级用 zi_jin_lei_xing，2/3 级用 xia_bo_lei_xing
+            Map<String, String> fundTypeDict = row.getNodeLevel() != null && row.getNodeLevel() == 1 ? zjlx : xblx;
+            row.setFundTypeLabel(blankToLabel(row.getFundType(), fundTypeDict));
+            // 资金来源 / 项目类别 / 项目类型
+            row.setFundSourceLabel(blankToLabel(row.getFundSource(), zjly));
+            row.setProjectCategoryLabel(blankToLabel(row.getProjectCategory(), xmlb));
+            row.setProjectTypeLabel(blankToLabel(row.getProjectType(), xmlx));
         }
-        if (items == null || items.isEmpty()) return Collections.emptyMap();
-        Map<String, String> map = new HashMap<>();
-        for (SysDict d : items) {
-            if (d.getDictValue() != null) {
-                map.put(d.getDictValue(), d.getDictLabel() != null ? d.getDictLabel() : d.getDictValue());
+    }
+
+    /** 批量回填附件数量 */
+    private void attachAttachCount(List<FundDetailRowVO> rows) {
+        if (rows == null || rows.isEmpty()) return;
+        List<Long> ids = rows.stream().map(FundDetailRowVO::getId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (ids.isEmpty()) return;
+        List<Map<String, Object>> counts = fundQueryMapper.selectAttachCount(ids);
+        Map<Long, Integer> map = new HashMap<>();
+        if (counts != null) {
+            for (Map<String, Object> m : counts) {
+                Object fid = m.get("fundId");
+                Object cnt = m.get("cnt");
+                if (fid != null) {
+                    long id = ((Number) fid).longValue();
+                    int c = cnt == null ? 0 : ((Number) cnt).intValue();
+                    map.put(id, c);
+                }
             }
         }
-        return map;
-    }
-
-    /** nodeLevel 决定用哪个字典翻译 fundType */
-    private String dictValueByNode(Integer nodeLevel, String value, Map<String, String> lvl1Map, Map<String, String> lvl23Map) {
-        if (value == null) return null;
-        if (nodeLevel != null && nodeLevel == Constants.FUND_LEVEL_APPROVAL) {
-            return lvl1Map.getOrDefault(value, value);
+        for (FundDetailRowVO row : rows) {
+            row.setAttachCount(map.getOrDefault(row.getId(), 0));
         }
-        return lvl23Map.getOrDefault(value, value);
     }
 
-    /** 节点层级中文 */
-    private static String nodeLevelLabel(Integer nodeLevel) {
-        if (nodeLevel == null) return "";
-        return switch (nodeLevel) {
-            case 1 -> "资金登记";
-            case 2 -> "二级下拨";
-            case 3 -> "三级下拨";
-            default -> "层级" + nodeLevel;
+    // ============== 聚合 ==============
+
+    // ============== 嵌套聚合（仿照 DeclarationQuery 后端模式） ==============
+
+    /**
+     * 构造两层嵌套 rows：大分组（按 groupType）→ 每个大分组下按 village 子分组
+     * 每个大分组先输出一行 groupSummary=true 的 "全部村组" 汇总行，再依次输出该大分组下的具体村组明细行。
+     * 最后追加一行 grandTotal=true 的总计行（remark="全部区划"）。
+     *
+     * <p>特例：groupType=village 时，大分组就是村组本身，不展示 villageName 子列（前端用 v-if 隐藏），
+     * 所有行当作普通明细行，只在最底追加 grandTotal。</p>
+     */
+    private List<FundStatVO.Row> buildNestedRows(List<FundDetailRowVO> all, String groupType) {
+        String gt = (groupType == null || groupType.isBlank()) ? "fundType" : groupType;
+        boolean isVillageGroup = "village".equals(gt);
+
+        // 1) 先按大分组 gt 分桶
+        Map<String, List<FundDetailRowVO>> grouped = new LinkedHashMap<>();
+        Map<String, String> labels = new HashMap<>();
+        for (FundDetailRowVO row : all) {
+            String val = extractGroupValue(row, gt);
+            if (val == null) continue;
+            labels.put(val, extractGroupLabel(row, gt));
+            grouped.computeIfAbsent(val, k -> new ArrayList<>()).add(row);
+        }
+
+        List<FundStatVO.Row> out = new ArrayList<>();
+
+        // nodeLevel 固定按 1→2→3 顺序，其他维度按总金额降序
+        List<Map.Entry<String, List<FundDetailRowVO>>> sortedGroups = new ArrayList<>(grouped.entrySet());
+        if ("nodeLevel".equals(gt)) {
+            sortedGroups.sort((a, b) -> {
+                int ia = parseIntOr(a.getKey(), Integer.MAX_VALUE);
+                int ib = parseIntOr(b.getKey(), Integer.MAX_VALUE);
+                return Integer.compare(ia, ib);
+            });
+        } else {
+            sortedGroups.sort((a, b) -> {
+                BigDecimal sa = sumAmount(a.getValue()), sb = sumAmount(b.getValue());
+                return sb.compareTo(sa);
+            });
+        }
+
+        // 2) 遍历每个大分组：先输出 groupSummary 行（全部村组），再输出 village 明细行
+        for (Map.Entry<String, List<FundDetailRowVO>> e : sortedGroups) {
+            String bigGroupValue = e.getKey();
+            String bigGroupLabel = labels.getOrDefault(bigGroupValue, bigGroupValue);
+            List<FundDetailRowVO> bucket = e.getValue();
+
+            // 2a) 大分组整体汇总行
+            out.add(buildOneRow(bigGroupValue, bigGroupLabel, "全部村组", bucket,
+                    true, false, null));
+
+            if (!isVillageGroup) {
+                // 2b) 该大分组下再按 village 细分输出明细行
+                Map<String, List<FundDetailRowVO>> villageBucket = bucket.stream()
+                        .collect(Collectors.groupingBy(
+                                r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName(),
+                                LinkedHashMap::new, Collectors.toList()));
+                for (Map.Entry<String, List<FundDetailRowVO>> ve : villageBucket.entrySet()) {
+                    out.add(buildOneRow(bigGroupValue, bigGroupLabel, ve.getKey(), ve.getValue(),
+                            false, false, null));
+                }
+            }
+        }
+
+        // 3) 最底追加 grandTotal 行
+        if (!all.isEmpty()) {
+            out.add(buildOneRow("", "总计", "全部区划", all, false, true, "全部区划"));
+        }
+
+        return out;
+    }
+
+    /** 按给定明细行集合聚合出一行 Row */
+    private FundStatVO.Row buildOneRow(String groupValue, String groupLabel, String villageName,
+                                       List<FundDetailRowVO> rows,
+                                       boolean groupSummary, boolean grandTotal, String remark) {
+        FundStatVO.Row r = new FundStatVO.Row();
+        r.setGroupValue(groupValue);
+        r.setGroupLabel(groupLabel);
+        r.setVillageName(villageName);
+        r.setGroupSummary(groupSummary);
+        r.setGrandTotal(grandTotal);
+        r.setRemark(remark);
+        r.setRecordCount(rows.size());
+
+        Set<Long> projs = new HashSet<>();
+        Set<String> villages = new HashSet<>();
+        BigDecimal amt = BigDecimal.ZERO;
+        for (FundDetailRowVO row : rows) {
+            if (row.getApprovalId() != null) projs.add(row.getApprovalId());
+            String vn = blankToNull(row.getVillageName());
+            if (vn != null) villages.add(vn);
+            BigDecimal a = row.getAmount() == null ? BigDecimal.ZERO : row.getAmount();
+            amt = amt.add(a);
+        }
+        r.setProjectCount(projs.size());
+        r.setVillageCoverage(villages.size());
+        r.setAmount(amt);
+        return r;
+    }
+
+    private String extractGroupValue(FundDetailRowVO r, String gt) {
+        if (gt == null) gt = "fundType";
+        return switch (gt) {
+            case "fundSource" -> blankToNull(r.getFundSource());
+            case "nodeLevel"  -> r.getNodeLevel() == null ? null : String.valueOf(r.getNodeLevel());
+            case "village"    -> blankToNull(r.getVillageName());
+            default -> blankToNull(r.getFundType());
         };
     }
+
+    private String extractGroupLabel(FundDetailRowVO r, String gt) {
+        if (gt == null) gt = "fundType";
+        return switch (gt) {
+            case "fundSource" -> r.getFundSourceLabel() != null ? r.getFundSourceLabel() : blankToNull(r.getFundSource());
+            case "nodeLevel"  -> r.getNodeLevelLabel() != null ? r.getNodeLevelLabel() : (r.getNodeLevel() == null ? null : String.valueOf(r.getNodeLevel()));
+            case "village"    -> blankToNull(r.getVillageName());
+            default -> r.getFundTypeLabel() != null ? r.getFundTypeLabel() : blankToNull(r.getFundType());
+        };
+    }
+
+    /** detailList 接口里，根据 groupType + groupValue 把明细行过滤出来 */
+    private boolean matchGroup(FundDetailRowVO row, String gt, String gv) {
+        String val = extractGroupValue(row, gt);
+        if (val == null) return false;
+        return val.equals(gv);
+    }
+
+    // ============== 导出（CSV 格式，和 DeclarationQuery 保持一致） ==============
+
+    /**
+     * 导出当前分组下的全部明细到 CSV（UTF-8 BOM，Excel 直接打开不乱码）。
+     *
+     * @return 文件字节流，Controller 写入 ResponseOutputStream
+     */
+    @Override
+    public byte[] exportCsv(String year, String regionCode,
+                            String groupType, String groupValue) {
+        List<FundDetailRowVO> rows = detailList(year, regionCode, groupType, groupValue);
+        if (rows.size() > 5000) {
+            throw new RuntimeException("导出上限 5000 条，请缩小筛选范围");
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (OutputStreamWriter w = new OutputStreamWriter(baos, StandardCharsets.UTF_8)) {
+            w.write('\ufeff'); // BOM
+            // 表头（和文档一致）
+            w.write("节点层级,立项编号,项目名称,申报编号,申报名称,明细名称,资金类型,资金来源,金额,乡镇,村组,经办人,经办时间,备注\n");
+            for (FundDetailRowVO r : rows) {
+                w.write(csv(r.getNodeLevelLabel())); w.write(',');
+                w.write(csv(r.getApprovalCode()));  w.write(',');
+                w.write(csv(r.getProjectName()));   w.write(',');
+                w.write(csv(r.getDeclareCode()));   w.write(',');
+                w.write(csv(r.getDeclareName()));   w.write(',');
+                w.write(csv(r.getDetailName()));    w.write(',');
+                w.write(csv(r.getFundTypeLabel())); w.write(',');
+                w.write(csv(r.getFundSourceLabel()));w.write(',');
+                w.write(csv(r.getAmount() == null ? null : r.getAmount().toPlainString())); w.write(',');
+                w.write(csv(r.getTownName()));      w.write(',');
+                w.write(csv(r.getVillageName()));   w.write(',');
+                w.write(csv(r.getCreateBy()));      w.write(',');
+                w.write(csv(r.getCreateTime() == null ? null : r.getCreateTime().toString())); w.write(',');
+                w.write(csv(r.getRemark()));        w.write('\n');
+            }
+            // 尾部统计口径小字
+            w.write("\n统计口径：登记合计为 nodeLevel=1 金额，下拨合计为 nodeLevel=2、3 金额。\n");
+        } catch (Exception e) {
+            log.error("导出 CSV 失败", e);
+            throw new RuntimeException("导出失败：" + e.getMessage());
+        }
+        return baos.toByteArray();
+    }
+
+    private static String csv(String s) {
+        if (s == null) return "";
+        String x = s.replace("\"", "\"\"");
+        return x.contains(",") || x.contains("\n") || x.contains("\"") ? "\"" + x + "\"" : x;
+    }
+
+    // ============== 工具 ==============
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
 
-    /** CSV 单元格转义 */
-    private static String csvCell(String s) {
-        if (s == null) return "";
-        if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0) {
-            return "\"" + s.replace("\"", "\"\"") + "\"";
+    private static String blankToLabel(String value, Map<String, String> dict) {
+        if (value == null) return "";
+        if (dict == null || dict.isEmpty()) return value;
+        String v = dict.get(value);
+        return v == null ? value : v;
+    }
+
+    private static int parseIntOr(String s, int fallback) {
+        try { return Integer.parseInt(s); } catch (Exception e) { return fallback; }
+    }
+
+    private static BigDecimal sumAmount(List<FundDetailRowVO> rows) {
+        BigDecimal r = BigDecimal.ZERO;
+        for (FundDetailRowVO row : rows) {
+            BigDecimal a = row.getAmount() == null ? BigDecimal.ZERO : row.getAmount();
+            r = r.add(a);
         }
-        return s;
+        return r;
     }
 }

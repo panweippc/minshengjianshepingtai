@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -47,6 +49,12 @@ public class ProjectApprovalSubmitDTO {
 
     @Schema(description = "建设依据（必填）")
     private String remark;
+
+    @Schema(description = "立项日期（选填，不传则用当前日期）")
+    private LocalDate establishDate;
+
+    @Schema(description = "提交时间（选填，若传了则会覆盖 submit_time；不传则服务端自动写入 now）")
+    private LocalDateTime submitTime;
 
     // ---- 所属乡镇 / 村组（选填，弹窗里多选村组） ----
     @Schema(description = "所属乡镇 region_code")

@@ -62,10 +62,16 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '申报综合查询', icon: 'DataAnalysis' }
       },
       {
-        path: 'query/fund-record',
-        name: 'FundRecordQuery',
-        component: () => import('@/views/query/FundRecordQuery.vue'),
+        path: 'query/fund-record-stat',
+        name: 'FundRecordStatQuery',
+        component: () => import('@/views/query/FundRecordStatQuery.vue'),
         meta: { title: '资金记录查询', icon: 'Money' }
+      },
+      {
+        path: 'query/project-cycle',
+        name: 'ProjectCycleQuery',
+        component: () => import('@/views/query/ProjectCycleQuery.vue'),
+        meta: { title: '项目全周期查询', icon: 'DataBoard' }
       },
       {
         path: 'system/user',
@@ -197,7 +203,12 @@ router.beforeEach(async (to, _from, next) => {
       })
       next({ ...to, replace: true })
     } catch {
-      await store.logout()
+      // 登录态失效（含业务码 401）时只清理本地状态，避免登出接口再次失败中断导航
+      store.token = ''
+      store.userInfo = null
+      store.menus = []
+      store.perms = []
+      localStorage.removeItem('token')
       next('/login')
     }
     return

@@ -1,41 +1,23 @@
 package com.msjs.project.service;
 
-import com.msjs.project.common.PageVO;
-import com.msjs.project.vo.FundQueryVO;
+import com.msjs.project.vo.FundDetailRowVO;
+import com.msjs.project.vo.FundStatVO;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 /**
- * 资金记录查询服务（综合查询模块，只读）
+ * 资金记录查询 Service —— 只读统计查询
  */
 public interface ProjectFundQueryService {
 
-    /**
-     * 资金流水分页查询（一次返回 records + summary + sidebar）
-     */
-    PageVO<FundQueryVO.Record> page(
-            long pageNum, long pageSize,
-            String projectName, String approvalCode, String declareCode, String detailName,
-            Integer nodeLevel, String fundType, String fundSource,
-            String regionCode,
-            String startTime, String endTime,
-            String createBy, BigDecimal minAmount, BigDecimal maxAmount
-    );
+    /** 主接口：返回全局汇总 + 主统计表格（按 groupType 分组聚合）；groupValue 传了则 statList 只留该行 */
+    FundStatVO stat(String year, String regionCode, String groupType, String groupValue);
 
-    /** 查询结果附带的顶部汇总卡统计 */
-    FundQueryVO.Summary lastSummary();
+    /** 分组明细流水（弹窗内展示） */
+    List<FundDetailRowVO> detailList(String year, String regionCode,
+                                      String groupType, String groupValue);
 
-    /** 查询结果附带的左侧筛选面板统计 */
-    FundQueryVO.Sidebar lastSidebar();
-
-    /**
-     * 全量导出（CSV，UTF-8 BOM），不分页，走同一套筛选条件
-     */
-    byte[] export(
-            String projectName, String approvalCode, String declareCode, String detailName,
-            Integer nodeLevel, String fundType, String fundSource,
-            String regionCode,
-            String startTime, String endTime,
-            String createBy, BigDecimal minAmount, BigDecimal maxAmount
-    );
+    /** 导出 CSV（UTF-8 BOM），上限 Constants.MAX_EXPORT_ROWS */
+    byte[] exportCsv(String year, String regionCode,
+                     String groupType, String groupValue);
 }

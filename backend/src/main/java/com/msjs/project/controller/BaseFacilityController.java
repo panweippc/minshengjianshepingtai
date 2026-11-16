@@ -7,7 +7,9 @@ import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.FacilitySaveDTO;
 import com.msjs.project.entity.BaseFacility;
 import com.msjs.project.service.BaseFacilityService;
+import com.msjs.project.service.ProjectLifecycleService;
 import com.msjs.project.vo.FacilityDetailVO;
+import com.msjs.project.vo.ProjectLifecycleVO;
 import com.msjs.project.vo.RegionFacilityCountVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,6 +38,7 @@ import java.util.List;
 public class BaseFacilityController {
 
     private final BaseFacilityService facilityService;
+    private final ProjectLifecycleService projectLifecycleService;
 
     @Operation(summary = "公共基础设施分页查询")
     @RequirePerm("base:facility:list")
@@ -62,6 +65,13 @@ public class BaseFacilityController {
     @GetMapping("/detail/{id}")
     public Result<FacilityDetailVO> detail(@Parameter(description = "设施主键ID") @PathVariable Long id) {
         return Result.ok(facilityService.detail(id));
+    }
+
+    @Operation(summary = "设施关联的项目全周期明细（申报→立项→施工→资金→验收）")
+    @RequirePerm("base:facility:list")
+    @GetMapping("/projects/{facilityId}")
+    public Result<List<ProjectLifecycleVO>> projects(@Parameter(description = "设施主键ID") @PathVariable Long facilityId) {
+        return Result.ok(projectLifecycleService.listByFacility(facilityId));
     }
 
     @Operation(summary = "新增设施")
