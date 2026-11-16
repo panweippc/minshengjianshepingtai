@@ -145,16 +145,19 @@
 
       <el-form v-else ref="formRef" :model="form" :rules="formRules" label-width="140px">
         <el-form-item label="上级区划">
-          <el-cascader
-            v-model="cascaderValue"
-            :options="cascaderOptions"
-            :props="cascaderProps"
+          <el-tree-select
+            v-model="parentValue"
+            :data="treeData"
+            :props="parentTreeProps"
             :disabled="dialogMode === 'edit'"
+            check-strictly
+            :render-after-expand="false"
+            default-expand-all
             clearable
             filterable
-            placeholder="请选择上级区划（新增下级）或当前区划（编辑）"
+            placeholder="请选择上级区划"
             style="width: 100%"
-            @change="handleCascaderChange"
+            @change="handleParentChange"
           />
         </el-form-item>
         <el-form-item label="区划名称" prop="name">
@@ -272,50 +275,32 @@ const regionTypeOptions = computed(() =>
     : DEFAULT_REGION_TYPES
 )
 
-/** 级联选择器：从区划树转换 options 格式 */
-const cascaderProps = { value: 'code', label: 'name', children: 'children' }
-const cascaderValue = ref<string[]>([])
-const cascaderOptions = computed(() => treeData.value)
+/** 上级区划树选择：单选，可选择任意层级节点 */
+const parentTreeProps = { value: 'code', label: 'name', children: 'children' }
+const parentValue = ref<string>('')
 
-/** 根据编码在区划树中查找完整路径 */
-const findPathInTree = (code: string, nodes: VillageTreeVO[], path: string[] = []): string[] | null => {
+/** 根据编码在区划树中查找节点 */
+const findNodeByCode = (code: string, nodes: VillageTreeVO[]): VillageTreeVO | undefined => {
   for (const node of nodes) {
-    const next = [...path, node.code]
-    if (node.code === code) return next
+    if (node.code === code) return node
     if (node.children?.length) {
-      const hit = findPathInTree(code, node.children, next)
+      const hit = findNodeByCode(code, node.children)
       if (hit) return hit
     }
   }
-  return null
+  return undefined
 }
 
-/** 级联选择变化：最后一级作为父级（新增模式），自动填充 parentCode 与 regionType */
-const handleCascaderChange = (val: string[]) => {
-  if (!val?.length) {
+/** 上级区划变化：自动填充 parentCode 与下一级区划类型 */
+const handleParentChange = (val: string) => {
+  if (!val) {
     form.parentCode = undefined
     return
   }
-  const lastCode = val[val.length - 1]
-  // 从 treeData 中找到最后一级节点
-  const findNode = (nodes: VillageTreeVO[]): VillageTreeVO | undefined => {
-    for (const n of nodes) {
-      if (n.code === lastCode) return n
-      if (n.children?.length) {
-        const hit = findNode(n.children)
-        if (hit) return hit
-      }
-    }
-    return undefined
-  }
-  const node = findNode(treeData.value)
+  const node = findNodeByCode(val, treeData.value)
   if (!node) return
-
-  if (dialogMode.value === 'add') {
-    // 新增模式：选中的是父级，自动填充 parentCode 和下一级区划类型
-    form.parentCode = node.code
-    form.regionType = String(Math.min(Number(node.regionType) + 1, 3))
-  }
+  form.parentCode = node.code
+  form.regionType = String(Math.min(Number(node.regionType) + 1, 3))
 }
 
 const query = reactive<VillageQuery>({
@@ -446,7 +431,7 @@ const resetForm = () => {
     directorPhone: '',
     sort: 0
   })
-  cascaderValue.value = []
+  parentValue.value = ''
 }
 
 /** 新增；传入父级时自动匹配下一级区划类型 */
@@ -456,9 +441,7 @@ const openAdd = (parent?: VillageVO) => {
   if (parent) {
     form.parentCode = parent.code
     form.regionType = String(Math.min(Number(parent.regionType) + 1, 3))
-    // 回显父级在级联选择器中的完整路径
-    const path = findPathInTree(parent.code, treeData.value)
-    cascaderValue.value = path ?? []
+    parentValue.value = parent.code
   }
   dialogVisible.value = true
 }
@@ -476,9 +459,8 @@ const openEdit = (row: VillageVO) => {
     directorPhone: row.directorPhone ?? '',
     sort: row.sort ?? 0
   })
-  // 回显当前区划在级联选择器中的完整路径
-  const path = findPathInTree(row.code, treeData.value)
-  cascaderValue.value = path ?? []
+  // 回显上级区划
+  parentValue.value = row.parentCode ?? ''
   dialogVisible.value = true
 }
 
