@@ -360,6 +360,8 @@ export interface ProjectApprovalSubmitDTO {
   leader?: string
   applyBy?: string
   remark?: string
+  /** 立项日期，格式 yyyy-MM-dd，选填 */
+  establishDate?: string
   townCode?: string
   townName?: string
   villageCodes?: string[]

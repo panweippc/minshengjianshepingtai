@@ -1,7 +1,6 @@
 package com.msjs.project.mapper;
 
-import com.msjs.project.vo.FundQueryVO;
-import lombok.Data;
+import com.msjs.project.vo.FundDetailRowVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -11,22 +10,20 @@ import java.util.List;
 /**
  * 资金记录查询 Mapper
  *
- * <p>原本设计用 UNION ALL 把 t_project_fund 的 nodeLevel=1/2/3 三段在 SQL 层拉平，
- * 但踩了两个坑：
- *   1. 生产库三张表字符串字段的实际 COLLATE 不统一（有的 utf8mb4_unicode_ci，
- *      有的 utf8mb4_general_ci），MySQL 在 UNION 时会抛
- *      "Illegal mix of collations for operation 'UNION'"。
- *   2. 加 COLLATE 归一化之后，MyBatis-Plus 注册的 DataPermissionInterceptor
- *      底层 JSqlParser 又不认识 COLLATE 语法，还没到 MySQL 就 parse 失败。
+ * <p>拆为 3 段独立查询（node_level = 1 / 2 / 3），由 Service 层内存合并 + 排序。
+ * 这么做是为了避开：
+ *   ① 三张表字符串字段实际 COLLATE 不统一，直接 UNION ALL 会抛
+ *      "Illegal mix of collations for operation 'UNION'"；
+ *   ② 加 COLLATE 归一化之后 MyBatis-Plus DataPermissionInterceptor 底层
+ *      JSqlParser 又不认识 COLLATE 语法，还没到 MySQL 就 parse 失败。
  *
- * 因此最终方案拆成三条独立查询，Service 层内存合并。SQL 纯净到不会触发
- * JSqlParser 的任何边缘 case，同时 Service 层对三条查询应用完全相同的筛选，
- * 合并后再内存分页 + summary + sidebar 聚合，语义与原 UNION ALL 完全一致。</p>
+ * 三段 SQL 纯净不含 UNION / COLLATE / 跨表 LEFT JOIN 以外的花招，JSqlParser
+ * 能顺畅通过，MySQL 也不会因为 collation 报错。</p>
  */
 @Mapper
 public interface FundQueryMapper {
 
-    /** nodeLevel = 1：资金登记（从立项表 a 直接取乡镇、region_code） */
+    /** nodeLevel = 1：资金登记（从立项表取乡镇 region_code/region_name） */
     @Select("<script>" +
             " SELECT " +
             "   f.id AS id, f.node_level AS nodeLevel, " +
@@ -36,18 +33,23 @@ public interface FundQueryMapper {
             "   a.id AS approvalId, a.approval_code AS approvalCode, " +
             "   a.project_name AS projectName, a.project_category AS projectCategory, " +
             "   a.project_type AS projectType, " +
-            "   NULL AS declareId, NULL AS declareCode, NULL AS declareName, " +
-            "   NULL AS detailId, NULL AS detailName, NULL AS detailType, " +
-            "   a.region_name AS townName, NULL AS villageName, " +
+            "   CAST(NULL AS SIGNED) AS declareId, " +
+            "   CAST(NULL AS CHAR) AS declareCode, CAST(NULL AS CHAR) AS declareName, " +
+            "   CAST(NULL AS SIGNED) AS detailId, " +
+            "   CAST(NULL AS CHAR) AS detailName, CAST(NULL AS CHAR) AS detailType, " +
+            "   a.region_name AS townName, CAST(NULL AS CHAR) AS villageName, " +
             "   a.region_code AS regionCode " +
             " FROM t_project_fund f " +
             " JOIN t_project_approval a ON a.id = f.approval_id AND a.deleted = 0 " +
             " WHERE f.deleted = 0 AND f.node_level = 1 " +
-            " <if test='projectName != null and projectName != \"\"'>" +
-            "   AND a.project_name LIKE CONCAT('%', #{projectName}, '%')" +
+            " <if test='year != null and year != \"\"'>" +
+            "   AND YEAR(f.create_time) = #{year}" +
             " </if>" +
-            " <if test='approvalCode != null and approvalCode != \"\"'>" +
-            "   AND a.approval_code LIKE CONCAT('%', #{approvalCode}, '%')" +
+            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
+            "   AND a.region_code IN " +
+            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "     #{rc}" +
+            "   </foreach>" +
             " </if>" +
             " <if test='fundType != null and fundType != \"\"'>" +
             "   AND f.fund_type = #{fundType}" +
@@ -56,7 +58,7 @@ public interface FundQueryMapper {
             "   AND f.fund_source = #{fundSource}" +
             " </if>" +
             " <if test='createBy != null and createBy != \"\"'>" +
-            "   AND f.create_by = #{createBy}" +
+            "   AND f.create_by LIKE CONCAT('%', #{createBy}, '%')" +
             " </if>" +
             " <if test='startTime != null and startTime != \"\"'>" +
             "   AND f.create_time &gt;= #{startTime}" +
@@ -70,17 +72,11 @@ public interface FundQueryMapper {
             " <if test='maxAmount != null'>" +
             "   AND f.amount &lt;= #{maxAmount}" +
             " </if>" +
-            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
-            "   AND a.region_code IN " +
-            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
-            "     #{rc}" +
-            "   </foreach>" +
-            " </if>" +
             " ORDER BY f.create_time DESC, f.id DESC" +
             "</script>")
-    List<FundQueryVO.Record> selectLevel1(CommonQueryParams p);
+    List<FundDetailRowVO> selectLevel1(QueryParams p);
 
-    /** nodeLevel = 2：二级下拨（从申报单 d 取乡镇/村组） */
+    /** nodeLevel = 2：二级下拨（从申报单取 town_name / village_name） */
     @Select("<script>" +
             " SELECT " +
             "   f.id AS id, f.node_level AS nodeLevel, " +
@@ -91,21 +87,22 @@ public interface FundQueryMapper {
             "   a.project_name AS projectName, a.project_category AS projectCategory, " +
             "   a.project_type AS projectType, " +
             "   d.id AS declareId, d.declare_code AS declareCode, d.declare_name AS declareName, " +
-            "   NULL AS detailId, NULL AS detailName, NULL AS detailType, " +
+            "   CAST(NULL AS SIGNED) AS detailId, " +
+            "   CAST(NULL AS CHAR) AS detailName, CAST(NULL AS CHAR) AS detailType, " +
             "   d.town_name AS townName, d.village_name AS villageName, " +
             "   a.region_code AS regionCode " +
             " FROM t_project_fund f " +
             " JOIN t_project_approval a ON a.id = f.approval_id AND a.deleted = 0 " +
             " JOIN t_project_approval_declare d ON d.id = f.declare_id AND d.deleted = 0 " +
             " WHERE f.deleted = 0 AND f.node_level = 2 " +
-            " <if test='projectName != null and projectName != \"\"'>" +
-            "   AND a.project_name LIKE CONCAT('%', #{projectName}, '%')" +
+            " <if test='year != null and year != \"\"'>" +
+            "   AND YEAR(f.create_time) = #{year}" +
             " </if>" +
-            " <if test='approvalCode != null and approvalCode != \"\"'>" +
-            "   AND a.approval_code LIKE CONCAT('%', #{approvalCode}, '%')" +
-            " </if>" +
-            " <if test='declareCode != null and declareCode != \"\"'>" +
-            "   AND d.declare_code LIKE CONCAT('%', #{declareCode}, '%')" +
+            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
+            "   AND a.region_code IN " +
+            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "     #{rc}" +
+            "   </foreach>" +
             " </if>" +
             " <if test='fundType != null and fundType != \"\"'>" +
             "   AND f.fund_type = #{fundType}" +
@@ -114,7 +111,7 @@ public interface FundQueryMapper {
             "   AND f.fund_source = #{fundSource}" +
             " </if>" +
             " <if test='createBy != null and createBy != \"\"'>" +
-            "   AND f.create_by = #{createBy}" +
+            "   AND f.create_by LIKE CONCAT('%', #{createBy}, '%')" +
             " </if>" +
             " <if test='startTime != null and startTime != \"\"'>" +
             "   AND f.create_time &gt;= #{startTime}" +
@@ -128,17 +125,11 @@ public interface FundQueryMapper {
             " <if test='maxAmount != null'>" +
             "   AND f.amount &lt;= #{maxAmount}" +
             " </if>" +
-            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
-            "   AND a.region_code IN " +
-            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
-            "     #{rc}" +
-            "   </foreach>" +
-            " </if>" +
             " ORDER BY f.create_time DESC, f.id DESC" +
             "</script>")
-    List<FundQueryVO.Record> selectLevel2(CommonQueryParams p);
+    List<FundDetailRowVO> selectLevel2(QueryParams p);
 
-    /** nodeLevel = 3：三级下拨（明细 target_name、detail_type） */
+    /** nodeLevel = 3：三级下拨（从明细取 target_name / detail_type） */
     @Select("<script>" +
             " SELECT " +
             "   f.id AS id, f.node_level AS nodeLevel, " +
@@ -157,17 +148,14 @@ public interface FundQueryMapper {
             " JOIN t_project_approval_declare d ON d.id = f.declare_id AND d.deleted = 0 " +
             " JOIN t_project_approval_detail det ON det.id = f.detail_id AND det.deleted = 0 " +
             " WHERE f.deleted = 0 AND f.node_level = 3 " +
-            " <if test='projectName != null and projectName != \"\"'>" +
-            "   AND a.project_name LIKE CONCAT('%', #{projectName}, '%')" +
+            " <if test='year != null and year != \"\"'>" +
+            "   AND YEAR(f.create_time) = #{year}" +
             " </if>" +
-            " <if test='approvalCode != null and approvalCode != \"\"'>" +
-            "   AND a.approval_code LIKE CONCAT('%', #{approvalCode}, '%')" +
-            " </if>" +
-            " <if test='declareCode != null and declareCode != \"\"'>" +
-            "   AND d.declare_code LIKE CONCAT('%', #{declareCode}, '%')" +
-            " </if>" +
-            " <if test='detailName != null and detailName != \"\"'>" +
-            "   AND det.target_name LIKE CONCAT('%', #{detailName}, '%')" +
+            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
+            "   AND a.region_code IN " +
+            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "     #{rc}" +
+            "   </foreach>" +
             " </if>" +
             " <if test='fundType != null and fundType != \"\"'>" +
             "   AND f.fund_type = #{fundType}" +
@@ -176,7 +164,7 @@ public interface FundQueryMapper {
             "   AND f.fund_source = #{fundSource}" +
             " </if>" +
             " <if test='createBy != null and createBy != \"\"'>" +
-            "   AND f.create_by = #{createBy}" +
+            "   AND f.create_by LIKE CONCAT('%', #{createBy}, '%')" +
             " </if>" +
             " <if test='startTime != null and startTime != \"\"'>" +
             "   AND f.create_time &gt;= #{startTime}" +
@@ -190,37 +178,28 @@ public interface FundQueryMapper {
             " <if test='maxAmount != null'>" +
             "   AND f.amount &lt;= #{maxAmount}" +
             " </if>" +
-            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
-            "   AND a.region_code IN " +
-            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
-            "     #{rc}" +
-            "   </foreach>" +
-            " </if>" +
             " ORDER BY f.create_time DESC, f.id DESC" +
             "</script>")
-    List<FundQueryVO.Record> selectLevel3(CommonQueryParams p);
+    List<FundDetailRowVO> selectLevel3(QueryParams p);
 
     /**
-     * 三段查询共用的筛选参数 DTO（只有 3 段都一致的筛选项才放这里；
-     * 只对某一级有效的筛选项由 Service 层决定是否跳过该段）。
+     * 三段查询共用的筛选参数 DTO（只有 3 段都一致的筛选项才放这里）。
+     * lombok @Data 自动生成 getter/setter，MyBatis 注解式 XML <if test> 能直接访问。
      */
-    @Data // lombok 生成 getter/setter，方便 MyBatis XML 与注解式 <if test>
-    class CommonQueryParams {
-        String projectName;
-        String approvalCode;
-        String declareCode;
-        String detailName;
+    @lombok.Data
+    class QueryParams {
+        String year;
         String fundType;
         String fundSource;
+        String createBy;
         String startTime;
         String endTime;
-        String createBy;
         java.math.BigDecimal minAmount;
         java.math.BigDecimal maxAmount;
         List<String> regionCodes;
     }
 
-    /** 批量查询附件数量 */
+    /** 批量查附件数量，Service 合并后再回填 */
     @Select("<script>" +
             " SELECT fund_id AS fundId, COUNT(*) AS cnt " +
             " FROM t_project_fund_attachment " +

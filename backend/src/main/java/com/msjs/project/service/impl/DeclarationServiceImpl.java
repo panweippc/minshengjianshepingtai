@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.entity.SysDict;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.common.UserContext;
@@ -33,6 +34,7 @@ import com.msjs.project.mapper.HouseholdMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.mapper.SysUserMapper;
 import com.msjs.project.service.DeclarationService;
+import com.msjs.project.service.SysDictService;
 import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
 import com.msjs.project.vo.UserRegionVO;
@@ -82,6 +84,7 @@ public class DeclarationServiceImpl implements DeclarationService {
     private final BaseFacilityMapper baseFacilityMapper;
     private final SysUserMapper userMapper;
     private final DeclarationDetailAuditLogMapper auditLogMapper;
+    private final SysDictService sysDictService;
 
     /** 业务编号前缀 */
     private static final String CODE_PREFIX = "DEC";
@@ -1646,41 +1649,58 @@ public class DeclarationServiceImpl implements DeclarationService {
         };
     }
 
-    /** 审批状态值 → 中文标签（按明细表 audit_status 维度） */
-    private static String mapAuditStatusLabel(String auditStatus) {
-        if ("pending".equals(auditStatus))  return "待审核";
-        if ("approved".equals(auditStatus)) return "已通过";
-        if ("rejected".equals(auditStatus)) return "已驳回";
-        if ("established".equals(auditStatus)) return "已立项";
-        if ("unsubmitted".equals(auditStatus)) return "未提交";
-        return auditStatus == null ? "" : auditStatus;
+    /** 审批状态值 → 中文标签（按字典 shen_pi_zhuang_tai 动态查询） */
+    private String mapAuditStatusLabel(String auditStatus, List<SysDict> statusDict) {
+        if (auditStatus == null) return "";
+        for (SysDict d : statusDict) {
+            if (auditStatus.equals(d.getDictValue())) return d.getDictLabel();
+        }
+        return auditStatus; // 字典里找不到，回退用原值本身（新增状态未同步字典时的兜底）
     }
 
-    /** 排序 key 生成器（统一三个维度） */
-    private static List<String> orderedKeys(Set<String> keys, String groupBy) {
+    /** 申报类别值 → 中文标签（按字典 shen_bao_lei_bie 动态查询） */
+    private String mapCategoryLabel(String category, List<SysDict> catDict) {
+        if (category == null) return "";
+        for (SysDict d : catDict) {
+            if (category.equals(d.getDictValue())) return d.getDictLabel();
+        }
+        return category;
+    }
+
+    /** 排序 key 生成器 —— category / status 按字典 sort 排序，village 字母序 */
+    private List<String> orderedKeys(Set<String> keys, String groupBy,
+                                     List<SysDict> catDict, List<SysDict> statusDict) {
         List<String> result = new ArrayList<>();
         if ("category".equals(groupBy)) {
-            for (String k : new String[]{"1", "2"}) if (keys.contains(k)) result.add(k);
-            for (String k : keys) if (!"1".equals(k) && !"2".equals(k)) result.add(k);
-        } else if ("status".equals(groupBy)) {
-            for (String k : new String[]{"pending", "approved", "rejected", "established"})
-                if (keys.contains(k)) result.add(k);
-            for (String k : keys) {
-                boolean already = false;
-                for (String o : new String[]{"pending", "approved", "rejected", "established"})
-                    if (o.equals(k)) { already = true; break; }
-                if (!already) result.add(k);
+            // 字典里定义了的按 sort 顺序
+            for (SysDict d : catDict) {
+                if (keys.contains(d.getDictValue())) result.add(d.getDictValue());
             }
-        } else { // village
+            // 字典没收录的未知值排后面
+            for (String k : keys) {
+                boolean known = false;
+                for (SysDict d : catDict) if (d.getDictValue().equals(k)) { known = true; break; }
+                if (!known) result.add(k);
+            }
+        } else if ("status".equals(groupBy)) {
+            for (SysDict d : statusDict) {
+                if (keys.contains(d.getDictValue())) result.add(d.getDictValue());
+            }
+            for (String k : keys) {
+                boolean known = false;
+                for (SysDict d : statusDict) if (d.getDictValue().equals(k)) { known = true; break; }
+                if (!known) result.add(k);
+            }
+        } else {
             result.addAll(keys);
             java.util.Collections.sort(result);
         }
         return result;
     }
 
-    /** 审批状态 / 分组标签映射 */
-    private static String auditStatusToLabel(String s) {
-        return mapAuditStatusLabel(s == null ? "" : s);
+    /** 审批状态 / 分组标签映射（无参版本，内部调字典） */
+    private String auditStatusToLabel(String s, List<SysDict> statusDict) {
+        return mapAuditStatusLabel(s == null ? "" : s, statusDict);
     }
 
     // ================ 申报综合查询统计 ================
@@ -1728,6 +1748,10 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         wrapper.orderByDesc(Declaration::getCreateTime);
         List<Declaration> declarations = declarationMapper.selectList(wrapper);
+
+        // ==== 字典缓存（一次查询、全流程复用） ====
+        List<SysDict> catDict = sysDictService.listByType("shen_bao_lei_bie");
+        List<SysDict> statusDict = sysDictService.listByType("shen_pi_zhuang_tai");
 
         // 2) 构建扁平明细列表（ household + facility 拍平成 FlatItem）
         Set<Long> declIds = declarations.stream().map(Declaration::getId).collect(Collectors.toSet());
@@ -1795,18 +1819,18 @@ public class DeclarationServiceImpl implements DeclarationService {
             String label;
             if ("status".equals(groupBy)) {
                 key = f.auditStatus == null ? "" : f.auditStatus;
-                label = auditStatusToLabel(key);
+                label = auditStatusToLabel(key, statusDict);
             } else if ("village".equals(groupBy)) {
                 key = f.villageGroupCode == null ? "" : f.villageGroupCode;
                 label = f.villageGroupName == null ? (key.isEmpty() ? "未知村组" : key) : f.villageGroupName;
             } else { // category
                 key = f.declarationCategory == null ? "" : f.declarationCategory;
-                label = mapCategoryLabel(key);
+                label = mapCategoryLabel(key, catDict);
             }
             mainLabel.putIfAbsent(key, label);
             mainGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
         }
-        List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy);
+        List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy, catDict, statusDict);
 
         // 全局总计（申报单数按 distinct declarationId；户数/设施数不去重累加）
         Set<Long> grandDeclIds = new HashSet<>();
@@ -1866,7 +1890,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         // 4) sidebar（左侧筛选面板）统计 —— 申报单数按 distinct declarationId
         DeclarationStatisticsVO.SidebarStats sidebar = new DeclarationStatisticsVO.SidebarStats();
 
-        // 按申报类别
+        // 按申报类别 —— 字典全量输出（新增类别自动生效）
         List<DeclarationStatisticsVO.StatItem> byCategory = new ArrayList<>();
         Map<String, Set<Long>> catDecl = new HashMap<>();
         for (FlatItem f : flatItems) {
@@ -1874,16 +1898,17 @@ public class DeclarationServiceImpl implements DeclarationService {
             catDecl.computeIfAbsent(c, k -> new HashSet<>());
             if (f.declarationId != null) catDecl.get(c).add(f.declarationId);
         }
-        for (String c : new String[]{"1", "2"}) {
+        for (SysDict d : catDict) {
+            String val = d.getDictValue();
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
-            it.setValue(c);
-            it.setLabel(mapCategoryLabel(c));
-            it.setCount(catDecl.getOrDefault(c, Collections.emptySet()).size());
+            it.setValue(val);
+            it.setLabel(d.getDictLabel());
+            it.setCount(catDecl.getOrDefault(val, Collections.emptySet()).size());
             byCategory.add(it);
         }
         sidebar.setByCategory(byCategory);
 
-        // 按审批状态（固定四项）
+        // 按审批状态 —— 字典全量输出（新增状态自动生效）
         List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
         Map<String, Set<Long>> statusDecl = new HashMap<>();
         for (FlatItem f : flatItems) {
@@ -1891,11 +1916,12 @@ public class DeclarationServiceImpl implements DeclarationService {
             statusDecl.computeIfAbsent(s, k -> new HashSet<>());
             if (f.declarationId != null) statusDecl.get(s).add(f.declarationId);
         }
-        for (String s : new String[]{"pending", "approved", "rejected", "established"}) {
+        for (SysDict d : statusDict) {
+            String val = d.getDictValue();
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
-            it.setValue(s);
-            it.setLabel(auditStatusToLabel(s));
-            it.setCount(statusDecl.getOrDefault(s, Collections.emptySet()).size());
+            it.setValue(val);
+            it.setLabel(d.getDictLabel());
+            it.setCount(statusDecl.getOrDefault(val, Collections.emptySet()).size());
             byStatus.add(it);
         }
         sidebar.setByStatus(byStatus);
@@ -1974,23 +2000,6 @@ public class DeclarationServiceImpl implements DeclarationService {
             current = next;
         }
         return result;
-    }
-
-    /** 申报类别值 → 中文标签 */
-    private static String mapCategoryLabel(String category) {
-        if ("1".equals(category)) return "到户申报";
-        if ("2".equals(category)) return "公建申报";
-        return category == null ? "" : category;
-    }
-
-    /** 审批状态值 → 中文标签（主表 status 字段） */
-    private static String mapStatusLabel(String status) {
-        if ("submitted".equals(status)) return "待审核";
-        if ("approved".equals(status)) return "已通过";
-        if ("rejected".equals(status)) return "已驳回";
-        if ("established".equals(status)) return "已立项";
-        if ("draft".equals(status)) return "草稿";
-        return status == null ? "" : status;
     }
 }
 

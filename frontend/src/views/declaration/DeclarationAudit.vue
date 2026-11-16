@@ -591,6 +591,19 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="立项日期">
+              <el-date-picker
+                v-model="approvalDialog.form.establishDate"
+                type="date"
+                placeholder="选填，默认当天"
+                value-format="YYYY-MM-DD"
+                style="width:100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="所属乡镇">
               <el-input :model-value="approvalDialog.form.townName" disabled placeholder="自动带出（从申报单提取）" />
             </el-form-item>
@@ -1120,6 +1133,7 @@ const approvalDialog = reactive({
     leader: '',
     applyBy: '',
     remark: '',
+    establishDate: '',
     townCode: '',
     townName: '',
     attachments: [] as ApprovalAttachmentItem[]
@@ -1159,6 +1173,7 @@ function openApprovalDialog() {
   approvalDialog.form.leader = ''
   approvalDialog.form.applyBy = ''
   approvalDialog.form.remark = ''
+  approvalDialog.form.establishDate = ''
   approvalDialog.form.attachments = []
   approvalDialog.newDeclId = ''
 
@@ -1219,6 +1234,7 @@ async function doSubmitApproval() {
       remark: approvalDialog.form.remark || undefined,
       townCode: approvalDialog.form.townCode || undefined,
       townName: approvalDialog.form.townName || undefined,
+      establishDate: approvalDialog.form.establishDate || undefined,
       declarationIds: approvalDialog.declarationRows.map((r) => r.id),
       attachments: approvalDialog.form.attachments.filter((a) => a.fileKey)
     }
