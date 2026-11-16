@@ -1,5 +1,6 @@
 import { get, post, put, del } from './request'
 import type { PageQuery, PageVO, Result } from '@/types/common'
+import type { ProjectLifecycleVO } from '@/types/system'
 
 /** 附件子项（与后端 HouseholdSaveDTO.AttachmentItem 对齐） */
 export interface HouseholdAttachmentItem {
@@ -110,6 +111,11 @@ export function getHouseholdDetail(id: string) {
 /** 查询附件列表 */
 export function getHouseholdAttachments(householdId: string) {
   return get<Result<HouseholdAttachmentVO[]>>(`/api/base/household/attachments/${householdId}`)
+}
+
+/** 农户关联的项目全周期明细（申报→立项→施工→资金→验收） */
+export function getHouseholdProjects(householdId: string) {
+  return get<Result<ProjectLifecycleVO[]>>(`/api/base/household/projects/${householdId}`)
 }
 
 /** 新增户基础信息 */

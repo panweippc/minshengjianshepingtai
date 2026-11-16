@@ -129,7 +129,12 @@
     </div>
 
     <!-- 新增/编辑/查看弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="820px" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      :width="dialogMode === 'detail' ? 'min(1180px, 94vw)' : '820px'"
+      destroy-on-close
+    >
       <!-- 查看模式 -->
       <div v-if="dialogMode === 'detail'" class="detail-mode">
         <el-tabs v-model="detailTab">
@@ -177,22 +182,9 @@
               </el-table>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="项目信息" name="project">
-            <!-- 项目模块暂未接入，页签先占位，暂无数据 -->
-            <el-table :data="projectRows" border size="small" empty-text="暂无项目数据">
-              <el-table-column prop="projectCode" label="项目编码" width="120" />
-              <el-table-column prop="projectName" label="项目名称" min-width="140" show-overflow-tooltip />
-              <el-table-column prop="projectType" label="类型" width="90" />
-              <el-table-column prop="progress" label="进度" width="80" />
-              <el-table-column prop="budget" label="预算" width="100" />
-              <el-table-column prop="status" label="状态" width="90" />
-              <el-table-column prop="approvalYear" label="立项年度" width="90" />
-              <el-table-column label="操作" width="80" fixed="right">
-                <template #default>
-                  <el-button link type="primary">查看</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+          <el-tab-pane label="项目信息" name="project" lazy>
+            <!-- 明细级全周期信息：申报 → 立项 → 施工 → 资金拨付 → 验收 -->
+            <ProjectLifecycleTable biz-type="household" :target-id="form.id" />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -423,6 +415,7 @@ import { getDictByType } from '@/api/dict'
 import type { DictVO, VillageTreeVO } from '@/types/system'
 import { getVillageTree } from '@/api/village'
 import { uploadFile as uploadFileToServer, getPresignUrl } from '@/api/file'
+import ProjectLifecycleTable from '@/components/ProjectLifecycleTable.vue'
 import {
   getHouseholdPage,
   getHouseholdDetail,
@@ -598,17 +591,6 @@ const dialogMode = ref<DialogMode>('add')
 /** 详情页签：archive=档案信息，project=项目信息 */
 const detailTab = ref<'archive' | 'project'>('archive')
 
-/** 项目信息行（项目模块暂未接入，页签暂以空表格占位） */
-interface ProjectInfoRow {
-  projectCode?: string
-  projectName?: string
-  projectType?: string
-  progress?: string
-  budget?: number
-  status?: string
-  approvalYear?: string
-}
-const projectRows = ref<ProjectInfoRow[]>([])
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
 const form = reactive<HouseholdFormModel>({ regionCode: '', attachments: [] })

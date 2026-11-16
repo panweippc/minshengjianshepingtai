@@ -932,7 +932,7 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="施工状态" prop="buildStatus">
-                <el-select v-model="buildStatusDictValue" placeholder="请选择施工状态" style="width: 100%">
+                <el-select v-model="editForm.buildStatus" placeholder="请选择施工状态" style="width: 100%">
                   <el-option
                     v-for="item in dictOptions('shi_gong_zhuang_tai')"
                     :key="item.dictValue"
@@ -1270,12 +1270,6 @@ const inspectionLabel = (status?: string): string => {
   return '-'
 }
 
-/** 库内 PASS/FAIL 转为字典值（xun_jian_zhuang_tai：1合格 2整改） */
-const toInspectionDictValue = (status?: string): string => (status === 'FAIL' ? '2' : '1')
-
-/** 字典值转回库内 PASS/FAIL */
-const toInspectionStatus = (dictValue?: string): string => (dictValue === '2' ? 'FAIL' : 'PASS')
-
 const formatMoney = (value?: number): string => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
   return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -1484,20 +1478,6 @@ interface AttachmentRow {
   uploading: boolean
 }
 
-/** 施工状态字典（shi_gong_zhuang_tai：1未开工 2施工中 3已完工）与库内枚举互转 */
-const toBuildStatusDictValue = (status?: string): string => {
-  if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '2'
-  if (status === CONSTRUCTION_STATUS_COMPLETED) return '3'
-  return '1'
-}
-
-/** 字典值转回库内施工状态枚举 */
-const toBuildStatus = (dictValue?: string): string => {
-  if (dictValue === '2') return CONSTRUCTION_STATUS_IN_PROGRESS
-  if (dictValue === '3') return CONSTRUCTION_STATUS_COMPLETED
-  return CONSTRUCTION_STATUS_NOT_STARTED
-}
-
 const editVisible = ref(false)
 const submitLoading = ref(false)
 const editFormRef = ref<FormInstance>()
@@ -1517,12 +1497,6 @@ const editForm = reactive<EditForm>({
   inspector: '',
   inspectionStatus: 'PASS',
   content: ''
-})
-
-/** 施工状态下拉双向绑定：界面用字典值，表单内保存库内枚举 */
-const buildStatusDictValue = computed({
-  get: () => toBuildStatusDictValue(editForm.buildStatus),
-  set: (val: string) => { editForm.buildStatus = toBuildStatus(val) }
 })
 
 const editTitle = computed(() => (editForm.nodeLevel === 1 ? '编辑施工信息' : '巡检记录'))
@@ -1612,7 +1586,7 @@ const openEdit = async (row: DisplayRow) => {
         buildStatus: log.constructionStatus || CONSTRUCTION_STATUS_NOT_STARTED,
         constructionDate: log.constructionDate || '',
         inspector: log.inspector || '',
-        inspectionStatus: toInspectionDictValue(log.inspectionStatus),
+        inspectionStatus: log.inspectionStatus || 'PASS',
         content: log.content || ''
       })
       attachmentRows.value = (log.attachments || []).map((item) => ({
@@ -1649,7 +1623,7 @@ const openHistoryLogEdit = (row: ConstructionLogVO) => {
     leaderPhone: '',
     constructionDate: row.constructionDate || '',
     inspector: row.inspector || '',
-    inspectionStatus: toInspectionDictValue(row.inspectionStatus),
+    inspectionStatus: row.inspectionStatus || 'PASS',
     content: row.content || ''
   })
   detailLog.value = row
@@ -1773,7 +1747,7 @@ const handleSubmit = async () => {
         detailId: editForm.detailId,
         constructionDate: editForm.constructionDate,
         inspector: editForm.inspector || undefined,
-        inspectionStatus: toInspectionStatus(editForm.inspectionStatus),
+        inspectionStatus: editForm.inspectionStatus,
         constructionStatus: editForm.buildStatus,
         content: editForm.content || undefined,
         attachments

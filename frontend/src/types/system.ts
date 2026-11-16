@@ -265,6 +265,123 @@ export interface RegionFacilityCountVO {
   count: number
 }
 
+/** 项目全周期明细（农户/设施 → 申报 → 立项 → 施工 → 资金 → 验收） */
+export interface ProjectLifecycleVO {
+  detailId?: string
+  /** HOUSEHOLD农户 / FACILITY公共基础设施 */
+  detailType?: string
+  declarationId?: string
+  declarationCode?: string
+  declarationDate?: string
+  declarationTitle?: string
+  declarationType?: string
+  declarationStatus?: string
+  /** 明细审核状态：unsubmitted/pending/approved/established/rejected */
+  detailAuditStatus?: string
+  amount?: number
+  remark?: string
+  approvalId?: string
+  approvalCode?: string
+  projectName?: string
+  projectCategory?: string
+  projectType?: string
+  /** PENDING待审核 APPROVED已通过 REJECTED已驳回 */
+  approvalStatus?: string
+  approvalSubmitTime?: string
+  regionName?: string
+  /** NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工 */
+  buildStatus?: string
+  startDate?: string
+  completeDate?: string
+  fundAmount?: number
+  /** PENDING待验收 ACCEPTED已验收 */
+  acceptStatus?: string
+  acceptResult?: string
+  acceptTime?: string
+  acceptBy?: string
+  acceptRemark?: string
+  /** 申报阶段附件（申报单材料 + 明细材料） */
+  declarationAttachments?: LifecycleAttachmentVO[]
+  /** 申报阶段明细审核/修改记录 */
+  declarationAuditLogs?: DeclarationAuditLogVO[]
+  /** 立项阶段附件（项目资料 + 申报资料） */
+  approvalAttachments?: LifecycleAttachmentVO[]
+  /** 施工记录（含记录附件） */
+  constructionRecords?: ConstructionRecordVO[]
+  /** 未关联施工记录的施工资料附件 */
+  constructionAttachments?: LifecycleAttachmentVO[]
+  /** 资金拨付记录（含凭证附件） */
+  fundRecords?: FundRecordVO[]
+  /** 验收记录（含验收资料附件） */
+  acceptanceRecords?: AcceptanceRecordVO[]
+}
+
+/** 项目全周期-申报明细审核/修改记录 */
+export interface DeclarationAuditLogVO {
+  id?: string
+  /** AUDIT_PASS/AUDIT_REJECT/AUDIT_REVOKE/SUBMIT_UNSUBMITTED/USER_EDIT */
+  action?: string
+  beforeAuditStatus?: string
+  afterAuditStatus?: string
+  remark?: string
+  operatorName?: string
+  attachmentChanged?: boolean
+  createTime?: string
+}
+
+/** 项目全周期-阶段附件 */
+export interface LifecycleAttachmentVO {
+  id?: string
+  /** 附件归属说明：申报材料/明细材料/项目资料/申报资料 */
+  scopeLabel?: string
+  attachmentType?: string
+  fileName?: string
+  fileKey?: string
+  bucket?: string
+  fileSize?: number
+  remark?: string
+  createTime?: string
+}
+
+/** 项目全周期-施工记录 */
+export interface ConstructionRecordVO {
+  id?: string
+  logCode?: string
+  constructionDate?: string
+  /** NOT_STARTED未开工 IN_PROGRESS施工中 COMPLETED已完工 */
+  constructionStatus?: string
+  inspector?: string
+  /** PASS合格 FAIL不合格 */
+  inspectionStatus?: string
+  content?: string
+  createBy?: string
+  createTime?: string
+  attachments?: LifecycleAttachmentVO[]
+}
+
+/** 项目全周期-资金拨付记录 */
+export interface FundRecordVO {
+  id?: string
+  fundType?: string
+  fundSource?: string
+  amount?: number
+  remark?: string
+  createBy?: string
+  createTime?: string
+  attachments?: LifecycleAttachmentVO[]
+}
+
+/** 项目全周期-验收记录 */
+export interface AcceptanceRecordVO {
+  id?: string
+  acceptStatus?: string
+  acceptResult?: string
+  acceptTime?: string
+  acceptBy?: string
+  remark?: string
+  attachments?: LifecycleAttachmentVO[]
+}
+
 /** 公共基础设施详情（含附件和关联项目） */
 export interface FacilityDetailVO {
   id: string
