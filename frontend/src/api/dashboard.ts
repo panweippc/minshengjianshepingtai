@@ -1,7 +1,7 @@
 import { get } from './request'
 import type { Result } from '@/types/common'
 
-/** 项目进度概览项（一个项目一条记录） */
+/** 项目进度概览项（一个项目一条记录，可同时处于多个阶段） */
 export interface ProjectProgressVO {
   /** 立项主键 */
   id: number
@@ -9,10 +9,8 @@ export interface ProjectProgressVO {
   approvalCode: string
   /** 项目名称 */
   projectName: string
-  /** 当前阶段名称 */
-  stage: string
-  /** 当前阶段序号（1待审核 2已通过 3施工中 4待验收 5已归档） */
-  stageIndex: number
+  /** 当前阶段序号集合（1待审核 2资金 3施工中 4待验收 5已归档），可同时包含多个 */
+  currentStages: number[]
 }
 
 /** 首页概览统计 */

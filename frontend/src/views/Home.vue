@@ -81,13 +81,16 @@
               v-for="step in STAGE_STEPS"
               :key="step.index"
               class="stage-cell"
-              :class="{ done: step.index < item.stageIndex, current: step.index === item.stageIndex }"
+              :class="{
+                done: isDoneStage(step.index, item),
+                current: item.currentStages.includes(step.index)
+              }"
             >
               {{ step.label }}
             </span>
           </div>
-          <span class="stage-text" :class="{ archived: item.stage === '已归档' }">
-            {{ item.stage }}
+          <span class="stage-text" :class="{ archived: latestStageOf(item) === 5 }">
+            {{ stageLabelsOf(item) }}
           </span>
         </div>
       </div>
@@ -99,7 +102,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getDashboardOverview } from '@/api/dashboard'
-import type { DashboardOverviewVO } from '@/api/dashboard'
+import type { DashboardOverviewVO, ProjectProgressVO } from '@/api/dashboard'
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 
@@ -187,7 +190,7 @@ function formatNumber(value: number) {
 /** 项目进度阶段定义（顺序与后端 stageIndex 保持一致） */
 const STAGE_STEPS = [
   { index: 1, label: '待审核' },
-  { index: 2, label: '已通过' },
+  { index: 2, label: '资金' },
   { index: 3, label: '施工中' },
   { index: 4, label: '待验收' },
   { index: 5, label: '已归档' }
@@ -195,6 +198,24 @@ const STAGE_STEPS = [
 
 /** 项目进度概览：一个项目一条记录 */
 const progressProjects = computed(() => overview.value?.projectProgress ?? [])
+
+/** 项目当前阶段中最靠后的序号（用于判断已完成阶段与右侧文字配色） */
+function latestStageOf(item: ProjectProgressVO): number {
+  return Math.max(...item.currentStages, 2)
+}
+
+/** 已完成阶段：序号小于最靠后的当前阶段，且本身不属于当前阶段 */
+function isDoneStage(stepIndex: number, item: ProjectProgressVO): boolean {
+  return stepIndex < latestStageOf(item) && !item.currentStages.includes(stepIndex)
+}
+
+/** 当前阶段文字：同一项目同时处于多个阶段时一并展示 */
+function stageLabelsOf(item: ProjectProgressVO): string {
+  return item.currentStages
+    .map((index) => STAGE_STEPS.find((step) => step.index === index)?.label)
+    .filter((label): label is string => Boolean(label))
+    .join('·')
+}
 
 /** 加载首页概览统计 */
 async function loadStats() {
@@ -491,8 +512,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 0 1 240px;
-  min-width: 120px;
+  /* 固定左侧信息列宽度，保证各行进度条起点一致 */
+  flex: 0 0 200px;
+  min-width: 0;
 }
 
 .project-name {
@@ -547,12 +569,18 @@ onMounted(() => {
 }
 
 .stage-text {
-  width: 60px;
+  /* 固定右侧阶段文字宽度，保证各行进度条总宽度一致、分段对齐 */
+  width: 128px;
+  min-width: 128px;
+  max-width: 128px;
   flex-shrink: 0;
   text-align: right;
   font-size: 12px;
   font-weight: 600;
   color: #2f6fd0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stage-text.archived {
@@ -570,7 +598,13 @@ onMounted(() => {
   }
 
   .project-info {
-    flex-basis: 150px;
+    flex-basis: 140px;
+  }
+
+  .stage-text {
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
   }
 }
 

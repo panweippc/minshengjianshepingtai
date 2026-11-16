@@ -420,7 +420,9 @@ import type {
 
 // ==================== 报表类型辅助 ====================
 const reportTypeLabel = (type?: string) => {
+  // 优先取字典标签；字典项键值与报表类型不一致时回退到内置中文名，避免直接显示 INVENTORY 等原始值
   const hit = reportTypeOptions.value.find((o) => o.value === type)
+    || DEFAULT_REPORT_TYPES.find((o) => o.value === type)
   return hit ? hit.label : type || '—'
 }
 
@@ -479,16 +481,25 @@ const resetQuery = () => {
 }
 
 // ==================== 字典和库房选项 ====================
-/** 报表类型字典（baobiao_leixing）—— 字典缺失时兜底选项 */
+/** 报表类型字典（bao_biao_lei_xing）—— 字典缺失时兜底选项 */
 const DEFAULT_REPORT_TYPES = [
   { label: '盘点表', value: 'INVENTORY' },
   { label: '交接表', value: 'HANDOVER' },
   { label: '损毁表', value: 'DAMAGE' }
 ]
+/** 字典键值（1/2/3）→ 报表类型编码（存库与查询使用编码） */
+const REPORT_TYPE_CODE: Record<string, string> = {
+  '1': 'INVENTORY',
+  '2': 'HANDOVER',
+  '3': 'DAMAGE'
+}
 const reportTypeDictItems = ref<{ dictLabel: string; dictValue: string }[]>([])
 const reportTypeOptions = computed(() =>
   reportTypeDictItems.value.length
-    ? reportTypeDictItems.value.map((item) => ({ label: item.dictLabel, value: item.dictValue }))
+    ? reportTypeDictItems.value.map((item) => ({
+        label: item.dictLabel,
+        value: REPORT_TYPE_CODE[item.dictValue] || item.dictValue
+      }))
     : DEFAULT_REPORT_TYPES
 )
 
@@ -510,7 +521,7 @@ const loadDict = async () => {
   try {
     const [categoryRes, reportTypeRes] = await Promise.all([
       getDictByType('wu_zi_fen_lei'),
-      getDictByType('baobiao_leixing')
+      getDictByType('bao_biao_lei_xing')
     ])
     categoryDictItems.value = (categoryRes.data as any[]) || []
     reportTypeDictItems.value = (reportTypeRes.data as any[]) || []
