@@ -1,17 +1,37 @@
 import { get } from './request'
 import type { Result } from '@/types/common'
 
-/**
- * 资金记录查询（综合查询模块，只读）
- * 接口：GET /api/project/fund/query/page
- * 一次返回 records（分页）+ summary（顶部汇总卡）+ sidebar（左侧面板统计）
- *
- * 注意：request.get 不拆 Result 外层，返回 Result<T>，页面里要取 .data 拿业务对象
- */
+// ================== 类型（与后端 FundStatVO 对齐） ==================
 
-export interface FundRecordRow {
+export interface GlobalSummary {
+  recordCount: number
+  projectCount: number
+  declareCount: number
+}
+
+/** 主统计表展平行：大分组 → 村组明细 → 总计行（groupSummary / grandTotal 标记） */
+export interface Row {
+  groupValue: string
+  groupLabel: string
+  villageName: string
+  recordCount: number
+  projectCount: number
+  villageCoverage: number
+  amount: number | string
+  remark: string | null
+  groupSummary: boolean
+  grandTotal: boolean
+}
+
+export interface FundStatVO {
+  rows: Row[]
+  total: number
+  globalSummary: GlobalSummary
+}
+
+export interface FundDetailRow {
   id: string
-  nodeLevel: 1 | 2 | 3 | number
+  nodeLevel: number | null
   nodeLevelLabel: string
   approvalId: string
   approvalCode: string
@@ -25,87 +45,46 @@ export interface FundRecordRow {
   declareName: string | null
   detailId: string | null
   detailName: string | null
-  detailType: string | null // HOUSEHOLD / FACILITY
+  detailType: string | null
   fundType: string | null
-  fundTypeLabel: string | null
+  fundTypeLabel: string
   fundSource: string | null
-  fundSourceLabel: string | null
-  amount: number
+  fundSourceLabel: string
+  amount: number | string | null
   townName: string | null
   villageName: string | null
-  createTime: string // yyyy-MM-dd HH:mm:ss（@JsonFormat 自动）
+  regionCode: string | null
+  createTime: string | null
   createBy: string | null
   remark: string | null
   attachCount: number
 }
 
-export interface FundQuerySummary {
-  recordCount: number
-  registerTotal: number
-  allocateTotal: number
-  projectCount: number
-  declareCount: number
-  detailCount: number
+// ================== API ==================
+
+/** 主统计汇总（嵌套 rows + 全局 summary） */
+export function getFundStat(params: {
+  year?: string; regionCode?: string;
+  groupType?: string; groupValue?: string
+}) {
+  return get<Result<FundStatVO>>('/api/project/fund/query/stat', { params })
 }
 
-export interface FundQueryStatItem {
-  value: string
-  label: string
-  count: number
-  amount: number
+/** 分组内明细流水（弹窗里一行一条的扁平列表） */
+export function getFundDetailList(params: {
+  year?: string; regionCode?: string;
+  groupType?: string; groupValue?: string
+}) {
+  return get<Result<FundDetailRow[]>>('/api/project/fund/query/detailList', { params })
 }
 
-export interface FundQuerySidebar {
-  byFundType: FundQueryStatItem[]
-  byFundSource: FundQueryStatItem[]
-  byNodeLevel: FundQueryStatItem[]
-  byVillage: FundQueryStatItem[]
-}
-
-export interface FundQueryPageResult {
-  records: FundRecordRow[]
-  total: number
-  pageNum: number
-  pageSize: number
-  summary: FundQuerySummary
-  sidebar: FundQuerySidebar
-}
-
-export interface FundQueryParams {
-  pageNum?: number
-  pageSize?: number
-  projectName?: string
-  approvalCode?: string
-  declareCode?: string
-  detailName?: string
-  nodeLevel?: 1 | 2 | 3
-  fundType?: string
-  fundSource?: string
-  regionCode?: string
-  startTime?: string
-  endTime?: string
-  createBy?: string
-  minAmount?: number
-  maxAmount?: number
-}
-
-export function getFundQueryPage(params: FundQueryParams) {
-  return get<Result<FundQueryPageResult>>('/api/project/fund/query/page', { params })
-}
-
-/** 导出 CSV：浏览器直接下载 */
-export function downloadFundQueryExport(params: FundQueryParams) {
-  const qs = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') qs.append(k, String(v))
-  })
-  // request 实例 baseURL = '/'，后端全路径是 /api/project/fund/query/export
-  const url = `/api/project/fund/query/export?${qs.toString()}`
-  const a = document.createElement('a')
-  a.href = url
-  a.style.display = 'none'
-  a.target = '_blank'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+/** 导出当前分组明细到 CSV（后端直接写流） */
+export function downloadFundDetailCsv(params: {
+  year?: string; regionCode?: string;
+  groupType?: string; groupValue?: string
+}) {
+  const q = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') q.append(k, String(v)) })
+  const url = '/api/project/fund/query/export?' + q.toString()
+  window.open(url, '_blank')
 }

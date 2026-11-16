@@ -62,10 +62,16 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         meta: { title: '申报综合查询', icon: 'DataAnalysis' }
       },
       {
-        path: 'query/fund-record',
-        name: 'FundRecordQuery',
-        component: () => import('@/views/query/FundRecordQuery.vue'),
+        path: 'query/fund-record-stat',
+        name: 'FundRecordStatQuery',
+        component: () => import('@/views/query/FundRecordStatQuery.vue'),
         meta: { title: '资金记录查询', icon: 'Money' }
+      },
+      {
+        path: 'query/project-cycle',
+        name: 'ProjectCycleQuery',
+        component: () => import('@/views/query/ProjectCycleQuery.vue'),
+        meta: { title: '项目全周期查询', icon: 'DataBoard' }
       },
       {
         path: 'system/user',

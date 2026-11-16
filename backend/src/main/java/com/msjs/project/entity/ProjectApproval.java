@@ -48,7 +48,7 @@ public class ProjectApproval implements Serializable {
     /** 申报人（建设依据 MD 里的"申报人"字段） */
     private String applyBy;
 
-    /** 提交时间 */
+    /** 立项日期（复用原 submit_time 字段） */
     private LocalDateTime submitTime;
 
     /** 立项状态：PENDING待审核 / APPROVED已通过 / REJECTED已驳回 */
