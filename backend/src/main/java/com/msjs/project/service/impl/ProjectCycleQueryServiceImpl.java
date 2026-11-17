@@ -7,6 +7,7 @@ import com.msjs.project.mapper.ProjectCycleQueryMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectCycleQueryService;
 import com.msjs.project.service.SysDictService;
+import com.msjs.project.vo.ProjectCycleDetailVO;
 import com.msjs.project.vo.ProjectCycleRawVO;
 import com.msjs.project.vo.ProjectCycleStatVO;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +83,79 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         vo.setRows(rows);
         vo.setTotal((long) rows.size());
 
+        return vo;
+    }
+
+    @Override
+    public List<ProjectCycleDetailVO> detail(ProjectCycleQueryDTO query) {
+        String queryType = blankToDefault(query.getQueryType(), "category");
+        ProjectCycleQueryMapper.QueryParams p = buildQueryParams(query.getRegionCode(), query.getYear());
+
+        // 与 stat() 保持完全一致的取数口径
+        List<ProjectCycleRawVO> rawList;
+        if ("establish".equals(queryType)) {
+            rawList = cycleMapper.selectRawListAllStatus(p);
+            if (blankToNull(query.getYear()) != null) {
+                rawList = filterEstablishByYear(rawList, Integer.parseInt(query.getYear()));
+            }
+        } else {
+            rawList = cycleMapper.selectRawList(p);
+        }
+        applyDictLabels(rawList);
+
+        Map<Long, String> constructionMap = Collections.emptyMap();
+        Map<Long, String> acceptanceMap = Collections.emptyMap();
+        if ("status".equals(queryType)) {
+            constructionMap = buildConstructionStatusMap();
+            acceptanceMap = buildAcceptanceStatusMap();
+        }
+
+        String groupValue = blankToNull(query.getGroupValue());
+        String villageFilter = blankToNull(query.getVillageName());
+        // 合计行 / 小计行的"虚拟"村组名不作为过滤条件
+        if ("全部村组".equals(villageFilter) || "全部区划".equals(villageFilter)) {
+            villageFilter = null;
+        }
+
+        List<ProjectCycleDetailVO> out = new ArrayList<>();
+        for (ProjectCycleRawVO raw : rawList) {
+            LabeledRow lr = labelRow(raw, queryType, constructionMap, acceptanceMap);
+            if (lr == null) continue;
+            if (groupValue != null && !groupValue.equals(lr.groupKey)) continue;
+            if (villageFilter != null && !villageFilter.equals(raw.getVillageName())) continue;
+            out.add(toDetailVO(raw, constructionMap, acceptanceMap));
+        }
+        return out;
+    }
+
+    /** 原始行 → 明细核对行 */
+    private ProjectCycleDetailVO toDetailVO(ProjectCycleRawVO raw,
+                                            Map<Long, String> constructionMap,
+                                            Map<Long, String> acceptanceMap) {
+        ProjectCycleDetailVO vo = new ProjectCycleDetailVO();
+        vo.setApprovalId(raw.getApprovalId());
+        vo.setApprovalCode(raw.getApprovalCode());
+        vo.setProjectName(raw.getProjectName());
+        vo.setDeclareId(raw.getDeclareId());
+        vo.setCategoryLabel(raw.getDeclareCategoryLabel());
+        vo.setTypeLabel(raw.getProjectTypeLabel());
+        vo.setProjectSource(raw.getProjectSource());
+        vo.setVillageName(raw.getVillageName());
+        vo.setBudget(raw.getBudget());
+        vo.setHouseholdCount(raw.getHouseholdCount());
+        vo.setFacilityCount(raw.getFacilityCount());
+        vo.setTotalFund(raw.getTotalFund());
+
+        String est = computeEstablishStatus(raw.getApprovalStatus(), raw.getAcceptStatus());
+        vo.setEstablishStatusLabel(est == null
+                ? "已驳回" : ESTABLISH_STATUS_LABELS.getOrDefault(est, est));
+
+        String ps = computeProjectStatus(raw.getApprovalId(), raw.getApprovalStatus(),
+                raw.getAcceptStatus(), constructionMap, acceptanceMap);
+        vo.setProjectStatusLabel(ps == null ? "-" : PROJECT_STATUS_LABELS.getOrDefault(ps, ps));
+
+        vo.setSubmitTime(raw.getSubmitTime());
+        vo.setArchiveCreateTime(raw.getArchiveCreateTime());
         return vo;
     }
 
@@ -263,44 +337,45 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     // ================== 内部：施工/验收状态映射 ==================
 
     private Map<Long, String> buildConstructionStatusMap() {
-        List<Map<String, Object>> list = cycleMapper.selectConstructionStatus();
+        List<ProjectCycleQueryMapper.ConstructionStat> list = cycleMapper.selectConstructionStatus();
         Map<Long, String> map = new HashMap<>();
-        for (Map<String, Object> m : list) {
-            Long aid = toLong(m.get("approvalId"));
-            if (aid == null) continue;
-            boolean hasInProgress = toInt(m.get("hasInProgress")) == 1;
-            boolean hasCompleted = toInt(m.get("hasCompleted")) == 1;
-            int total = toInt(m.get("totalNodes"));
-            int completed = toInt(m.get("completedNodes"));
+        for (ProjectCycleQueryMapper.ConstructionStat s : list) {
+            if (s.getApprovalId() == null) continue;
+            boolean hasInProgress = toInt(s.getHasInProgress()) == 1;
+            int total = toInt(s.getTotalNodes());
+            int completed = toInt(s.getCompletedNodes());
             String status;
             if (hasInProgress) {
+                // 存在施工中的明细节点 → 施工中
                 status = "IN_PROGRESS";
-            } else if (hasCompleted && completed >= total && total > 0) {
+            } else if (total > 0 && completed >= total) {
+                // 全部明细节点已完工 → 已完工
                 status = "COMPLETED";
-            } else if (hasCompleted) {
+            } else if (completed > 0) {
+                // 部分明细节点已完工、无施工中 → 施工中
                 status = "IN_PROGRESS";
             } else {
                 status = "NOT_STARTED";
             }
-            map.put(aid, status);
+            map.put(s.getApprovalId(), status);
         }
         return map;
     }
 
     private Map<Long, String> buildAcceptanceStatusMap() {
-        List<Map<String, Object>> list = cycleMapper.selectAcceptanceStatus();
+        List<ProjectCycleQueryMapper.AcceptanceStat> list = cycleMapper.selectAcceptanceStatus();
         Map<Long, String> map = new HashMap<>();
-        for (Map<String, Object> m : list) {
-            Long aid = toLong(m.get("approvalId"));
-            if (aid == null) continue;
-            boolean hasPass = toInt(m.get("hasPass")) == 1;
-            boolean hasFail = toInt(m.get("hasFail")) == 1;
-            if (hasPass) {
-                map.put(aid, "PASS");
-            } else if (hasFail) {
-                map.put(aid, "FAIL");
+        for (ProjectCycleQueryMapper.AcceptanceStat s : list) {
+            if (s.getApprovalId() == null) continue;
+            // 与验收管理模块一致：项目级验收状态取最新一次 PROJECT 级验收记录
+            String projectStatus = s.getLatestProjectStatus();
+            if ("ACCEPTED".equals(projectStatus)) {
+                map.put(s.getApprovalId(), "PASS");        // 已验收
+            } else if ("REJECTED".equals(projectStatus)) {
+                map.put(s.getApprovalId(), "FAIL");        // 未通过
             } else {
-                map.put(aid, "APPLYING");
+                // 有验收记录但项目级尚未出结果（PENDING 或仅有明细记录）→ 待验收
+                map.put(s.getApprovalId(), "APPLYING");
             }
         }
         return map;
@@ -322,28 +397,29 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             return null; // 不纳入方案4分组，让上游过滤
         }
 
-        String construction = constructionMap.getOrDefault(approvalId, "NOT_STARTED");
+        // 验收管理模块已有明细 → 优先取验收明细状态（待验收/已验收/未通过）
         String acceptance = acceptanceMap.get(approvalId);
+        if ("PASS".equals(acceptance)) {
+            return "ACCEPTED";
+        } else if ("FAIL".equals(acceptance)) {
+            return "FAILED";
+        } else if ("APPLYING".equals(acceptance)) {
+            return "PENDING_ACCEPT";
+        }
 
+        // 立项单已进入验收流程（accept_status=APPLYING）但验收模块暂无明细 → 待验收
+        if ("APPLYING".equalsIgnoreCase(acceptStatus)) {
+            return "PENDING_ACCEPT";
+        }
+
+        // 无验收记录 → 取施工管理模块明细状态（未开工/施工中/已完工）
+        String construction = constructionMap.getOrDefault(approvalId, "NOT_STARTED");
         if ("COMPLETED".equals(construction)) {
-            if ("PASS".equals(acceptance)) {
-                return "ACCEPTED";
-            } else if ("FAIL".equals(acceptance)) {
-                return "FAILED";
-            } else {
-                return "PENDING_ACCEPT";
-            }
+            return "COMPLETED";
         } else if ("IN_PROGRESS".equals(construction)) {
             return "IN_PROGRESS";
-        } else {
-            // 没有施工记录
-            if ("PASS".equals(acceptance)) {
-                return "ACCEPTED";
-            } else if ("FAIL".equals(acceptance)) {
-                return "FAILED";
-            }
-            return "NOT_STARTED";
         }
+        return "NOT_STARTED";
     }
 
     /** 项目综合状态值 → 显示标签 */
@@ -671,13 +747,6 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         if (dict == null || dict.isEmpty()) return value;
         String v = dict.get(value);
         return v == null ? value : v;
-    }
-
-    private static Long toLong(Object o) {
-        if (o == null) return null;
-        if (o instanceof Long) return (Long) o;
-        if (o instanceof Number) return ((Number) o).longValue();
-        try { return Long.parseLong(o.toString()); } catch (Exception e) { return null; }
     }
 
     private static int toInt(Object o) {

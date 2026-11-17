@@ -1649,13 +1649,20 @@ public class DeclarationServiceImpl implements DeclarationService {
         };
     }
 
-    /** 审批状态值 → 中文标签（按字典 shen_pi_zhuang_tai 动态查询） */
-    private String mapAuditStatusLabel(String auditStatus, List<SysDict> statusDict) {
+    /** 审批状态固定口径（顺序即展示顺序，不随字典变动） */
+    private static final java.util.LinkedHashMap<String, String> FIXED_STATUS_LABELS = new java.util.LinkedHashMap<>();
+    static {
+        FIXED_STATUS_LABELS.put("pending", "待审核");
+        FIXED_STATUS_LABELS.put("approved", "已通过");
+        FIXED_STATUS_LABELS.put("rejected", "已驳回");
+        FIXED_STATUS_LABELS.put("established", "已立项");
+    }
+
+    /** 审批状态值 → 中文标签（固定口径） */
+    private String mapAuditStatusLabel(String auditStatus) {
         if (auditStatus == null) return "";
-        for (SysDict d : statusDict) {
-            if (auditStatus.equals(d.getDictValue())) return d.getDictLabel();
-        }
-        return auditStatus; // 字典里找不到，回退用原值本身（新增状态未同步字典时的兜底）
+        String label = FIXED_STATUS_LABELS.get(auditStatus);
+        return label != null ? label : auditStatus;
     }
 
     /** 申报类别值 → 中文标签（按字典 shen_bao_lei_bie 动态查询） */
@@ -1667,9 +1674,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         return category;
     }
 
-    /** 排序 key 生成器 —— category / status 按字典 sort 排序，village 字母序 */
-    private List<String> orderedKeys(Set<String> keys, String groupBy,
-                                     List<SysDict> catDict, List<SysDict> statusDict) {
+    /** 排序 key 生成器 —— category 按字典 sort 排序；status 按固定口径；village 字母序 */
+    private List<String> orderedKeys(Set<String> keys, String groupBy, List<SysDict> catDict) {
         List<String> result = new ArrayList<>();
         if ("category".equals(groupBy)) {
             // 字典里定义了的按 sort 顺序
@@ -1683,13 +1689,12 @@ public class DeclarationServiceImpl implements DeclarationService {
                 if (!known) result.add(k);
             }
         } else if ("status".equals(groupBy)) {
-            for (SysDict d : statusDict) {
-                if (keys.contains(d.getDictValue())) result.add(d.getDictValue());
+            // 固定审批状态顺序
+            for (String s : FIXED_STATUS_LABELS.keySet()) {
+                if (keys.contains(s)) result.add(s);
             }
             for (String k : keys) {
-                boolean known = false;
-                for (SysDict d : statusDict) if (d.getDictValue().equals(k)) { known = true; break; }
-                if (!known) result.add(k);
+                if (!FIXED_STATUS_LABELS.containsKey(k)) result.add(k);
             }
         } else {
             result.addAll(keys);
@@ -1698,9 +1703,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         return result;
     }
 
-    /** 审批状态 / 分组标签映射（无参版本，内部调字典） */
-    private String auditStatusToLabel(String s, List<SysDict> statusDict) {
-        return mapAuditStatusLabel(s == null ? "" : s, statusDict);
+    /** 审批状态 → 中文标签 */
+    private String auditStatusToLabel(String s) {
+        return mapAuditStatusLabel(s == null ? "" : s);
     }
 
     // ================ 申报综合查询统计 ================
@@ -1715,6 +1720,11 @@ public class DeclarationServiceImpl implements DeclarationService {
         Long householdId;             // 非 null 表示农户明细
         Long facilityId;              // 非 null 表示公建设施明细
         java.math.BigDecimal amount;  // 明细金额
+        String businessCode;          // 申报编号（明细核对用）
+        String title;                 // 申报标题
+        String categoryLabel;         // 申报类别名称
+        String statusLabel;           // 审批状态名称
+        String targetName;            // 户主姓名 / 公共基础设施名称
     }
 
     @Override
@@ -1749,9 +1759,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         wrapper.orderByDesc(Declaration::getCreateTime);
         List<Declaration> declarations = declarationMapper.selectList(wrapper);
 
-        // ==== 字典缓存（一次查询、全流程复用） ====
+        // ==== 字典缓存（申报类别动态，审批状态固定口径） ====
         List<SysDict> catDict = sysDictService.listByType("shen_bao_lei_bie");
-        List<SysDict> statusDict = sysDictService.listByType("shen_pi_zhuang_tai");
 
         // 2) 构建扁平明细列表（ household + facility 拍平成 FlatItem）
         Set<Long> declIds = declarations.stream().map(Declaration::getId).collect(Collectors.toSet());
@@ -1791,6 +1800,11 @@ public class DeclarationServiceImpl implements DeclarationService {
             f.householdId = hh.getHouseholdId();
             f.facilityId = null;
             f.amount = hh.getAmount() != null ? hh.getAmount() : java.math.BigDecimal.ZERO;
+            f.businessCode = d.getBusinessCode();
+            f.title = d.getTitle();
+            f.categoryLabel = mapCategoryLabel(d.getDeclarationCategory(), catDict);
+            f.statusLabel = mapAuditStatusLabel(hh.getAuditStatus());
+            f.targetName = hh.getSnapshotHeadName();
             flatItems.add(f);
         }
         for (DeclarationPublicFacility pf : pfList) {
@@ -1805,7 +1819,19 @@ public class DeclarationServiceImpl implements DeclarationService {
             f.householdId = null;
             f.facilityId = pf.getFacilityId();
             f.amount = pf.getAmount() != null ? pf.getAmount() : java.math.BigDecimal.ZERO;
+            f.businessCode = d.getBusinessCode();
+            f.title = d.getTitle();
+            f.categoryLabel = mapCategoryLabel(d.getDeclarationCategory(), catDict);
+            f.statusLabel = mapAuditStatusLabel(pf.getAuditStatus());
+            f.targetName = pf.getSnapshotFacilityName();
             flatItems.add(f);
+        }
+
+        // 按审批状态维度：未提交（unsubmitted）不参与统计（与筛选面板口径一致）
+        if ("status".equals(groupBy)) {
+            flatItems = flatItems.stream()
+                    .filter(f -> !"unsubmitted".equals(f.auditStatus))
+                    .collect(Collectors.toList());
         }
 
         // 3) 按 groupBy 分组 → 再按村组拆二级 → 构建 rows
@@ -1819,7 +1845,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             String label;
             if ("status".equals(groupBy)) {
                 key = f.auditStatus == null ? "" : f.auditStatus;
-                label = auditStatusToLabel(key, statusDict);
+                label = auditStatusToLabel(key);
             } else if ("village".equals(groupBy)) {
                 key = f.villageGroupCode == null ? "" : f.villageGroupCode;
                 label = f.villageGroupName == null ? (key.isEmpty() ? "未知村组" : key) : f.villageGroupName;
@@ -1830,7 +1856,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             mainLabel.putIfAbsent(key, label);
             mainGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
         }
-        List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy, catDict, statusDict);
+        List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy, catDict);
 
         // 全局总计（申报单数按 distinct declarationId；户数/设施数不去重累加）
         Set<Long> grandDeclIds = new HashSet<>();
@@ -1883,6 +1909,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         totalRow.setHouseholdCount(grandHouseholdCount);
         totalRow.setFacilityCount(grandFacilityCount);
         totalRow.setAmount(grandAmount);
+        totalRow.setDetails(buildDetails(flatItems));
         rows.add(totalRow);
 
         vo.setRows(rows);
@@ -1908,7 +1935,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         sidebar.setByCategory(byCategory);
 
-        // 按审批状态 —— 字典全量输出（新增状态自动生效）
+        // 按审批状态 —— 固定四项输出
         List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
         Map<String, Set<Long>> statusDecl = new HashMap<>();
         for (FlatItem f : flatItems) {
@@ -1916,12 +1943,11 @@ public class DeclarationServiceImpl implements DeclarationService {
             statusDecl.computeIfAbsent(s, k -> new HashSet<>());
             if (f.declarationId != null) statusDecl.get(s).add(f.declarationId);
         }
-        for (SysDict d : statusDict) {
-            String val = d.getDictValue();
+        for (Map.Entry<String, String> e : FIXED_STATUS_LABELS.entrySet()) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
-            it.setValue(val);
-            it.setLabel(d.getDictLabel());
-            it.setCount(statusDecl.getOrDefault(val, Collections.emptySet()).size());
+            it.setValue(e.getKey());
+            it.setLabel(e.getValue());
+            it.setCount(statusDecl.getOrDefault(e.getKey(), Collections.emptySet()).size());
             byStatus.add(it);
         }
         sidebar.setByStatus(byStatus);
@@ -1975,7 +2001,26 @@ public class DeclarationServiceImpl implements DeclarationService {
         row.setHouseholdCount(hhCount);
         row.setFacilityCount(pfCount);
         row.setAmount(amt);
+        row.setDetails(buildDetails(items));
         return row;
+    }
+
+    /** 把一组 FlatItem 转成明细核对列表 */
+    private List<DeclarationStatisticsVO.DetailItem> buildDetails(List<FlatItem> items) {
+        List<DeclarationStatisticsVO.DetailItem> details = new ArrayList<>();
+        for (FlatItem f : items) {
+            DeclarationStatisticsVO.DetailItem d = new DeclarationStatisticsVO.DetailItem();
+            d.setDeclarationId(f.declarationId);
+            d.setBusinessCode(f.businessCode);
+            d.setTitle(f.title);
+            d.setCategoryLabel(f.categoryLabel);
+            d.setVillageName(f.villageGroupName);
+            d.setTargetName(f.targetName);
+            d.setAuditStatusLabel(f.statusLabel);
+            d.setAmount(f.amount);
+            details.add(d);
+        }
+        return details;
     }
 
     /** 取给定 regionCode 及其全部子孙级区划 code（用于过滤 Declaration.village_group_code） */

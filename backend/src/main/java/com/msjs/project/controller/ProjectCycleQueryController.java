@@ -4,6 +4,7 @@ import com.msjs.project.common.Result;
 import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.ProjectCycleQueryDTO;
 import com.msjs.project.service.ProjectCycleQueryService;
+import com.msjs.project.vo.ProjectCycleDetailVO;
 import com.msjs.project.vo.ProjectCycleStatVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * 综合查询 - 项目全周期查询
@@ -54,6 +56,30 @@ public class ProjectCycleQueryController {
         dto.setRegionCode(regionCode);
         dto.setQueryType(queryType);
         return Result.ok(cycleQueryService.stat(dto));
+    }
+
+    @Operation(summary = "查看明细（按统计行核对原始数据）")
+    @RequirePerm("project:cycle:query")
+    @GetMapping("/detail")
+    public Result<List<ProjectCycleDetailVO>> detail(
+            @Parameter(description = "年度（空=全部）")
+            @RequestParam(required = false) String year,
+            @Parameter(description = "区划 code（末级，递归包含后代）")
+            @RequestParam(required = false) String regionCode,
+            @Parameter(description = "查询方案：category/source/establish/status/village")
+            @RequestParam(required = false) String queryType,
+            @Parameter(description = "分组值（统计行 groupValue）")
+            @RequestParam(required = false) String groupValue,
+            @Parameter(description = "村组名称（统计行 villageName，全部村组/全部区划=不限制）")
+            @RequestParam(required = false) String villageName) {
+
+        ProjectCycleQueryDTO dto = new ProjectCycleQueryDTO();
+        dto.setYear(year);
+        dto.setRegionCode(regionCode);
+        dto.setQueryType(queryType);
+        dto.setGroupValue(groupValue);
+        dto.setVillageName(villageName);
+        return Result.ok(cycleQueryService.detail(dto));
     }
 
     @Operation(summary = "导出当前筛选 + 当前方案下的全部统计到 Excel")

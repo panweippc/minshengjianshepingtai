@@ -182,6 +182,8 @@
           stripe
           :row-class-name="rowClassName"
           style="flex: 1"
+          @row-contextmenu="onRowContextMenu"
+          @row-click="closeContextMenu"
         >
           <el-table-column :label="groupHeader" min-width="140">
             <template #default="{ row }">
@@ -254,15 +256,67 @@
         </div>
       </el-card>
     </div>
+
+    <!-- 表格行右键菜单 -->
+    <div
+      v-if="contextMenu.visible"
+      class="row-context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      @click.stop
+    >
+      <div class="row-context-menu__item" @click="openDetail">
+        <el-icon><Document /></el-icon>
+        <span>查看明细</span>
+      </div>
+    </div>
+
+    <!-- 明细核对弹窗 -->
+    <el-dialog
+      v-model="detailVisible"
+      :title="detailTitle"
+      width="90%"
+      top="6vh"
+      append-to-body
+      destroy-on-close
+    >
+      <el-table :data="detailRows" v-loading="detailLoading" border stripe max-height="560">
+        <el-table-column prop="approvalCode" label="立项编号" min-width="150" />
+        <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="categoryLabel" label="项目类别" min-width="100" />
+        <el-table-column prop="typeLabel" label="项目类型" min-width="110" />
+        <el-table-column prop="villageName" label="村组" min-width="110" />
+        <el-table-column label="项目预算（元）" min-width="140" align="right">
+          <template #default="{ row }">{{ formatMoney(row.budget) }}</template>
+        </el-table-column>
+        <el-table-column prop="householdCount" label="涉及户数" min-width="90" align="right" />
+        <el-table-column prop="facilityCount" label="公建设施数" min-width="110" align="right" />
+        <el-table-column label="累计拨付（元）" min-width="140" align="right">
+          <template #default="{ row }">{{ formatMoney(row.totalFund) }}</template>
+        </el-table-column>
+        <el-table-column prop="establishStatusLabel" label="立项状态" min-width="95" />
+        <el-table-column prop="projectStatusLabel" label="项目状态" min-width="95" />
+        <el-table-column prop="submitTime" label="立项日期" min-width="160" />
+        <el-table-column prop="archiveCreateTime" label="归档时间" min-width="160" />
+      </el-table>
+      <div class="detail-tip">
+        共 {{ detailRows.length }} 条申报单记录；同一立项单存在多条申报单（到户/公建）时会分行列出。
+      </div>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { InfoFilled } from '@element-plus/icons-vue'
+import { Document, InfoFilled } from '@element-plus/icons-vue'
 import { getRegionList } from '@/api/region'
-import { getProjectCycleStat, downloadProjectCycleCsv, type CycleRow, type QueryType } from '@/api/projectCycleQuery'
+import {
+  getProjectCycleStat, getProjectCycleDetail, downloadProjectCycleCsv,
+  type CycleRow, type CycleDetailRow, type QueryType
+} from '@/api/projectCycleQuery'
 
 // ===================== 区划树 =====================
 interface RegionNode { code: string; name: string; parent_code?: string; children?: RegionNode[] }
@@ -295,15 +349,6 @@ async function loadRegionTree() {
 const yearOptions: number[] = []
 const now = new Date().getFullYear()
 for (let y = now - 5; y <= now + 1; y++) yearOptions.push(y)
-
-// ===================== 查询方案定义 =====================
-const SCHEME_LABELS: Record<QueryType, string> = {
-  category: '按项目类别统计',
-  source: '按项目类型统计',
-  establish: '按立项状态统计',
-  status: '按项目状态统计',
-  village: '按所属村组统计'
-}
 
 // ===================== 查询态 =====================
 const query = reactive({
@@ -355,24 +400,6 @@ const groupHeader = computed(() => {
   return m[query.queryType] || '分组字段'
 })
 
-/** 当前方案名称 */
-const currentSchemeLabel = computed(() => SCHEME_LABELS[query.queryType])
-
-/** 区划副标题 */
-const regionLabel = computed(() => {
-  if (!query.regionCode) return '全部区划'
-  function walk(nodes: RegionNode[] | undefined, target: string): string {
-    if (!nodes) return ''
-    for (const n of nodes) {
-      if (n.code === target) return n.name
-      const sub = walk(n.children, target)
-      if (sub) return sub
-    }
-    return ''
-  }
-  return walk(regionTree.value, query.regionCode) || '全部区划'
-})
-
 function rowClassName({ row }: { row: CycleRow }) {
   if (row.grandTotal) return 'row-grand-total'
   if (row.groupSummary) return 'row-group-summary'
@@ -404,6 +431,58 @@ function onSidebarItemClick(groupType: QueryType, value: string) {
 function clearSidebarFilter() {
   query.groupValue = ''
   handleQuery()
+}
+
+// ===================== 右键查看明细 =====================
+const contextMenu = reactive({ visible: false, x: 0, y: 0 })
+const contextRow = ref<CycleRow | null>(null)
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const detailRows = ref<CycleDetailRow[]>([])
+const detailTitle = ref('查看明细')
+
+function onRowContextMenu(row: CycleRow, _column: unknown, event: MouseEvent) {
+  event.preventDefault()
+  contextRow.value = row
+  contextMenu.x = event.clientX
+  contextMenu.y = event.clientY
+  contextMenu.visible = true
+}
+
+function closeContextMenu() {
+  contextMenu.visible = false
+}
+
+/** 查看当前统计行对应的原始申报单记录 */
+async function openDetail() {
+  const row = contextRow.value
+  closeContextMenu()
+  if (!row) return
+
+  // 合计行不限分组/村组；大分组小计行只限分组；村组行分组+村组都限
+  const groupValue = row.grandTotal ? undefined : (row.groupValue || undefined)
+  const villageName = row.grandTotal || row.groupSummary ? undefined : (row.villageName || undefined)
+
+  detailTitle.value = row.grandTotal
+    ? `查看明细 - ${row.groupLabel}`
+    : `查看明细 - ${row.groupLabel} / ${row.villageName}`
+  detailVisible.value = true
+  detailLoading.value = true
+  detailRows.value = []
+  try {
+    const res = await getProjectCycleDetail({
+      year: query.year || undefined,
+      regionCode: query.regionCode || undefined,
+      queryType: query.queryType,
+      groupValue,
+      villageName
+    })
+    detailRows.value = (res?.data ?? (res as any)) ?? []
+  } catch (e: any) {
+    ElMessage.error('明细加载失败：' + (e?.message || '未知错误'))
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 // ===================== 主查询 =====================
@@ -494,7 +573,12 @@ function formatMoney(v: any): string {
 
 // ===================== 生命周期 =====================
 onMounted(async () => {
+  window.addEventListener('click', closeContextMenu)
   await Promise.all([loadRegionTree(), handleQuery()])
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', closeContextMenu)
 })
 </script>
 
@@ -579,4 +663,24 @@ onMounted(async () => {
   display: flex; align-items: flex-start; gap: 8px; line-height: 1.6;
 }
 .caliber-text { display: flex; flex-direction: column; gap: 2px; }
+
+/* 右键菜单 */
+.row-context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 132px;
+  padding: 4px 0;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+.row-context-menu__item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; font-size: 13px; color: #303133;
+  cursor: pointer;
+}
+.row-context-menu__item:hover { background: #ecf5ff; color: #409eff; }
+
+.detail-tip { margin-top: 8px; font-size: 12px; color: #909399; }
 </style>

@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.vo.ProjectProgressVO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
@@ -42,4 +45,24 @@ public interface ProjectApprovalMapper extends BaseMapper<ProjectApproval> {
             ORDER BY pa.create_time DESC
             """)
     List<ProjectProgressVO> selectProjectProgress();
+
+    /**
+     * 统计指定 approvalId 集合的项目预算总额
+     * 用于"按资金类型"分组维度中「预算」行的金额计算
+     * WHERE id IN (...) AND deleted=0 AND budget IS NOT NULL
+     */
+    @Select({
+            "<script>",
+            "SELECT COALESCE(SUM(budget), 0)",
+            "FROM t_project_approval",
+            "WHERE deleted = 0 AND budget IS NOT NULL",
+            "  <if test='ids != null and ids.size() > 0'>",
+            "    AND id IN",
+            "    <foreach collection='ids' item='id' open='(' separator=',' close=')'>",
+            "      #{id}",
+            "    </foreach>",
+            "  </if>",
+            "</script>"
+    })
+    BigDecimal selectBudgetSumByIds(@Param("ids") Collection<Long> ids);
 }

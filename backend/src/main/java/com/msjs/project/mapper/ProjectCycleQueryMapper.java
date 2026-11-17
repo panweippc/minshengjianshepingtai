@@ -130,29 +130,51 @@ public interface ProjectCycleQueryMapper {
 
     /**
      * 查询施工状态聚合（项目级）
-     * 返回 approval_id + 施工状态汇总
+     * 取 t_project_construction.build_status 明细状态：NOT_STARTED / IN_PROGRESS / COMPLETED
      */
-    @Select("SELECT approval_id, " +
+    @Select("SELECT approval_id AS approvalId, " +
             "  MAX(CASE WHEN build_status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS hasInProgress, " +
             "  MAX(CASE WHEN build_status = 'COMPLETED' THEN 1 ELSE 0 END) AS hasCompleted, " +
             "  COUNT(*) AS totalNodes, " +
             "  SUM(CASE WHEN build_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedNodes " +
             "FROM t_project_construction " +
-            "WHERE deleted = 0 AND node_level = 3 " +
+            "WHERE deleted = 0 AND build_status IS NOT NULL " +
             "GROUP BY approval_id")
-    List<Map<String, Object>> selectConstructionStatus();
+    List<ConstructionStat> selectConstructionStatus();
 
     /**
      * 查询验收状态聚合（项目级）
+     * 项目级验收状态以最新一次 PROJECT 级验收记录为准：
+     *   ACCEPTED 已验收 / REJECTED 未通过 / 无记录或 PENDING 待验收
      */
-    @Select("SELECT approval_id, " +
-            "  MAX(CASE WHEN accept_result = 'PASS' THEN 1 ELSE 0 END) AS hasPass, " +
-            "  MAX(CASE WHEN accept_result = 'FAIL' THEN 1 ELSE 0 END) AS hasFail, " +
-            "  COUNT(*) AS totalAccepts " +
-            "FROM t_project_acceptance " +
-            "WHERE deleted = 0 " +
-            "GROUP BY approval_id")
-    List<Map<String, Object>> selectAcceptanceStatus();
+    @Select("SELECT a.approval_id AS approvalId, " +
+            "  COUNT(*) AS totalAccepts, " +
+            "  (SELECT b.accept_status FROM t_project_acceptance b " +
+            "     WHERE b.approval_id = a.approval_id AND b.deleted = 0 AND b.node_type = 'PROJECT' " +
+            "     ORDER BY b.id DESC LIMIT 1) AS latestProjectStatus " +
+            "FROM t_project_acceptance a " +
+            "WHERE a.deleted = 0 " +
+            "GROUP BY a.approval_id")
+    List<AcceptanceStat> selectAcceptanceStatus();
+
+    /** 施工状态聚合结果 */
+    @lombok.Data
+    class ConstructionStat {
+        private Long approvalId;
+        private Integer hasInProgress;
+        private Integer hasCompleted;
+        private Integer totalNodes;
+        private Integer completedNodes;
+    }
+
+    /** 验收状态聚合结果 */
+    @lombok.Data
+    class AcceptanceStat {
+        private Long approvalId;
+        private Integer totalAccepts;
+        /** 最新一次项目级验收记录状态：ACCEPTED / REJECTED / PENDING，无记录为 null */
+        private String latestProjectStatus;
+    }
 
     @lombok.Data
     class QueryParams {

@@ -382,6 +382,25 @@ export function submitProjectApproval(data: ProjectApprovalSubmitDTO) {
 
 // ================== 综合查询统计 ==================
 
+/** 统计行对应的明细数据 */
+export interface DeclarationStatDetailItem {
+  declarationId: number
+  /** 申报编号 */
+  businessCode: string
+  /** 申报标题 */
+  title: string
+  /** 申报类别名称 */
+  categoryLabel: string
+  /** 所属村组 */
+  villageName: string
+  /** 户主姓名 / 公共基础设施名称 */
+  targetName: string
+  /** 审批状态名称 */
+  auditStatusLabel: string
+  /** 申报金额（元） */
+  amount: number
+}
+
 /** 统计行 */
 export interface DeclarationStatRow {
   /** 是否为分组汇总行 */
@@ -397,6 +416,8 @@ export interface DeclarationStatRow {
   amount: number
   /** 是否为总计行 */
   grandTotal: boolean
+  /** 该行对应的明细数据（右键查看明细用） */
+  details?: DeclarationStatDetailItem[]
 }
 
 /** 左侧筛选面板统计项 */
