@@ -179,7 +179,7 @@ public class ProjectLifecycleVO implements Serializable {
         @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
 
-        @Schema(description = "动作：AUDIT_PASS/AUDIT_REJECT/AUDIT_REVOKE/SUBMIT_UNSUBMITTED/USER_EDIT")
+        @Schema(description = "动作：AUDIT_PASS/AUDIT_REJECT/AUDIT_REVOKE/SUBMIT_FIRST/SUBMIT_RESUBMITTED/USER_EDIT")
         private String action;
 
         @Schema(description = "操作前明细审核状态")
@@ -245,11 +245,8 @@ public class ProjectLifecycleVO implements Serializable {
         @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
 
-        @Schema(description = "资金类型（字典 zi_jin_lei_xing）")
+        @Schema(description = "下拨类型（字典 xia_bo_lei_xing）")
         private String fundType;
-
-        @Schema(description = "资金来源（字典 zi_jin_lai_yuan）")
-        private String fundSource;
 
         @Schema(description = "拨付金额（元）")
         private BigDecimal amount;

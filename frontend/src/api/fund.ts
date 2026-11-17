@@ -1,5 +1,6 @@
-import { get, post } from './request'
+import { get, post, put } from './request'
 import type { PageQuery, PageVO, Result } from '@/types/common'
+import type { AcceptanceNodeVO } from './acceptance'
 
 /** 资金节点类型：approval项目 declare申报 detail明细 */
 export type FundNodeType = 'approval' | 'declare' | 'detail'
@@ -144,6 +145,23 @@ export function allocateFund(data: FundSaveDTO) {
   return post<Result<void>>('/api/project/fund/allocate', data)
 }
 
+/** 资金流水编辑入参（id 必填；不传的字段表示不修改；传空列表 [] 表示清空附件） */
+export interface FundUpdateDTO {
+  id: string
+  fundType?: string | null
+  fundSource?: string | null
+  amount?: number
+  remark?: string | null
+  operator?: string | null
+  operateTime?: string | null
+  attachments?: FundAttachmentVO[] | null
+}
+
+/** 编辑资金流水（金额、备注、类型、附件等；节点定位字段不可修改） */
+export function updateFundRecord(data: FundUpdateDTO) {
+  return put<Result<void>>('/api/project/fund/record', data)
+}
+
 /** 一级项目节点详情（含申报树 + 资金流水，资金管理 / 综合查询共用） */
 export function fetchFundApprovalDetail(approvalId: string) {
   return get<Result<FundNodeVO>>('/api/project/fund/approval-detail', { params: { approvalId } }).then(r => r.data)
@@ -157,4 +175,11 @@ export function fetchFundDeclareDetail(declareId: string) {
 /** 三级明细节点详情 */
 export function fetchFundDetail(detailId: string) {
   return get<Result<FundNodeVO>>('/api/project/fund/detail', { params: { detailId } }).then(r => r.data)
+}
+
+/** 资金查看-验收页签：按立项ID获取验收三级树形数据（与验收管理口径一致） */
+export function fetchFundAcceptanceDetail(approvalId: string) {
+  return get<Result<AcceptanceNodeVO>>('/api/project/fund/acceptance-detail', {
+    params: { approvalId }
+  }).then(r => r.data)
 }

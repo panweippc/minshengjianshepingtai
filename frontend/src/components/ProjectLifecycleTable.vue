@@ -23,22 +23,37 @@
                 <el-descriptions-item label="事项说明">{{ row.remark || '—' }}</el-descriptions-item>
               </el-descriptions>
               <div class="stage-subtitle">申报附件</div>
-              <div v-if="row.declarationAttachments?.length" class="attachment-lines">
-                <div v-for="file in row.declarationAttachments" :key="file.id" class="attachment-line">
-                  <span v-if="file.scopeLabel" class="attachment-scope">{{ file.scopeLabel }}</span>
-                  <el-link
-                    type="primary"
-                    :underline="false"
-                    class="attachment-name"
-                    :title="file.fileName"
-                    @click="openFile(file)"
-                  >{{ file.fileName || '—' }}</el-link>
-                  <el-icon v-if="file.fileKey" class="attachment-download" title="下载" @click="openFile(file, true)">
-                    <Download />
-                  </el-icon>
-                  <span v-if="file.remark" class="attachment-remark">（{{ file.remark }}）</span>
-                </div>
-              </div>
+              <el-table v-if="row.declarationAttachments?.length" :data="row.declarationAttachments" border size="small">
+                <el-table-column label="来源" width="100" align="center">
+                  <template #default="{ row: file }">{{ file.scopeLabel || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="附件类型" width="130">
+                  <template #default="{ row: file }">
+                    {{ file.attachmentType ? dictLabel('fu_jian_lei_xing', file.attachmentType) : '—' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="附件名称" min-width="260" show-overflow-tooltip>
+                  <template #default="{ row: file }">
+                    <div class="attachment-line">
+                      <el-link type="primary" :underline="false" class="attachment-name" @click="openFile(file)">
+                        {{ file.fileName || '—' }}
+                      </el-link>
+                      <el-icon
+                        v-if="file.fileKey"
+                        class="attachment-download"
+                        title="下载"
+                        @click="openFile(file, true)"
+                      ><Download /></el-icon>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="备注" width="150" show-overflow-tooltip>
+                  <template #default="{ row: file }">{{ file.remark || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="上传时间" width="170" align="center">
+                  <template #default="{ row: file }">{{ file.createTime || '—' }}</template>
+                </el-table-column>
+              </el-table>
               <div v-else class="empty-inline">暂无附件</div>
               <div class="stage-subtitle">申报记录</div>
               <el-table v-if="row.declarationAuditLogs?.length" :data="row.declarationAuditLogs" border size="small">
@@ -73,26 +88,8 @@
                 <el-descriptions-item label="项目类别">{{ dictLabel('xiang_mu_lei_bie', row.projectCategory) }}</el-descriptions-item>
                 <el-descriptions-item label="项目类型">{{ dictLabel('xiang_mu_lei_xing', row.projectType) }}</el-descriptions-item>
                 <el-descriptions-item label="立项状态">{{ approvalStatusLabel(row.approvalStatus) }}</el-descriptions-item>
-                <el-descriptions-item label="立项提交时间">{{ row.approvalSubmitTime || '—' }}</el-descriptions-item>
+                <el-descriptions-item label="立项日期">{{ row.approvalSubmitTime ? row.approvalSubmitTime.slice(0, 10) : '—' }}</el-descriptions-item>
               </el-descriptions>
-              <div class="stage-subtitle">立项附件</div>
-              <div v-if="row.approvalAttachments?.length" class="attachment-lines">
-                <div v-for="file in row.approvalAttachments" :key="file.id" class="attachment-line">
-                  <span v-if="file.scopeLabel" class="attachment-scope">{{ file.scopeLabel }}</span>
-                  <el-link
-                    type="primary"
-                    :underline="false"
-                    class="attachment-name"
-                    :title="file.fileName"
-                    @click="openFile(file)"
-                  >{{ file.fileName || '—' }}</el-link>
-                  <el-icon v-if="file.fileKey" class="attachment-download" title="下载" @click="openFile(file, true)">
-                    <Download />
-                  </el-icon>
-                  <span v-if="file.remark" class="attachment-remark">（{{ file.remark }}）</span>
-                </div>
-              </div>
-              <div v-else class="empty-inline">暂无附件</div>
             </div>
 
             <!-- ============ 施工阶段 ============ -->
@@ -122,23 +119,12 @@
                 </el-table-column>
                 <el-table-column label="附件" width="180">
                   <template #default="{ row: record }">
-                    <template v-if="record.attachments?.length">
-                      <div v-for="file in record.attachments" :key="file.id" class="attachment-line">
-                        <el-link
-                          type="primary"
-                          :underline="false"
-                          class="attachment-name"
-                          :title="file.fileName"
-                          @click="openFile(file)"
-                        >{{ file.fileName || '—' }}</el-link>
-                        <el-icon
-                          v-if="file.fileKey"
-                          class="attachment-download"
-                          title="下载"
-                          @click="openFile(file, true)"
-                        ><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="record.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openAttachments('施工记录附件', record.attachments, 'shi_gong_fu_jian_lei_xing')"
+                    >附件 ({{ record.attachments.length }})</el-button>
                     <span v-else class="empty-inline">—</span>
                   </template>
                 </el-table-column>
@@ -176,11 +162,8 @@
                 <el-table-column label="登记时间" width="165" align="center">
                   <template #default="{ row: record }">{{ record.createTime || '—' }}</template>
                 </el-table-column>
-                <el-table-column label="资金类型" width="120">
-                  <template #default="{ row: record }">{{ dictLabel('zi_jin_lei_xing', record.fundType) }}</template>
-                </el-table-column>
-                <el-table-column label="资金来源" width="120">
-                  <template #default="{ row: record }">{{ dictLabel('zi_jin_lai_yuan', record.fundSource) }}</template>
+                <el-table-column label="下拨类型" width="120">
+                  <template #default="{ row: record }">{{ dictLabel('xia_bo_lei_xing', record.fundType) }}</template>
                 </el-table-column>
                 <el-table-column label="拨付金额(元)" width="120" align="right">
                   <template #default="{ row: record }">{{ formatMoney(record.amount) }}</template>
@@ -193,23 +176,12 @@
                 </el-table-column>
                 <el-table-column label="凭证附件" width="180">
                   <template #default="{ row: record }">
-                    <template v-if="record.attachments?.length">
-                      <div v-for="file in record.attachments" :key="file.id" class="attachment-line">
-                        <el-link
-                          type="primary"
-                          :underline="false"
-                          class="attachment-name"
-                          :title="file.fileName"
-                          @click="openFile(file)"
-                        >{{ file.fileName || '—' }}</el-link>
-                        <el-icon
-                          v-if="file.fileKey"
-                          class="attachment-download"
-                          title="下载"
-                          @click="openFile(file, true)"
-                        ><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="record.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openAttachments('资金凭证附件', record.attachments, 'zi_jin_fu_jian_lei_xing')"
+                    >附件 ({{ record.attachments.length }})</el-button>
                     <span v-else class="empty-inline">—</span>
                   </template>
                 </el-table-column>
@@ -238,23 +210,12 @@
                 </el-table-column>
                 <el-table-column label="验收资料" width="180">
                   <template #default="{ row: record }">
-                    <template v-if="record.attachments?.length">
-                      <div v-for="file in record.attachments" :key="file.id" class="attachment-line">
-                        <el-link
-                          type="primary"
-                          :underline="false"
-                          class="attachment-name"
-                          :title="file.fileName"
-                          @click="openFile(file)"
-                        >{{ file.fileName || '—' }}</el-link>
-                        <el-icon
-                          v-if="file.fileKey"
-                          class="attachment-download"
-                          title="下载"
-                          @click="openFile(file, true)"
-                        ><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="record.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openAttachments('验收资料附件', record.attachments, 'yan_shou_fu_jian_lei_xing')"
+                    >附件 ({{ record.attachments.length }})</el-button>
                     <span v-else class="empty-inline">—</span>
                   </template>
                 </el-table-column>
@@ -296,6 +257,41 @@
         <template #default="{ row }">{{ acceptStatusLabel(row) }}</template>
       </el-table-column>
     </el-table>
+
+    <!-- 附件列表弹窗：点击记录行的附件按钮后展示对应附件 -->
+    <el-dialog
+      v-model="attachmentDialogVisible"
+      :title="attachmentDialogTitle"
+      width="720px"
+      append-to-body
+      destroy-on-close
+    >
+      <el-table :data="attachmentDialogFiles" border size="small" empty-text="暂无附件">
+        <el-table-column label="附件类型" width="120">
+          <template #default="{ row: file }">
+            {{ file.attachmentType ? dictLabel(attachmentDialogDictType, file.attachmentType) : '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="附件名称" min-width="300" show-overflow-tooltip>
+          <template #default="{ row: file }">
+            <div class="attachment-line">
+              <el-link type="primary" :underline="false" class="attachment-name" @click="openFile(file)">
+                {{ file.fileName || '—' }}
+              </el-link>
+              <el-icon v-if="file.fileKey" class="attachment-download" title="下载" @click="openFile(file, true)">
+                <Download />
+              </el-icon>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" width="150" show-overflow-tooltip>
+          <template #default="{ row: file }">{{ file.remark || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="上传时间" width="170" align="center">
+          <template #default="{ row: file }">{{ file.createTime || '—' }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -329,14 +325,17 @@ const loading = ref(false)
 const rows = ref<ProjectLifecycleVO[]>([])
 const dictMap = ref<Record<string, DictVO[]>>({})
 
-/** 加载字典（申报类型、项目类别/类型、资金类型/来源、验收结果） */
+/** 加载字典（申报类型、项目类别/类型、下拨类型、验收结果、各阶段附件类型） */
 const DICT_TYPES = [
   'shen_bao_lei_xing',
   'xiang_mu_lei_bie',
   'xiang_mu_lei_xing',
-  'zi_jin_lei_xing',
-  'zi_jin_lai_yuan',
-  'yan_shou_jie_guo'
+  'xia_bo_lei_xing',
+  'yan_shou_jie_guo',
+  'fu_jian_lei_xing',
+  'shi_gong_fu_jian_lei_xing',
+  'zi_jin_fu_jian_lei_xing',
+  'yan_shou_fu_jian_lei_xing'
 ]
 const loadDicts = async () => {
   await Promise.all(
@@ -387,6 +386,19 @@ const openFile = async (file: LifecycleAttachmentVO, download = false) => {
     download
   })
   window.open(res.data, '_blank')
+}
+
+/** 附件列表弹窗 */
+const attachmentDialogVisible = ref(false)
+const attachmentDialogTitle = ref('附件')
+const attachmentDialogFiles = ref<LifecycleAttachmentVO[]>([])
+/** 弹窗内附件类型使用的字典类型（按阶段区分） */
+const attachmentDialogDictType = ref('')
+const openAttachments = (title: string, files?: LifecycleAttachmentVO[], dictType = '') => {
+  attachmentDialogTitle.value = title
+  attachmentDialogFiles.value = files || []
+  attachmentDialogDictType.value = dictType
+  attachmentDialogVisible.value = true
 }
 
 /** 金额格式化 */
@@ -482,15 +494,17 @@ const detailAuditStatusText = (status?: string) => {
   return map[status] || status
 }
 
-/** 申报日志动作文案 */
+/** 申报日志动作文案（与后端 actionLabel 保持一致） */
 const auditActionLabel = (action?: string) => {
   if (!action) return '—'
   const map: Record<string, string> = {
     AUDIT_PASS: '审核通过',
     AUDIT_REJECT: '审核驳回',
-    AUDIT_REVOKE: '撤销审核',
-    SUBMIT_UNSUBMITTED: '重新提交',
-    USER_EDIT: '用户修改'
+    AUDIT_REVOKE: '审核撤销',
+    SUBMIT_FIRST: '首次提交审核',
+    SUBMIT_RESUBMITTED: '重新提交审核',
+    SUBMIT_UNSUBMITTED: '重新提交审核',
+    USER_EDIT: '用户修改明细'
   }
   return map[action] || action
 }
@@ -548,16 +562,6 @@ watch(() => props.targetId, load)
   gap: 6px;
   line-height: 22px;
   font-size: 12px;
-}
-.attachment-scope {
-  flex: 0 0 auto;
-  padding: 0 6px;
-  height: 20px;
-  line-height: 20px;
-  border-radius: 3px;
-  background: #f2f3f5;
-  color: #909399;
-  font-size: 11px;
 }
 .attachment-name {
   max-width: 320px;
