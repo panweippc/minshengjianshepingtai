@@ -195,20 +195,18 @@
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="行政村" prop="regionCode">
-                <el-select
+                <el-tree-select
                   v-model="form.regionCode"
-                  placeholder="请选择行政村"
+                  :data="treeData"
+                  :props="{ label: 'name', value: 'code', children: 'children' }"
+                  check-strictly
+                  default-expand-all
+                  clearable
                   filterable
+                  placeholder="请选择行政村"
                   style="width: 100%"
                   @change="onRegionChange"
-                >
-                  <el-option
-                    v-for="item in villageOptions"
-                    :key="item.code"
-                    :label="`${item.name}（${item.code}）`"
-                    :value="item.code"
-                  />
-                </el-select>
+                />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -623,26 +621,23 @@ const dialogTitle = computed(() => {
   return dialogMode.value === 'edit' ? '编辑户基础信息' : '新增户基础信息'
 })
 
-/** 行政村下拉选项：从区划树中过滤出 行政村（regionType=2，level=5） */
-const villageOptions = computed<VillageTreeVO[]>(() => {
-  const result: VillageTreeVO[] = []
-  const walk = (nodes: VillageTreeVO[]) => {
+/** 在区划树中递归查找指定编码的节点名称 */
+const findRegionName = (code?: string): string => {
+  if (!code) return ''
+  const find = (nodes: VillageTreeVO[]): string => {
     for (const node of nodes) {
-      if (node.regionType === '2') result.push(node)
-      if (node.children?.length) walk(node.children)
+      if (node.code === code) return node.name
+      const hit = find(node.children || [])
+      if (hit) return hit
     }
+    return ''
   }
-  walk(treeData.value)
-  return result
-})
+  return find(treeData.value)
+}
 
-const selectedRegionName = computed(() => {
-  if (!form.regionCode) return ''
-  const hit = villageOptions.value.find((v) => v.code === form.regionCode)
-  return hit?.name || ''
-})
+const selectedRegionName = computed(() => findRegionName(form.regionCode))
 
-const onRegionChange = () => {
+const onRegionChange = (_code: string) => {
   // 行政村变更时可在此做联动（如自动填充户号预览）
 }
 

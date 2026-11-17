@@ -319,7 +319,7 @@ export interface ProjectLifecycleVO {
 /** 项目全周期-申报明细审核/修改记录 */
 export interface DeclarationAuditLogVO {
   id?: string
-  /** AUDIT_PASS/AUDIT_REJECT/AUDIT_REVOKE/SUBMIT_UNSUBMITTED/USER_EDIT */
+  /** AUDIT_PASS/AUDIT_REJECT/AUDIT_REVOKE/SUBMIT_FIRST/SUBMIT_RESUBMITTED/USER_EDIT */
   action?: string
   beforeAuditStatus?: string
   afterAuditStatus?: string
@@ -362,8 +362,8 @@ export interface ConstructionRecordVO {
 /** 项目全周期-资金拨付记录 */
 export interface FundRecordVO {
   id?: string
+  /** 下拨类型（字典 xia_bo_lei_xing） */
   fundType?: string
-  fundSource?: string
   amount?: number
   remark?: string
   createBy?: string

@@ -7,8 +7,11 @@ import com.msjs.project.common.Result;
 import com.msjs.project.common.annotation.OperLog;
 import com.msjs.project.common.annotation.RequirePerm;
 import com.msjs.project.dto.FundSaveDTO;
+import com.msjs.project.dto.FundUpdateDTO;
 import com.msjs.project.entity.ProjectFund;
+import com.msjs.project.service.ProjectAcceptanceService;
 import com.msjs.project.service.ProjectFundService;
+import com.msjs.project.vo.AcceptanceNodeVO;
 import com.msjs.project.vo.FundNodeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +20,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,6 +39,7 @@ import java.util.List;
 public class ProjectFundController {
 
     private final ProjectFundService fundService;
+    private final ProjectAcceptanceService acceptanceService;
 
     @Operation(summary = "资金分页查询（树形：项目 → 申报内容 → 农户/设施明细）")
     @RequirePerm("project:fund:list")
@@ -81,6 +86,15 @@ public class ProjectFundController {
         return Result.ok();
     }
 
+    @Operation(summary = "编辑资金流水（金额、备注、类型、附件等）")
+    @RequirePerm("project:fund:allocate")
+    @OperLog(module = "资金管理", operation = "编辑资金流水")
+    @PutMapping("/record")
+    public Result<Void> updateRecord(@Valid @RequestBody FundUpdateDTO dto) {
+        fundService.update(dto);
+        return Result.ok();
+    }
+
     // ============ 节点详情接口（资金管理 / 综合查询 公共复用） ============
 
     @Operation(summary = "一级项目节点详情（含申报树 + 资金流水）")
@@ -105,5 +119,13 @@ public class ProjectFundController {
     public Result<FundNodeVO> detail(
             @Parameter(description = "明细ID") @RequestParam Long detailId) {
         return Result.ok(fundService.detail(detailId));
+    }
+
+    @Operation(summary = "资金查看-验收页签数据（复用验收管理三级树形与验收记录，口径一致）")
+    @RequirePerm("project:fund:view")
+    @GetMapping("/acceptance-detail")
+    public Result<AcceptanceNodeVO> acceptanceDetail(
+            @Parameter(description = "立项ID") @RequestParam Long approvalId) {
+        return Result.ok(acceptanceService.detail(approvalId));
     }
 }

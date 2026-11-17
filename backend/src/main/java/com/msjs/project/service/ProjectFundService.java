@@ -2,6 +2,7 @@ package com.msjs.project.service;
 
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.FundSaveDTO;
+import com.msjs.project.dto.FundUpdateDTO;
 import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.vo.FundNodeVO;
 
@@ -31,4 +32,7 @@ public interface ProjectFundService {
 
     /** 资金登记（一级）/ 下拨资金（二级、三级） */
     void save(FundSaveDTO dto);
+
+    /** 编辑资金流水（仅可编辑金额、备注、类型、来源、操作人、时间、附件；节点定位字段不可修改） */
+    void update(FundUpdateDTO dto);
 }

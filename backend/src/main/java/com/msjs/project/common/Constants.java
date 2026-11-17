@@ -91,6 +91,11 @@ public final class Constants {
     /** 资金层级：三级下拨 */
     public static final int FUND_LEVEL_DETAIL = 3;
 
+    /** 一级资金类型（字典 zi_jin_lei_xing）：申请——不计入拨付金额合计与可用余额 */
+    public static final String FUND_TYPE_APPLY = "1";
+    /** 一级资金类型（字典 zi_jin_lei_xing）：拨付——仅统计此类型的登记金额 */
+    public static final String FUND_TYPE_PAYOUT = "2";
+
     /** 施工状态：未开工 */
     public static final String CONSTRUCTION_STATUS_NOT_STARTED = "NOT_STARTED";
     /** 施工状态：施工中 */

@@ -7,6 +7,7 @@ import com.msjs.project.common.Constants;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.FundAttachmentDTO;
 import com.msjs.project.dto.FundSaveDTO;
+import com.msjs.project.dto.FundUpdateDTO;
 import com.msjs.project.entity.BaseFacilityAttachment;
 import com.msjs.project.entity.HouseholdAttachment;
 import com.msjs.project.entity.ProjectApproval;
@@ -65,7 +66,11 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         Page<ProjectApproval> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<ProjectApproval> wrapper = new LambdaQueryWrapper<>();
         // 数据来源：立项管理中审核通过的项目
+        // 已归档项目（验收管理归档后）不再在资金管理中显示，与验收管理数据口径保持一致
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
+                .and(w -> w.ne(ProjectApproval::getAcceptStatus, Constants.APPROVAL_ACCEPT_ARCHIVED)
+                        .or()
+                        .isNull(ProjectApproval::getAcceptStatus))
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
                 .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
@@ -228,6 +233,86 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         saveAttachments(fund.getId(), dto.getAttachments());
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void update(FundUpdateDTO dto) {
+        ProjectFund fund = fundMapper.selectById(dto.getId());
+        if (fund == null) {
+            throw new BizException("资金流水不存在或已被删除");
+        }
+        // 节点定位字段以现有记录为准，前端不允许修改（避免破坏余额校验链路）
+        BigDecimal originalAmount = fund.getAmount() == null ? BigDecimal.ZERO : fund.getAmount();
+        Integer nodeLevelRaw = fund.getNodeLevel();
+        if (nodeLevelRaw == null) {
+            throw new BizException("资金流水节点层级异常");
+        }
+        int nodeLevel = nodeLevelRaw;
+        Long approvalId = fund.getApprovalId();
+        Long declareId = fund.getDeclareId();
+
+        // 一级资金登记：fundType 改成非拨付时会从"登记合计"中剔除，允许；改小时不能让已下拨合计超过新登记值
+        if (nodeLevel == Constants.FUND_LEVEL_APPROVAL && dto.getAmount() != null
+                && dto.getAmount().compareTo(originalAmount) < 0
+                && Constants.FUND_TYPE_PAYOUT.equals(fund.getFundType())) {
+            BigDecimal declareTotal = sumByLevel(approvalId, Constants.FUND_LEVEL_DECLARE, null);
+            BigDecimal detailTotal = sumByLevel(approvalId, Constants.FUND_LEVEL_DETAIL, null);
+            BigDecimal totalDown = declareTotal.add(detailTotal);
+            if (totalDown.compareTo(dto.getAmount()) > 0) {
+                throw new BizException(
+                        "修改后的登记金额（" + money(dto.getAmount()) + " 元）不得小于已下拨合计（" + money(totalDown) + " 元）");
+            }
+        }
+
+        // 二级/三级下拨：检查修改后不得超过可用额度
+        if (dto.getAmount() != null && dto.getAmount().compareTo(originalAmount) > 0) {
+            if (nodeLevel == Constants.FUND_LEVEL_DECLARE) {
+                // 可用 = 上级登记 − 同级其他二级下拨
+                BigDecimal registered = sumByLevel(approvalId, Constants.FUND_LEVEL_APPROVAL, null);
+                BigDecimal otherDeclare = sumByLevel(approvalId, Constants.FUND_LEVEL_DECLARE, null).subtract(originalAmount);
+                BigDecimal available = registered.subtract(otherDeclare);
+                if (dto.getAmount().compareTo(available) > 0) {
+                    throw new BizException("修改后的下拨金额不得超过上级可用结余（可用 " + money(available) + " 元）");
+                }
+            } else if (nodeLevel == Constants.FUND_LEVEL_DETAIL) {
+                // 可用 = 所属申报已下拨 − 同级其他三级下拨
+                BigDecimal declareTotal = sumByLevel(approvalId, Constants.FUND_LEVEL_DECLARE, declareId);
+                BigDecimal otherDetail = sumByLevel(approvalId, Constants.FUND_LEVEL_DETAIL, declareId).subtract(originalAmount);
+                BigDecimal available = declareTotal.subtract(otherDetail);
+                if (dto.getAmount().compareTo(available) > 0) {
+                    throw new BizException("修改后的下拨金额不得超过所属申报的可用结余（可用 " + money(available) + " 元）");
+                }
+            }
+        }
+
+        // 逐项覆盖（null 表示不修改；空字符串 trim 成 null 再 set 也不触发）
+        if (dto.getFundType() != null) {
+            fund.setFundType(trimToNull(dto.getFundType()));
+        }
+        if (dto.getFundSource() != null) {
+            fund.setFundSource(trimToNull(dto.getFundSource()));
+        }
+        if (dto.getAmount() != null) {
+            fund.setAmount(dto.getAmount());
+        }
+        if (dto.getRemark() != null) {
+            fund.setRemark(trimToNull(dto.getRemark()));
+        }
+        if (dto.getOperator() != null) {
+            fund.setCreateBy(dto.getOperator().trim());
+        }
+        if (dto.getOperateTime() != null) {
+            fund.setCreateTime(dto.getOperateTime());
+        }
+        fundMapper.updateById(fund);
+
+        // 附件全量替换：传 null 表示不修改；传空列表或非空列表 = 删除旧附件后重插
+        if (dto.getAttachments() != null) {
+            fundAttachmentMapper.delete(new LambdaQueryWrapper<ProjectFundAttachment>()
+                    .eq(ProjectFundAttachment::getFundId, fund.getId()));
+            saveAttachments(fund.getId(), dto.getAttachments());
+        }
+    }
+
     /** 批量保存资金凭证附件 */
     private void saveAttachments(Long fundId, List<FundAttachmentDTO> attachments) {
         if (attachments == null || attachments.isEmpty()) {
@@ -302,11 +387,16 @@ public class ProjectFundServiceImpl implements ProjectFundService {
     /**
      * 统计资金金额
      * @param declareId 为空时按立项维度统计
+     * @note 一级资金登记（nodeLevel=1）仅统计 fundType="拨付" 的记录，"申请"类型不计入可用余额
      */
     private BigDecimal sumByLevel(Long approvalId, int nodeLevel, Long declareId) {
         LambdaQueryWrapper<ProjectFund> wrapper = new LambdaQueryWrapper<ProjectFund>()
                 .eq(ProjectFund::getApprovalId, approvalId)
                 .eq(ProjectFund::getNodeLevel, nodeLevel);
+        // 一级资金登记口径：仅统计 fundType=拨付，排除 fundType=申请
+        if (nodeLevel == Constants.FUND_LEVEL_APPROVAL) {
+            wrapper.eq(ProjectFund::getFundType, Constants.FUND_TYPE_PAYOUT);
+        }
         if (declareId != null) {
             wrapper.eq(ProjectFund::getDeclareId, declareId);
         }
@@ -407,7 +497,10 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         for (ProjectFund fund : funds) {
             BigDecimal amount = fund.getAmount() == null ? BigDecimal.ZERO : fund.getAmount();
             if (fund.getNodeLevel() != null && fund.getNodeLevel() == Constants.FUND_LEVEL_APPROVAL) {
-                approvalRegistered.merge(fund.getApprovalId(), amount, BigDecimal::add);
+                // 一级资金登记：仅统计 fundType="拨付" 的记录；"申请"类型不计入拨付金额合计与可用余额
+                if (Constants.FUND_TYPE_PAYOUT.equals(fund.getFundType())) {
+                    approvalRegistered.merge(fund.getApprovalId(), amount, BigDecimal::add);
+                }
                 approvalSource.putIfAbsent(fund.getApprovalId(), fund.getFundSource());
             } else if (fund.getNodeLevel() != null && fund.getNodeLevel() == Constants.FUND_LEVEL_DECLARE) {
                 approvalAllocated.merge(fund.getApprovalId(), amount, BigDecimal::add);

@@ -124,7 +124,9 @@
           <template #default="{ row }">{{ formatMoney(row.budget) }}</template>
         </el-table-column>
         <el-table-column prop="leader" label="负责人" width="100" show-overflow-tooltip />
-        <el-table-column prop="submitTime" label="提交时间" width="170" />
+        <el-table-column label="立项日期" width="140">
+          <template #default="{ row }">{{ row.submitTime ? row.submitTime.slice(0, 10) : '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">

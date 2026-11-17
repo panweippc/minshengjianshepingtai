@@ -422,7 +422,6 @@ public class ProjectLifecycleServiceImpl implements ProjectLifecycleService {
                     ProjectLifecycleVO.FundRecordVO record = new ProjectLifecycleVO.FundRecordVO();
                     record.setId(fund.getId());
                     record.setFundType(fund.getFundType());
-                    record.setFundSource(fund.getFundSource());
                     record.setAmount(fund.getAmount());
                     record.setRemark(fund.getRemark());
                     record.setCreateBy(fund.getCreateBy());

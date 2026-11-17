@@ -527,10 +527,10 @@
           <template #default="{ row }">{{ row.inspector || '-' }}</template>
         </el-table-column>
         <el-table-column label="巡检状态" width="100">
-          <template #default="{ row }">{{ dictLabel('xun_jian_zhuang_tai', row.inspectionStatus) || '-' }}</template>
+          <template #default="{ row }">{{ inspectionStatusLabel(row.inspectionStatus) }}</template>
         </el-table-column>
         <el-table-column label="施工状态" width="110">
-          <template #default="{ row }">{{ dictLabel('shi_gong_zhuang_tai', row.constructionStatus) || '-' }}</template>
+          <template #default="{ row }">{{ constructionStatusLabel(row.constructionStatus) }}</template>
         </el-table-column>
         <el-table-column prop="content" label="施工内容" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.content || '-' }}</template>
@@ -989,6 +989,33 @@ const categoryLabel = (value?: string): string => {
   if (label !== value) return label
   if (value === '1') return '到户项目'
   if (value === '2') return '公建项目'
+  return value
+}
+
+/**
+ * 巡检状态硬编码映射：优先字典查询，兜底英文枚举值翻译
+ * 后端常量：PASS 合格 / FAIL 整改
+ */
+const inspectionStatusLabel = (value?: string): string => {
+  if (!value) return '-'
+  const dictHit = dictLabel('xun_jian_zhuang_tai', value)
+  if (dictHit && dictHit !== value) return dictHit
+  if (value === 'PASS') return '合格'
+  if (value === 'FAIL') return '整改'
+  return value
+}
+
+/**
+ * 施工状态硬编码映射：优先字典查询，兜底英文枚举值翻译
+ * 后端常量：NOT_STARTED 未开工 / IN_PROGRESS 施工中 / COMPLETED 已完工
+ */
+const constructionStatusLabel = (value?: string): string => {
+  if (!value) return '-'
+  const dictHit = dictLabel('shi_gong_zhuang_tai', value)
+  if (dictHit && dictHit !== value) return dictHit
+  if (value === 'NOT_STARTED') return '未开工'
+  if (value === 'IN_PROGRESS') return '施工中'
+  if (value === 'COMPLETED') return '已完工'
   return value
 }
 
