@@ -134,6 +134,7 @@
       :title="dialogTitle"
       :width="dialogMode === 'detail' ? 'min(1180px, 94vw)' : '820px'"
       destroy-on-close
+      class="household-dialog"
     >
       <!-- 查看模式 -->
       <div v-if="dialogMode === 'detail'" class="detail-mode">
@@ -1197,5 +1198,12 @@ onMounted(async () => {
 
 .detail-mode :deep(.el-descriptions__body .el-descriptions__table) {
   margin-bottom: 4px;
+}
+</style>
+
+<style>
+/* 户基础信息新增/编辑弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.household-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>

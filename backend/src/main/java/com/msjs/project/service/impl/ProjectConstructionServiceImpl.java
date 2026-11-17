@@ -521,13 +521,23 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                 new LambdaQueryWrapper<ProjectConstruction>()
                         .in(ProjectConstruction::getApprovalId, approvalIds));
 
-        // 验收记录：验收状态与验收管理同源，按明细ID匹配
-        Map<Long, ProjectAcceptance> acceptMap = acceptanceMapper.selectList(
-                        new LambdaQueryWrapper<ProjectAcceptance>()
-                                .in(ProjectAcceptance::getApprovalId, approvalIds))
-                .stream()
-                .filter(item -> item.getDetailId() != null)
-                .collect(Collectors.toMap(ProjectAcceptance::getDetailId, Function.identity(), (a, b) -> b));
+        // 验收记录：验收状态与验收管理同源（各层级均取最新一条记录，按验收时间/ID倒序）
+        List<ProjectAcceptance> acceptances = acceptanceMapper.selectList(
+                new LambdaQueryWrapper<ProjectAcceptance>()
+                        .in(ProjectAcceptance::getApprovalId, approvalIds)
+                        .orderByDesc(ProjectAcceptance::getAcceptTime)
+                        .orderByDesc(ProjectAcceptance::getId));
+        Map<Long, ProjectAcceptance> detailAcceptMap = acceptances.stream()
+                .filter(item -> Constants.ACCEPTANCE_RECORD_DETAIL.equals(item.getNodeType())
+                        && item.getDetailId() != null)
+                .collect(Collectors.toMap(ProjectAcceptance::getDetailId, Function.identity(), (a, b) -> a));
+        Map<Long, ProjectAcceptance> declareAcceptMap = acceptances.stream()
+                .filter(item -> Constants.ACCEPTANCE_RECORD_DECLARE.equals(item.getNodeType())
+                        && item.getDeclareId() != null)
+                .collect(Collectors.toMap(ProjectAcceptance::getDeclareId, Function.identity(), (a, b) -> a));
+        Map<Long, ProjectAcceptance> projectAcceptMap = acceptances.stream()
+                .filter(item -> Constants.ACCEPTANCE_RECORD_PROJECT.equals(item.getNodeType()))
+                .collect(Collectors.toMap(ProjectAcceptance::getApprovalId, Function.identity(), (a, b) -> a));
         Map<Long, ProjectConstruction> projectMap = constructions.stream()
                 .filter(item -> Constants.CONSTRUCTION_LEVEL_PROJECT == item.getNodeLevel())
                 .collect(Collectors.toMap(ProjectConstruction::getApprovalId, Function.identity(), (a, b) -> a));
@@ -549,24 +559,18 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                 List<ConstructionNodeVO> detailNodes = new ArrayList<>();
                 for (ProjectApprovalDetail detail : detailsByDeclare.getOrDefault(declare.getId(), Collections.emptyList())) {
                     ConstructionNodeVO detailNode = buildDetailNode(approval.getId(), detail, detailMap.get(detail.getId()));
-                    // 三级验收状态直接取验收记录，与验收管理明细状态保持一致
-                    ProjectAcceptance acceptance = acceptMap.get(detail.getId());
-                    detailNode.setAcceptStatus(acceptance != null
-                            && Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(acceptance.getAcceptStatus())
-                            ? Constants.ACCEPTANCE_STATUS_ACCEPTED : Constants.ACCEPTANCE_STATUS_PENDING);
+                    // 三级验收状态：取明细最新一条验收记录，与验收管理三级查看一致（含未通过）
+                    ProjectAcceptance acceptance = detailAcceptMap.get(detail.getId());
+                    detailNode.setAcceptStatus(acceptance != null && acceptance.getAcceptStatus() != null
+                            ? acceptance.getAcceptStatus() : Constants.ACCEPTANCE_STATUS_PENDING);
                     detailNodes.add(detailNode);
                 }
                 declareNode.setChildren(detailNodes);
                 aggregate(declareNode, detailNodes);
-                // 二级验收状态按明细聚合：全部已验收为已验收，部分已验收为验收中
-                int declareAcceptedCount = (int) detailNodes.stream()
-                        .filter(item -> Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(item.getAcceptStatus()))
-                        .count();
-                declareNode.setAcceptStatus(declareAcceptedCount == 0
-                        ? Constants.ACCEPTANCE_STATUS_PENDING
-                        : declareAcceptedCount == detailNodes.size()
-                        ? Constants.ACCEPTANCE_STATUS_ACCEPTED
-                        : Constants.ACCEPTANCE_STATUS_PARTIAL);
+                // 二级验收状态：与验收管理二级查看一致，取申报层级最新一条验收记录
+                ProjectAcceptance declareAcceptance = declareAcceptMap.get(declare.getId());
+                declareNode.setAcceptStatus(declareAcceptance != null && declareAcceptance.getAcceptStatus() != null
+                        ? declareAcceptance.getAcceptStatus() : Constants.ACCEPTANCE_STATUS_PENDING);
                 declareNodes.add(declareNode);
             }
             projectNode.setChildren(declareNodes);
@@ -575,17 +579,13 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                     .flatMap(item -> item.getChildren().stream())
                     .toList();
             aggregate(projectNode, allDetails);
-            // 一级验收状态：已归档直接取立项验收状态，其余按明细聚合
-            int projectAcceptedCount = (int) allDetails.stream()
-                    .filter(item -> Constants.ACCEPTANCE_STATUS_ACCEPTED.equals(item.getAcceptStatus()))
-                    .count();
+            // 一级验收状态：已归档取立项验收状态，其余与验收管理一级查看一致，取项目层级最新一条验收记录
+            ProjectAcceptance projectAcceptance = projectAcceptMap.get(approval.getId());
             projectNode.setAcceptStatus(Constants.APPROVAL_ACCEPT_ARCHIVED.equals(approval.getAcceptStatus())
                     ? Constants.APPROVAL_ACCEPT_ARCHIVED
-                    : projectAcceptedCount == 0
-                    ? Constants.ACCEPTANCE_STATUS_PENDING
-                    : projectAcceptedCount == allDetails.size()
-                    ? Constants.ACCEPTANCE_STATUS_ACCEPTED
-                    : Constants.ACCEPTANCE_STATUS_PARTIAL);
+                    : projectAcceptance != null && projectAcceptance.getAcceptStatus() != null
+                    ? projectAcceptance.getAcceptStatus()
+                    : Constants.ACCEPTANCE_STATUS_PENDING);
             // 验收按钮仅在项目层级、且全部明细完工时展示
             projectNode.setCanAccept(Boolean.TRUE.equals(projectNode.getCanAccept()));
             records.add(projectNode);

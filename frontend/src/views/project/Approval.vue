@@ -457,7 +457,7 @@
     </el-dialog>
 
     <!-- 编辑弹窗：项目信息（参照图1布局） + 立项资料附件 -->
-    <el-dialog v-model="editVisible" title="编辑立项" width="860px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑立项" width="860px" destroy-on-close class="approval-edit-dialog">
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="120px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -2130,5 +2130,10 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* 编辑立项弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.approval-edit-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>

@@ -135,7 +135,7 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="editDialogVisible" :title="editDialogMode === 'edit' ? '编辑公共基础设施' : '新增公共基础设施'" width="800px" destroy-on-close>
+    <el-dialog v-model="editDialogVisible" :title="editDialogMode === 'edit' ? '编辑公共基础设施' : '新增公共基础设施'" width="800px" destroy-on-close class="facility-edit-dialog">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -1254,5 +1254,12 @@ onMounted(() => {
 }
 .attachment-file-download:hover {
   color: #337ecc;
+}
+</style>
+
+<style>
+/* 新增/编辑公共基础设施弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.facility-edit-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>

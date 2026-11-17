@@ -169,7 +169,15 @@
     </el-card>
 
     <!-- 查看弹窗 -->
-    <el-dialog v-model="viewVisible" :title="viewTitle" width="1000px" destroy-on-close class="construction-view-dialog">
+    <el-dialog
+      v-model="viewVisible"
+      :title="viewTitle"
+      :width="'1000px'"
+      :height="'100vh'"
+      top="0"
+      destroy-on-close
+      class="construction-view-dialog"
+    >
       <template v-if="viewNode">
         <!-- 一级：施工详情 / 施工单位信息 / 立项 / 资金 -->
         <template v-if="viewNode.nodeType === 'project'">
@@ -189,7 +197,7 @@
 
                 <el-divider content-position="left">明细进度</el-divider>
                 <el-empty v-if="!projectDetails.length" description="暂无农户/设施明细" :image-size="60" />
-                <el-table v-else :data="projectDetails" border size="small" class="construction-view-table">
+                <el-table v-else :data="projectDetailsPaged" border size="small" class="construction-view-table">
                   <el-table-column label="类型" width="130">
                     <template #default="{ row }">{{ detailTypeLabel(row.detailType) }}</template>
                   </el-table-column>
@@ -240,6 +248,16 @@
                     </template>
                   </el-table-column>
                 </el-table>
+                <el-pagination
+                  v-if="projectDetails.length > viewDetailPageSize"
+                  v-model:current-page="viewDetailPageNum"
+                  v-model:page-size="viewDetailPageSize"
+                  :page-sizes="[10, 20, 50]"
+                  :total="projectDetails.length"
+                  layout="total, sizes, prev, pager, next"
+                  size="small"
+                  class="view-pagination"
+                />
               </el-tab-pane>
 
               <!-- 页签 2：施工单位信息 -->
@@ -375,6 +393,70 @@
                   </el-table-column>
                 </el-table>
               </el-tab-pane>
+
+              <!-- 页签 5：验收（内容实时取自验收管理一级查看“验收详情”页签） -->
+              <el-tab-pane label="验收" name="accept">
+                <el-descriptions :column="3" border>
+                  <el-descriptions-item label="项目编号">
+                    {{ viewAcceptance?.code || projectView?.code || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目名称">
+                    {{ viewAcceptance?.name || projectView?.name || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目类别">
+                    {{ dictLabel('xiang_mu_lei_bie', viewAcceptance?.category || projectView?.category) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目类型">
+                    {{ dictLabel('xiang_mu_lei_xing', viewAcceptance?.source || projectView?.source) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ viewAcceptance?.submitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收进度">
+                    <div class="accept-progress">
+                      <el-progress
+                        :percentage="viewAcceptance?.percent || 0"
+                        :stroke-width="8"
+                        :show-text="false"
+                      />
+                      <span class="accept-progress__text">
+                        {{ viewAcceptance?.acceptedCount || 0 }}/{{ viewAcceptance?.totalCount || 0 }}
+                      </span>
+                    </div>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="项目预算">{{ formatMoney(viewAcceptance?.budget) }} 元</el-descriptions-item>
+                  <el-descriptions-item label="归档状态">
+                    <el-tag v-if="viewAcceptance?.archived" type="success" size="small">已归档</el-tag>
+                    <el-tag v-else type="info" size="small">未归档</el-tag>
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">验收记录</el-divider>
+                <el-empty
+                  v-if="!viewAcceptance?.acceptanceRecords?.length"
+                  description="暂无验收记录"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewAcceptance.acceptanceRecords" size="small" border>
+                  <el-table-column label="验收结果" width="140">
+                    <template #default="{ row }">
+                      {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptBy" label="验收人" width="120" />
+                  <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
+                  <el-table-column label="附件" width="110">
+                    <template #default="{ row }">
+                      <el-button
+                        v-if="row.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openAcceptanceAttachments(row)"
+                      >附件 ({{ row.attachments.length }})</el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
             </el-tabs>
           </div>
         </template>
@@ -397,7 +479,7 @@
 
                 <el-divider content-position="left">明细进度</el-divider>
                 <el-empty v-if="!viewNode.children?.length" description="暂无农户/设施明细" :image-size="60" />
-                <el-table v-else :data="viewNode.children" border size="small" class="construction-view-table">
+                <el-table v-else :data="declareDetailsPaged" border size="small" class="construction-view-table">
                   <el-table-column label="类型" width="130">
                     <template #default="{ row }">{{ detailTypeLabel(row.detailType) }}</template>
                   </el-table-column>
@@ -448,6 +530,16 @@
                     </template>
                   </el-table-column>
                 </el-table>
+                <el-pagination
+                  v-if="(viewNode.children?.length || 0) > viewDeclareDetailPageSize"
+                  v-model:current-page="viewDeclareDetailPageNum"
+                  v-model:page-size="viewDeclareDetailPageSize"
+                  :page-sizes="[10, 20, 50]"
+                  :total="viewNode.children.length"
+                  layout="total, sizes, prev, pager, next"
+                  size="small"
+                  class="view-pagination"
+                />
               </el-tab-pane>
 
               <el-tab-pane label="立项" name="approval">
@@ -526,6 +618,63 @@
                         link
                         type="primary"
                         @click.stop="openRecordAttachments(row)"
+                      >附件 ({{ row.attachments.length }})</el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <!-- 页签 4：验收（内容实时取自验收管理二级查看“验收详情”页签，不含申报明细验收情况） -->
+              <el-tab-pane label="验收" name="accept">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="申报编号">
+                    {{ viewAcceptanceDeclare?.code || viewNode.code || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报标题">
+                    {{ viewAcceptanceDeclare?.name || viewNode.name || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报类型">
+                    {{ dictLabel('shen_bao_lei_xing', viewAcceptanceDeclare?.source || viewNode.source) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报类别">
+                    {{ dictLabel('shen_bao_lei_bie', viewAcceptanceDeclare?.category || viewNode.category) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="验收进度">
+                    <div class="accept-progress">
+                      <el-progress
+                        :percentage="viewAcceptanceDeclare?.percent || 0"
+                        :stroke-width="8"
+                        :show-text="false"
+                      />
+                      <span class="accept-progress__text">{{ viewAcceptanceDeclare?.acceptedCount || 0 }}/{{ viewAcceptanceDeclare?.totalCount || 0 }}</span>
+                    </div>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="申报内容">{{ viewAcceptanceDeclare?.declareContent || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">验收记录</el-divider>
+                <el-empty
+                  v-if="!viewAcceptanceDeclare?.acceptanceRecords?.length"
+                  description="暂无验收记录"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewAcceptanceDeclare.acceptanceRecords" size="small" border>
+                  <el-table-column label="验收结果" width="140">
+                    <template #default="{ row }">
+                      {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptBy" label="验收人" width="120" />
+                  <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
+                  <el-table-column label="附件" width="110">
+                    <template #default="{ row }">
+                      <el-button
+                        v-if="row.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openAcceptanceAttachments(row)"
                       >附件 ({{ row.attachments.length }})</el-button>
                       <span v-else>-</span>
                     </template>
@@ -729,6 +878,66 @@
                   </el-table-column>
                 </el-table>
               </el-tab-pane>
+
+              <!-- 页签 4：验收（内容实时取自验收管理三级查看“验收详情”页签） -->
+              <el-tab-pane label="验收" name="accept">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="农户/设施名称">
+                    <el-icon
+                      v-if="viewAcceptanceDetail?.detailType === 'FACILITY'"
+                      class="detail-type-icon detail-type-icon--facility"
+                    ><OfficeBuilding /></el-icon>
+                    <el-icon v-else class="detail-type-icon detail-type-icon--household"><UserFilled /></el-icon>
+                    <span class="accept-detail-name">{{ viewAcceptanceDetail?.name || viewNode.name || '-' }}</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="户号/编码">
+                    {{ viewAcceptanceDetail?.code || viewNode.code || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="所属区划">
+                    {{ viewAcceptanceDetail?.source || viewNode.source || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="事项说明">{{ viewAcceptanceDetail?.detailRemark || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收状态">
+                    <el-tag v-if="viewAcceptanceDetail?.acceptStatus === 'ACCEPTED'" type="success" size="small">已验收</el-tag>
+                    <el-tag v-else-if="viewAcceptanceDetail?.acceptStatus === 'REJECTED'" type="danger" size="small">未通过</el-tag>
+                    <el-tag v-else type="warning" size="small">待验收</el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="验收结果">
+                    {{ dictLabel('yan_shou_jie_guo', viewAcceptanceDetail?.acceptResult) || '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="验收时间">{{ viewAcceptanceDetail?.acceptTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收人">{{ viewAcceptanceDetail?.acceptBy || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收备注" :span="2">{{ viewAcceptanceDetail?.acceptRemark || '-' }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">验收记录</el-divider>
+                <el-empty
+                  v-if="!viewAcceptanceDetail?.acceptanceRecords?.length"
+                  description="暂无验收记录"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewAcceptanceDetail.acceptanceRecords" size="small" border>
+                  <el-table-column label="验收结果" width="140">
+                    <template #default="{ row }">
+                      {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptBy" label="验收人" width="120" />
+                  <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
+                  <el-table-column label="附件" width="110">
+                    <template #default="{ row }">
+                      <el-button
+                        v-if="row.attachments?.length"
+                        link
+                        type="primary"
+                        @click="openAcceptanceAttachments(row)"
+                      >附件 ({{ row.attachments.length }})</el-button>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
             </el-tabs>
           </div>
         </template>
@@ -739,13 +948,16 @@
       </template>
     </el-dialog>
 
-    <!-- 明细页签：附件列表弹窗 -->
+    <!-- 明细页签：附件列表弹窗（尺寸与查看弹窗保持一致） -->
     <el-dialog
       v-model="historyAttachVisible"
       title="附件"
-      width="720px"
+      :width="'1000px'"
+      :height="'100vh'"
+      top="0"
       destroy-on-close
       append-to-body
+      class="construction-view-dialog"
     >
       <el-table :data="historyAttachRow?.attachments || []" border size="small">
         <el-table-column label="附件类型" width="180">
@@ -775,13 +987,16 @@
       </template>
     </el-dialog>
 
-    <!-- 资金页签：资金凭证附件列表弹窗（与资金管理查看一致） -->
+    <!-- 资金页签：资金凭证附件列表弹窗（尺寸与查看弹窗保持一致） -->
     <el-dialog
       v-model="recordAttachVisible"
       title="资金凭证附件"
-      width="720px"
+      :width="'1000px'"
+      :height="'100vh'"
+      top="0"
       destroy-on-close
       append-to-body
+      class="construction-view-dialog"
     >
       <el-table :data="recordAttachList" border size="small">
         <el-table-column label="附件类型" width="180">
@@ -813,6 +1028,47 @@
       </el-table>
       <template #footer>
         <el-button @click="recordAttachVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 验收页签：验收记录附件列表弹窗（与验收管理一致） -->
+    <el-dialog
+      v-model="acceptAttachVisible"
+      :title="acceptAttachTitle"
+      width="720px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-table :data="acceptAttachList" border size="small">
+        <el-table-column label="附件类型" width="180">
+          <template #default="{ row }">
+            {{ dictLabel('yan_shou_fu_jian_lei_xing', row.attachmentType) || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="附件名称" min-width="240">
+          <template #default="{ row }">
+            <div class="attachment-file-cell">
+              <span
+                class="attachment-file-name"
+                :title="row.fileName"
+                @click="previewAttachment(row)"
+              >{{ row.fileName || '查看附件' }}</span>
+              <el-icon
+                class="attachment-file-download"
+                title="下载"
+                @click.stop="downloadAttachment(row)"
+              >
+                <Download />
+              </el-icon>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="180">
+          <template #default="{ row }">{{ row.remark || '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="acceptAttachVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -864,7 +1120,15 @@
     </el-dialog>
 
     <!-- 编辑弹窗 -->
-    <el-dialog v-model="editVisible" :title="editTitle" width="900px" destroy-on-close>
+    <el-dialog
+      v-model="editVisible"
+      :title="editTitle"
+      :width="'1000px'"
+      :height="'100vh'"
+      top="0"
+      destroy-on-close
+      :class="['construction-view-dialog', 'construction-edit-dialog', { 'construction-edit-dialog--compact': editForm.nodeLevel === 3 }]"
+    >
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="130px">
         <!-- 一级：施工单位信息 + 施工资料上传 -->
         <template v-if="editForm.nodeLevel === 1">
@@ -934,10 +1198,10 @@
               <el-form-item label="施工状态" prop="buildStatus">
                 <el-select v-model="editForm.buildStatus" placeholder="请选择施工状态" style="width: 100%">
                   <el-option
-                    v-for="item in dictOptions('shi_gong_zhuang_tai')"
-                    :key="item.dictValue"
-                    :label="item.dictLabel"
-                    :value="item.dictValue"
+                    v-for="item in constructionStatusOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
                   />
                 </el-select>
               </el-form-item>
@@ -1074,7 +1338,8 @@ import {
   type ApprovalAttachmentVO
 } from '@/api/approval'
 import { uploadFile, getPresignUrl } from '@/api/file'
-import { applyAcceptance } from '@/api/acceptance'
+import { applyAcceptance, getAcceptanceDetail } from '@/api/acceptance'
+import type { AcceptanceNodeVO, AcceptanceAttachmentVO } from '@/api/acceptance'
 
 /**
  * 施工管理
@@ -1090,7 +1355,7 @@ const canEdit = computed(() => userStore.hasPerm('project:construction:edit'))
 
 /* ============ 字典 ============ */
 const dictMap = ref<Record<string, DictVO[]>>({})
-const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'li_xiang_fu_jian_lei_xing', 'xia_bo_lei_xing', 'zi_jin_lai_yuan', 'zi_jin_lei_xing', 'xun_jian_zhuang_tai', 'shi_gong_zhuang_tai']
+const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'li_xiang_fu_jian_lei_xing', 'xia_bo_lei_xing', 'zi_jin_lai_yuan', 'zi_jin_lei_xing', 'xun_jian_zhuang_tai', 'yan_shou_jie_guo', 'yan_shou_fu_jian_lei_xing']
 const dictOptions = (type: string): DictVO[] => dictMap.value[type] || []
 const dictLabel = (type: string, value?: string): string => {
   if (!value) return ''
@@ -1236,6 +1501,13 @@ const handleReset = () => {
 }
 
 /* ============ 状态展示 ============ */
+/** 施工状态下拉选项：与后端状态码一致，避免字典缺失时回显英文编码 */
+const constructionStatusOptions = [
+  { value: CONSTRUCTION_STATUS_NOT_STARTED, label: '未开工' },
+  { value: CONSTRUCTION_STATUS_IN_PROGRESS, label: '施工中' },
+  { value: CONSTRUCTION_STATUS_COMPLETED, label: '已完工' }
+]
+
 const statusLabel = (status?: string): string => {
   if (status === CONSTRUCTION_STATUS_COMPLETED) return '已完工'
   if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '施工中'
@@ -1248,18 +1520,20 @@ const progressColor = (status?: string): string => {
   return '#c0c4cc'
 }
 
-/** 验收状态文案：与验收管理数据同源（已验收/已归档/验收中/待验收） */
+/** 验收状态文案：与验收管理数据同源（已验收/未通过/已归档/待验收） */
 const acceptStatusLabel = (status?: string): string => {
   if (status === 'ACCEPTED') return '已验收'
+  if (status === 'REJECTED') return '未通过'
   if (status === 'ARCHIVED') return '已归档'
-  if (status === 'APPLYING' || status === 'PARTIAL') return '验收中'
+  if (status === 'APPLYING') return '验收中'
   return '待验收'
 }
 
 /** 验收状态标签样式 */
-const acceptStatusTagType = (status?: string): 'success' | 'primary' | 'warning' => {
+const acceptStatusTagType = (status?: string): 'success' | 'primary' | 'warning' | 'danger' => {
   if (status === 'ACCEPTED' || status === 'ARCHIVED') return 'success'
-  if (status === 'APPLYING' || status === 'PARTIAL') return 'primary'
+  if (status === 'APPLYING') return 'primary'
+  if (status === 'REJECTED') return 'danger'
   return 'warning'
 }
 
@@ -1296,9 +1570,21 @@ const viewApprovalAttachments = computed(() =>
 const viewApprovalDeclare = ref<ApprovalDeclareNode | null>(null)
 /** 三级立项页签：命中的明细节点 */
 const viewApprovalDetail = ref<ApprovalDetailNode | null>(null)
+/** 验收页签数据：直接取自验收管理项目验收详情接口，与验收管理实时同步 */
+const viewAcceptance = ref<AcceptanceNodeVO | null>(null)
+/** 验收记录附件弹窗 */
+const acceptAttachVisible = ref(false)
+const acceptAttachList = ref<AcceptanceAttachmentVO[]>([])
+const acceptAttachTitle = ref('')
+/** 打开某条验收记录的附件列表 */
+const openAcceptanceAttachments = (record: { acceptBy?: string; acceptTime?: string; attachments?: AcceptanceAttachmentVO[] }) => {
+  acceptAttachList.value = record.attachments || []
+  acceptAttachTitle.value = `验收附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
+  acceptAttachVisible.value = true
+}
 const detailLogLoading = ref(false)
 /** 三级查看：详情/明细/立项/资金页签，明细为历次编辑记录 */
-const detailActiveTab = ref<'detail' | 'history' | 'approval' | 'fund'>('detail')
+const detailActiveTab = ref<'detail' | 'history' | 'approval' | 'fund' | 'accept'>('detail')
 const detailLogHistory = ref<ConstructionLogVO[]>([])
 /** 明细页签：某条历史记录的附件弹窗 */
 const historyAttachVisible = ref(false)
@@ -1336,13 +1622,53 @@ const viewTitle = computed(() => {
 const projectView = computed(() => viewDetail.value || viewNode.value)
 
 /** 一级查看当前页签 */
-const viewActiveTab = ref<'detail' | 'builder' | 'approval' | 'fund'>('detail')
+const viewActiveTab = ref<'detail' | 'builder' | 'approval' | 'fund' | 'accept'>('detail')
 /** 二级查看当前页签 */
-const declareActiveTab = ref<'detail' | 'approval' | 'fund'>('detail')
+const declareActiveTab = ref<'detail' | 'approval' | 'fund' | 'accept'>('detail')
 /** 一级查看：把所有申报下的三级明细展平，一户一条 */
 const projectDetails = computed(() => {
   if (!projectView.value?.children?.length) return []
   return projectView.value.children.flatMap((declare) => declare.children || [])
+})
+
+/** 查看弹窗明细进度分页（数据量大时前端分页，避免表格过长） */
+const viewDetailPageNum = ref(1)
+const viewDetailPageSize = ref(10)
+const viewDeclareDetailPageNum = ref(1)
+const viewDeclareDetailPageSize = ref(10)
+
+/** 一级查看明细进度当前页数据 */
+const projectDetailsPaged = computed(() => {
+  const start = (viewDetailPageNum.value - 1) * viewDetailPageSize.value
+  return projectDetails.value.slice(start, start + viewDetailPageSize.value)
+})
+
+/** 二级查看明细进度当前页数据 */
+const declareDetailsPaged = computed(() => {
+  const start = (viewDeclareDetailPageNum.value - 1) * viewDeclareDetailPageSize.value
+  return (viewNode.value?.children || []).slice(start, start + viewDeclareDetailPageSize.value)
+})
+
+/** 二级验收页签：从验收详情树中定位当前申报节点，与验收管理同源 */
+const viewAcceptanceDeclare = computed<AcceptanceNodeVO | null>(() => {
+  const declareId = viewNode.value?.declareId
+  if (!declareId) return null
+  return (viewAcceptance.value?.children || []).find(
+    (item) => String(item.id) === String(declareId)
+  ) || null
+})
+
+/** 三级验收页签：从验收详情树中定位当前明细节点，与验收管理同源 */
+const viewAcceptanceDetail = computed<AcceptanceNodeVO | null>(() => {
+  const declareId = viewNode.value?.declareId
+  const detailId = viewNode.value?.detailId
+  if (!declareId || !detailId) return null
+  const declare = (viewAcceptance.value?.children || []).find(
+    (item) => String(item.id) === String(declareId)
+  )
+  return (declare?.children || []).find(
+    (item) => String(item.id) === String(detailId)
+  ) || null
 })
 
 const openView = async (row: DisplayRow) => {
@@ -1354,22 +1680,27 @@ const openView = async (row: DisplayRow) => {
   approvalAttachmentList.value = []
   viewApprovalDeclare.value = null
   viewApprovalDetail.value = null
+  viewAcceptance.value = null
+  viewDetailPageNum.value = 1
+  viewDeclareDetailPageNum.value = 1
   viewActiveTab.value = 'detail'
   declareActiveTab.value = 'detail'
   viewVisible.value = true
   if (row.nodeType === 'project') {
     viewLoading.value = true
     try {
-      const [res, fundRes, approvalRes, attachRes] = await Promise.all([
+      const [res, fundRes, approvalRes, attachRes, acceptRes] = await Promise.all([
         getConstructionDetail(row.approvalId),
         getConstructionProjectFund(row.approvalId),
         getApprovalDetail(row.approvalId),
-        getApprovalAttachments(row.approvalId).catch(() => null)
+        getApprovalAttachments(row.approvalId).catch(() => null),
+        getAcceptanceDetail(row.approvalId).catch(() => null)
       ])
       viewDetail.value = res.data
       viewFund.value = fundRes.data
       viewApproval.value = approvalRes.data
       approvalAttachmentList.value = attachRes?.data || []
+      viewAcceptance.value = acceptRes?.data || null
     } finally {
       viewLoading.value = false
     }
@@ -1377,14 +1708,16 @@ const openView = async (row: DisplayRow) => {
     // 二级查看需展示各三级最新施工内容/巡检状态/施工状态/附件，重新拉取项目详情（后端一次性聚合）
     viewLoading.value = true
     try {
-      const [res, fundRes, approvalRes] = await Promise.all([
+      const [res, fundRes, approvalRes, acceptRes] = await Promise.all([
         getConstructionDetail(row.approvalId),
         getConstructionDeclareFund(row.declareId),
-        getApprovalDetail(row.approvalId)
+        getApprovalDetail(row.approvalId),
+        getAcceptanceDetail(row.approvalId).catch(() => null)
       ])
       viewDetail.value = res.data
       viewFund.value = fundRes.data
       viewApproval.value = approvalRes.data
+      viewAcceptance.value = acceptRes?.data || null
       viewApprovalDeclare.value =
         approvalRes.data.children?.find((item) => item.id === row.declareId) || null
       const fetched = res.data.children?.find((item) => item.declareId === row.declareId)
@@ -1399,16 +1732,18 @@ const openView = async (row: DisplayRow) => {
     detailActiveTab.value = 'detail'
     detailLogHistory.value = []
     try {
-      const [detailRes, historyRes, fundRes, approvalRes] = await Promise.all([
+      const [detailRes, historyRes, fundRes, approvalRes, acceptRes] = await Promise.all([
         getDetailLog(row.detailId),
         getDetailLogHistory(row.detailId).catch(() => null),
         getConstructionFundDetail(row.detailId),
-        getApprovalDetail(row.approvalId)
+        getApprovalDetail(row.approvalId),
+        getAcceptanceDetail(row.approvalId).catch(() => null)
       ])
       detailLog.value = detailRes.data
       detailLogHistory.value = historyRes?.data || []
       viewFund.value = fundRes.data
       viewApproval.value = approvalRes.data
+      viewAcceptance.value = acceptRes?.data || null
       const declareNode = approvalRes.data.children?.find((item) => item.id === row.declareId)
       viewApprovalDetail.value =
         declareNode?.children?.find((item) => item.id === row.detailId) || null
@@ -2001,6 +2336,12 @@ onMounted(async () => {
   margin-top: 4px;
 }
 
+/* 查看弹窗内明细进度分页 */
+.view-pagination {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
 /* ============ 一级查看：施工名称 + 总体情况卡片 ============ */
 .project-view {
   min-height: 200px;
@@ -2483,17 +2824,60 @@ onMounted(async () => {
   border-color: #409eff;
   color: #409eff;
 }
+
+/* 验收页签：验收进度条 */
+.accept-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.accept-progress :deep(.el-progress) {
+  flex: 1;
+  min-width: 0;
+}
+
+.accept-progress__text {
+  flex: none;
+  font-size: 12px;
+  color: #909399;
+}
+
+.accept-detail-name {
+  margin-left: 4px;
+}
 </style>
 
 <style>
-/* 查看弹窗高度自适应：内容少时紧凑贴合，内容多时正文内部滚动 */
+/* 查看弹窗尺寸与验收管理一级查看一致：占满屏幕高度，正文内部滚动 */
 .construction-view-dialog {
-  margin-top: 8vh;
-  margin-bottom: 0;
+  height: 100vh !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  top: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.construction-view-dialog .el-dialog__header,
+.construction-view-dialog .el-dialog__footer {
+  flex: none !important;
 }
 
 .construction-view-dialog .el-dialog__body {
-  max-height: 68vh;
-  overflow-y: auto;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* 编辑弹窗：不显示横向滚动条 */
+.construction-edit-dialog .el-dialog__body {
+  overflow-x: hidden !important;
+}
+
+/* 巡检记录表单内容较少：不显示滚动条 */
+.construction-edit-dialog--compact .el-dialog__body {
+  overflow: hidden !important;
 }
 </style>

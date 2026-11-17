@@ -1998,6 +1998,11 @@ onMounted(async () => {
   cursor: pointer;
 }
 .upload-trigger:hover { border-color: #409eff; color: #409eff; }
+
+/* 新增/编辑申报弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.main-dialog .el-dialog__body {
+  overflow-x: hidden !important;
+}
 </style>
 
 

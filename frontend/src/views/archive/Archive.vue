@@ -103,7 +103,7 @@
     </el-card>
 
     <!-- 编辑弹窗：基础信息只读 + 档案位置可维护 -->
-    <el-dialog v-model="editVisible" title="编辑档案" width="760px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑档案" width="760px" destroy-on-close class="archive-edit-dialog">
       <el-form :model="editForm" label-width="110px">
         <el-divider content-position="left">基础信息</el-divider>
         <el-row :gutter="16">
@@ -1111,5 +1111,12 @@ onMounted(async () => {
 
 .attachment-file-download:hover {
   color: var(--el-color-primary, #409eff);
+}
+</style>
+
+<style>
+/* 编辑档案弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.archive-edit-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>

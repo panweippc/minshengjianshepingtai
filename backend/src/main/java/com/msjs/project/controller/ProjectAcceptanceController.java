@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,6 +48,14 @@ public class ProjectAcceptanceController {
             @Parameter(description = "项目类别（字典 xiang_mu_lei_bie）") @RequestParam(required = false) String projectCategory,
             @Parameter(description = "项目类型（字典 xiang_mu_lei_xing）") @RequestParam(required = false) String projectSource) {
         return Result.ok(acceptanceService.page(pageNum, pageSize, projectName, projectCategory, projectSource));
+    }
+
+    @Operation(summary = "项目验收详情（供施工管理一级查看“验收”页签使用）")
+    @RequirePerm("project:construction:list")
+    @GetMapping("/{approvalId}")
+    public Result<AcceptanceNodeVO> detail(
+            @Parameter(description = "立项ID") @PathVariable Long approvalId) {
+        return Result.ok(acceptanceService.detail(approvalId));
     }
 
     @Operation(summary = "施工管理发起验收（标记项目进入验收管理）")

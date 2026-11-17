@@ -787,6 +787,7 @@
       :title="formTitle"
       :width="'900px'"
       destroy-on-close
+      class="fund-form-dialog"
     >
       <!-- 一级项目 / 二级申报 / 三级明细：基础信息 + 资金拨付信息 + 资金凭证附件 -->
       <template v-if="formRow">
@@ -2091,5 +2092,12 @@ onMounted(async () => {
 
 .upload-file-remove:hover {
   color: var(--el-color-danger, #f56c6c);
+}
+</style>
+
+<style>
+/* 资金登记 / 下拨资金弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.fund-form-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>

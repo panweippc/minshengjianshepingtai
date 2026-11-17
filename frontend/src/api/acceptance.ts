@@ -182,6 +182,11 @@ export function getAcceptancePage(params: AcceptanceQuery) {
   return get<Result<PageVO<AcceptanceNodeVO>>>('/api/project/acceptance/page', { params })
 }
 
+/** 项目验收详情（施工管理一级查看“验收”页签使用，含验收记录与验收情况树） */
+export function getAcceptanceDetail(approvalId: string) {
+  return get<Result<AcceptanceNodeVO>>(`/api/project/acceptance/${approvalId}`)
+}
+
 /** 施工管理发起验收（把项目标记为"验收中"，进入验收管理） */
 export function applyAcceptance(approvalId: string, applyBy?: string) {
   return post<Result<void>>('/api/project/acceptance/apply', null, {

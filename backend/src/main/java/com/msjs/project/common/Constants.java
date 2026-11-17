@@ -126,8 +126,6 @@ public final class Constants {
     public static final String ACCEPTANCE_STATUS_PENDING = "PENDING";
     /** 验收状态：已验收 */
     public static final String ACCEPTANCE_STATUS_ACCEPTED = "ACCEPTED";
-    /** 验收状态：部分验收（施工管理二级节点聚合展示用） */
-    public static final String ACCEPTANCE_STATUS_PARTIAL = "PARTIAL";
 
     /** 验收状态：未通过 */
     public static final String ACCEPTANCE_STATUS_REJECTED = "REJECTED";

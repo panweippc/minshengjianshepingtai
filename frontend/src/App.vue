@@ -50,4 +50,26 @@ body,
 .main > div:not(:has(> .tree-card)):not(:has(> .right-area)) .el-card:has(.el-table) .el-pagination {
   flex-shrink: 0;
 }
+
+/* ========== 全局弹窗统一样式 ========== */
+/* 所有页面弹窗统一采用「施工管理-一级查看」弹窗尺寸：宽 1000px、满屏高度、顶部对齐、内容区独立滚动 */
+.el-dialog {
+  width: 1000px !important;
+  height: 100vh !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  top: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.el-dialog__header,
+.el-dialog__footer {
+  flex: none !important;
+}
+.el-dialog__body {
+  flex: 1 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
 </style>

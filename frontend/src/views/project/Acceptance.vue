@@ -1205,6 +1205,7 @@
       :title="acceptTitle"
       width="760px"
       destroy-on-close
+      class="acceptance-form-dialog"
     >
       <el-form ref="acceptFormRef" :model="acceptForm" :rules="acceptRules" label-width="90px">
         <!-- 一级：项目基础信息 -->
@@ -2864,5 +2865,10 @@ onMounted(async () => {
   flex: 1 !important;
   min-height: 0 !important;
   overflow-y: auto !important;
+}
+
+/* 验收弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+.acceptance-form-dialog .el-dialog__body {
+  overflow-x: hidden !important;
 }
 </style>
