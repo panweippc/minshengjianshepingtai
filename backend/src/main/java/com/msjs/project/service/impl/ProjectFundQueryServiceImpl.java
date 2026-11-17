@@ -4,6 +4,7 @@ import com.msjs.project.common.Constants;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.mapper.FundQueryMapper;
+import com.msjs.project.mapper.ProjectApprovalMapper;
 import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectFundQueryService;
 import com.msjs.project.service.SysDictService;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 资金记录查询 Service
@@ -35,6 +37,7 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
     private final FundQueryMapper fundQueryMapper;
     private final SysDictService dictService;
     private final SysRegionMapper regionMapper;
+    private final ProjectApprovalMapper approvalMapper;
 
     // ============== 对外接口 ==============
 
@@ -60,7 +63,13 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
             }).toList();
         }
 
-        List<FundStatVO.Row> rows = buildNestedRows(filtered, groupType);
+        // "按资金类型" 走专门业务逻辑（不是 fund_type 字段 group by，而是 5 类业务概念：预算/追加申请/拨付/下拨/结余）
+        List<FundStatVO.Row> rows;
+        if ("fundType".equals(groupType)) {
+            rows = buildFundTypeSpecificRows(filtered);
+        } else {
+            rows = buildNestedRows(filtered, groupType);
+        }
         vo.setRows(rows);
         vo.setTotal((long) rows.size());
         return vo;
@@ -211,6 +220,162 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
     }
 
     // ============== 聚合 ==============
+
+    // ============== 特殊：按资金类型（业务口径 5 类，非 fund_type 字段 group by） ==============
+
+    /**
+     * "按资金类型" 分组维度的专门业务逻辑。
+     *
+     * <p>固定输出 5 行大分组，每行内部再按 village 子分桶：</p>
+     * <ol>
+     *   <li>预算（项目预算）= 立项项目 t_project_approval.budget 之和</li>
+     *   <li>追加申请 = nodeLevel=1 AND fund_type='1'（字典"申请"）</li>
+     *   <li>拨付     = nodeLevel=1 AND (fund_type='2' OR fund_type IS NULL)（字典"拨付" + 未填归入）</li>
+     *   <li>下拨     = nodeLevel=2（二级下拨，不含三级到户/公建明细下拨）</li>
+     *   <li>结余     = 拨付合计 - 下拨合计（计算项）</li>
+     * </ol>
+     * 最后追加 grandTotal 总计行。
+     */
+    private List<FundStatVO.Row> buildFundTypeSpecificRows(List<FundDetailRowVO> all) {
+        List<FundStatVO.Row> out = new ArrayList<>();
+
+        // 分桶
+        List<FundDetailRowVO> applyRows = all.stream()
+                .filter(r -> r.getNodeLevel() != null && r.getNodeLevel() == 1 && "1".equals(r.getFundType())).toList();
+        List<FundDetailRowVO> payRows = all.stream()
+                .filter(r -> r.getNodeLevel() != null && r.getNodeLevel() == 1
+                        && ("2".equals(r.getFundType()) || r.getFundType() == null)).toList();
+        List<FundDetailRowVO> allocateRows = all.stream()
+                .filter(r -> r.getNodeLevel() != null && r.getNodeLevel() == 2).toList();
+
+        // ---- ① 预算 ----
+        Set<Long> approvalIds = all.stream().map(FundDetailRowVO::getApprovalId)
+                .filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
+        BigDecimal totalBudget = approvalIds.isEmpty() ? BigDecimal.ZERO : approvalMapper.selectBudgetSumByIds(approvalIds);
+
+        // 预算 summary 行
+        out.add(buildOneRow("budget", "预算", "全部村组", Collections.emptyList(), true, false, null));
+        // 预算 village 子层：用 fund 明细里出现过的 village 占比 去分摊 approval.budget
+        Map<String, BigDecimal> budgetByVillage = splitBudgetByVillage(all, totalBudget);
+        for (Map.Entry<String, BigDecimal> ve : budgetByVillage.entrySet()) {
+            FundStatVO.Row row = buildSimpleAmountRow("budget", "预算", ve.getKey(), ve.getValue(), false);
+            row.setProjectCount(computeProjectsByVillage(all, ve.getKey()));
+            row.setRecordCount(0); // 预算不是 fund 记录，recordCount=0
+            out.add(row);
+        }
+
+        // ---- ② 追加申请 ----
+        out.addAll(buildSingleGroupWithVillage("apply", "追加申请", applyRows));
+
+        // ---- ③ 拨付 ----
+        out.addAll(buildSingleGroupWithVillage("pay", "拨付", payRows));
+
+        // ---- ④ 下拨 ----
+        out.addAll(buildSingleGroupWithVillage("allocate", "下拨", allocateRows));
+
+        // ---- ⑤ 结余（计算项） ----
+        BigDecimal payAmt = sumAmount(payRows);
+        BigDecimal allocAmt = sumAmount(allocateRows);
+        BigDecimal totalBalance = payAmt.subtract(allocAmt);
+
+        out.add(buildSimpleAmountRow("balance", "结余", "全部村组", totalBalance, true));
+        // 结余 village 子层 = pay(village) - allocate(village)
+        Set<String> allVillages = new LinkedHashSet<>();
+        Stream.of(applyRows.stream(), payRows.stream(), allocateRows.stream())
+                .forEach(s -> s.map(r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName())
+                        .forEach(allVillages::add));
+        for (String v : allVillages) {
+            BigDecimal pv = sumAmount(filterByVillage(payRows, v));
+            BigDecimal av = sumAmount(filterByVillage(allocateRows, v));
+            out.add(buildSimpleAmountRow("balance", "结余", v, pv.subtract(av), false));
+        }
+
+        // ---- ⑥ grandTotal ----
+        if (!all.isEmpty()) {
+            out.add(buildOneRow("", "总计", "全部区划", all, false, true, "全部区划"));
+        }
+        return out;
+    }
+
+    /**
+     * 把 totalBudget 按 fund 明细中各 village 的 fund 金额占比 分摊
+     * （预算是 approval 层面的概念，没有直接 village 字段；同一项目的 fund 记录 village 分布视为预算的 village 分布）
+     */
+    private Map<String, BigDecimal> splitBudgetByVillage(List<FundDetailRowVO> all, BigDecimal totalBudget) {
+        Map<String, BigDecimal> out = new LinkedHashMap<>();
+        if (totalBudget == null || totalBudget.compareTo(BigDecimal.ZERO) == 0 || all.isEmpty()) {
+            return out;
+        }
+        // 先按 village 聚合 fund 金额（任何 nodeLevel 都算，作为权重）
+        Map<String, BigDecimal> weightByVillage = new LinkedHashMap<>();
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        for (FundDetailRowVO r : all) {
+            String v = blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName();
+            BigDecimal amt = r.getAmount() == null ? BigDecimal.ZERO : r.getAmount();
+            weightByVillage.merge(v, amt, BigDecimal::add);
+            totalWeight = totalWeight.add(amt);
+        }
+        if (totalWeight.compareTo(BigDecimal.ZERO) == 0) {
+            return out;
+        }
+        for (Map.Entry<String, BigDecimal> e : weightByVillage.entrySet()) {
+            BigDecimal ratio = e.getValue().divide(totalWeight, 6, java.math.RoundingMode.HALF_UP);
+            out.put(e.getKey(), totalBudget.multiply(ratio).setScale(2, java.math.RoundingMode.HALF_UP));
+        }
+        return out;
+    }
+
+    /** 把一个 fund 明细集合按 village 拆成「summary 行 + village 子层」两层嵌套 Row 列表 */
+    private List<FundStatVO.Row> buildSingleGroupWithVillage(String groupValue, String groupLabel,
+                                                            List<FundDetailRowVO> rows) {
+        List<FundStatVO.Row> out = new ArrayList<>();
+        // summary 行（全部村组）
+        out.add(buildOneRow(groupValue, groupLabel, "全部村组", rows, true, false, null));
+        // village 明细行
+        Map<String, List<FundDetailRowVO>> villageBucket = rows.stream()
+                .collect(Collectors.groupingBy(
+                        r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName(),
+                        LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<String, List<FundDetailRowVO>> ve : villageBucket.entrySet()) {
+            out.add(buildOneRow(groupValue, groupLabel, ve.getKey(), ve.getValue(), false, false, null));
+        }
+        return out;
+    }
+
+    /** 构造一个只有金额、没有 fund 明细行的轻量 Row（用于预算/结余这两个计算项） */
+    private FundStatVO.Row buildSimpleAmountRow(String groupValue, String groupLabel, String villageName,
+                                                BigDecimal amount, boolean groupSummary) {
+        FundStatVO.Row r = new FundStatVO.Row();
+        r.setGroupValue(groupValue);
+        r.setGroupLabel(groupLabel);
+        r.setVillageName(villageName);
+        r.setGroupSummary(groupSummary);
+        r.setGrandTotal(false);
+        r.setAmount(amount == null ? BigDecimal.ZERO : amount);
+        r.setRecordCount(0);
+        r.setProjectCount(0);
+        r.setVillageCoverage(0);
+        return r;
+    }
+
+    private List<FundDetailRowVO> filterByVillage(List<FundDetailRowVO> rows, String village) {
+        if (village == null) return rows;
+        return rows.stream().filter(r -> {
+            String vn = blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName();
+            return village.equals(vn);
+        }).toList();
+    }
+
+    private int computeProjectsByVillage(List<FundDetailRowVO> all, String village) {
+        Set<Long> projs = new HashSet<>();
+        for (FundDetailRowVO r : all) {
+            String vn = blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName();
+            if (village.equals(vn) && r.getApprovalId() != null) {
+                projs.add(r.getApprovalId());
+            }
+        }
+        return projs.size();
+    }
 
     // ============== 嵌套聚合（仿照 DeclarationQuery 后端模式） ==============
 
@@ -377,7 +542,7 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
                 w.write(csv(r.getRemark()));        w.write('\n');
             }
             // 尾部统计口径小字
-            w.write("\n统计口径：登记合计为 nodeLevel=1 金额，下拨合计为 nodeLevel=2、3 金额。\n");
+            w.write("\n统计口径：登记合计为 nodeLevel=1 金额，下拨合计仅统计 nodeLevel=2 二级下拨（不含三级到户/公建明细下拨）。\n");
         } catch (Exception e) {
             log.error("导出 CSV 失败", e);
             throw new RuntimeException("导出失败：" + e.getMessage());

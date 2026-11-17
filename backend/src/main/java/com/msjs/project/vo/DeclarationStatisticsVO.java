@@ -51,6 +51,37 @@ public class DeclarationStatisticsVO {
 
         @Schema(description = "是否为总计行（汇总全部分组）")
         private boolean grandTotal;
+
+        @Schema(description = "该行对应的明细数据（用于右键核对）")
+        private List<DetailItem> details;
+    }
+
+    @Data
+    @Schema(description = "统计行对应的明细数据")
+    public static class DetailItem {
+        @Schema(description = "申报单ID")
+        private Long declarationId;
+
+        @Schema(description = "申报编号")
+        private String businessCode;
+
+        @Schema(description = "申报标题")
+        private String title;
+
+        @Schema(description = "申报类别名称")
+        private String categoryLabel;
+
+        @Schema(description = "所属村组")
+        private String villageName;
+
+        @Schema(description = "户主姓名 / 公共基础设施名称")
+        private String targetName;
+
+        @Schema(description = "审批状态名称")
+        private String auditStatusLabel;
+
+        @Schema(description = "申报金额（元）")
+        private BigDecimal amount;
     }
 
     @Data

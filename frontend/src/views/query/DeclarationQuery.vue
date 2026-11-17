@@ -135,6 +135,7 @@
           border
           :row-class-name="rowClassName"
           :span-method="objectSpanMethod"
+          @row-contextmenu="handleRowContextMenu"
         >
           <el-table-column
             :label="groupHeader"
@@ -199,17 +200,45 @@
         </div>
       </el-card>
     </div>
+
+    <!-- 右键菜单：查看明细 -->
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+    >
+      <div class="context-menu-item" @click="openDetail">查看明细</div>
+    </div>
+
+    <!-- 明细核对弹窗 -->
+    <el-dialog v-model="detailVisible" :title="detailTitle" width="1000px" append-to-body>
+      <el-table :data="detailRows" border max-height="460" size="small">
+        <el-table-column type="index" label="#" width="50" align="center" />
+        <el-table-column prop="businessCode" label="申报编号" min-width="150" />
+        <el-table-column prop="categoryLabel" label="申报类别" min-width="90" />
+        <el-table-column prop="villageName" label="村组" min-width="100" />
+        <el-table-column prop="targetName" label="户主/公共设施" min-width="130" />
+        <el-table-column prop="auditStatusLabel" label="审批状态" min-width="90" />
+        <el-table-column prop="amount" label="金额（元）" min-width="110" align="right">
+          <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+        </el-table-column>
+      </el-table>
+      <div class="detail-summary">
+        共 {{ detailRows.length }} 条明细，金额合计 {{ formatMoney(detailAmount) }} 元
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { getRegionList } from '@/api/region'
 import {
   getDeclarationStatistics,
   type DeclarationStatRow,
+  type DeclarationStatDetailItem,
   type DeclarationStatisticsVO
 } from '@/api/declaration'
 
@@ -452,15 +481,86 @@ async function handleExport() {
   }
 }
 
-// ==================== 生命周期 ====================
+// ==================== 右键查看明细 ====================
+const contextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null as DeclarationStatRow | null
+})
+const detailVisible = ref(false)
+const detailTitle = ref('')
+const detailRows = ref<DeclarationStatDetailItem[]>([])
+const detailAmount = computed(() =>
+  detailRows.value.reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
+)
+
+/** 表格行右键：弹出"查看明细"菜单 */
+function handleRowContextMenu(row: DeclarationStatRow, _column: unknown, event: MouseEvent) {
+  event.preventDefault()
+  contextMenu.row = row
+  contextMenu.x = event.clientX
+  contextMenu.y = event.clientY
+  contextMenu.visible = true
+}
+
+function closeContextMenu() {
+  contextMenu.visible = false
+}
+
+/** 打开当前行的明细核对弹窗 */
+function openDetail() {
+  const row = contextMenu.row
+  contextMenu.visible = false
+  if (!row) return
+  detailRows.value = row.details || []
+  const village = row.villageName && row.villageName !== '全部村组' ? ` - ${row.villageName}` : ''
+  detailTitle.value = `${row.groupLabel}${village} 明细核对`
+  detailVisible.value = true
+}
+
 onMounted(async () => {
   await Promise.all([loadRegionTree(), handleQuery()])
+  document.addEventListener('click', closeContextMenu)
+  window.addEventListener('scroll', closeContextMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeContextMenu)
+  window.removeEventListener('scroll', closeContextMenu, true)
 })
 </script>
 
 <style scoped>
 .declaration-query {
   padding: 0;
+}
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 120px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+}
+.context-menu-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #303133;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.context-menu-item:hover {
+  background: #f5f7fa;
+  color: #409eff;
+}
+.detail-summary {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 13px;
+  color: #606266;
 }
 .top-filter {
   margin-bottom: 12px;

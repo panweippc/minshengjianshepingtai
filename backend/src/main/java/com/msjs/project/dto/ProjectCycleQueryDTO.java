@@ -28,4 +28,12 @@ public class ProjectCycleQueryDTO implements Serializable {
      */
     @Schema(description = "查询方案：category/source/establish/status/village")
     private String queryType;
+
+    /** ===== 以下仅"查看明细"使用 ===== */
+
+    @Schema(description = "分组值（统计行的 groupValue，空=不限制分组）")
+    private String groupValue;
+
+    @Schema(description = "村组名称（统计行的 villageName，空或'全部村组'/'全部区划'=不限制村组）")
+    private String villageName;
 }

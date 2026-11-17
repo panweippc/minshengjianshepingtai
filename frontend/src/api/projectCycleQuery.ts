@@ -41,6 +41,26 @@ export interface ProjectCycleStatVO {
 /** 查询方案类型 */
 export type QueryType = 'category' | 'source' | 'establish' | 'status' | 'village'
 
+/** 明细核对行（与后端 ProjectCycleDetailVO 对齐） */
+export interface CycleDetailRow {
+  approvalId: string
+  approvalCode: string
+  projectName: string
+  declareId: string
+  categoryLabel: string
+  typeLabel: string
+  projectSource: string
+  villageName: string
+  budget: number | string
+  householdCount: number
+  facilityCount: number
+  totalFund: number | string
+  establishStatusLabel: string
+  projectStatusLabel: string
+  submitTime: string
+  archiveCreateTime: string
+}
+
 // ================== API ==================
 
 /** 主统计汇总 */
@@ -48,6 +68,14 @@ export function getProjectCycleStat(params: {
   year?: string; regionCode?: string; queryType?: QueryType
 }) {
   return get<Result<ProjectCycleStatVO>>('/api/project/cycle/query/stat', { params })
+}
+
+/** 查看明细：按统计行（分组值 + 村组）返回组成该行的原始申报单记录 */
+export function getProjectCycleDetail(params: {
+  year?: string; regionCode?: string; queryType?: QueryType
+  groupValue?: string; villageName?: string
+}) {
+  return get<Result<CycleDetailRow[]>>('/api/project/cycle/query/detail', { params })
 }
 
 /** 导出当前筛选 + 当前方案下的全部统计到 CSV */
