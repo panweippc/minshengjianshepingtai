@@ -80,8 +80,9 @@ public class SysRoleController {
     @Operation(summary = "角色已分配菜单ID集合")
     @RequirePerm("system:role:list")
     @GetMapping("/{id}/menuIds")
-    public Result<List<Long>> menuIds(@PathVariable("id") Long id) {
-        return Result.ok(roleService.menuIds(id));
+    public Result<List<String>> menuIds(@PathVariable("id") Long id) {
+        // Long 雪花 ID 在 JSON 中输出为数字会导致 JS 精度丢失，统一转 String
+        return Result.ok(roleService.menuIds(id).stream().map(String::valueOf).toList());
     }
 
     @Operation(summary = "分配菜单权限（同事务重建角色-菜单关联）")

@@ -85,7 +85,8 @@ public class SysUserController {
     @Operation(summary = "查询用户角色ID集合")
     @RequirePerm("system:user:list")
     @GetMapping("/{id}/roleIds")
-    public Result<List<Long>> roleIds(@PathVariable("id") Long id) {
-        return Result.ok(userService.roleIds(id));
+    public Result<List<String>> roleIds(@PathVariable("id") Long id) {
+        // Long 雪花 ID 在 JSON 中输出为数字会导致 JS 精度丢失，统一转 String
+        return Result.ok(userService.roleIds(id).stream().map(String::valueOf).toList());
     }
 }
