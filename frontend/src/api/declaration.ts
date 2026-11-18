@@ -350,6 +350,14 @@ export interface ApprovalAttachmentItem {
   remark?: string
 }
 
+/** 立项关联申报单及本次选中的三级明细 */
+export interface ApprovalDeclareSelection {
+  /** 申报单ID */
+  declarationId: string
+  /** 选中的三级明细ID集合；不传表示该申报单下全部已通过明细 */
+  detailIds?: string[]
+}
+
 export interface ProjectApprovalSubmitDTO {
   approvalCode: string
   projectName: string
@@ -365,7 +373,8 @@ export interface ProjectApprovalSubmitDTO {
   townCode?: string
   townName?: string
   villageCodes?: string[]
-  declarationIds: string[]
+  /** 关联申报单及本次立项选中的明细（同一申报单可按明细分多次立项） */
+  declarations: ApprovalDeclareSelection[]
   attachments?: ApprovalAttachmentItem[]
 }
 

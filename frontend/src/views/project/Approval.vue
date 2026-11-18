@@ -410,6 +410,35 @@
           <el-descriptions-item label="申报金额">{{ formatMoney(viewDetail.amount) }} 元</el-descriptions-item>
           <el-descriptions-item label="事项说明">{{ viewDetail.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
+        <el-divider content-position="left">申报材料附件</el-divider>
+        <el-empty v-if="!viewDetailAttachments.length" description="暂无申报材料附件" :image-size="60" />
+        <el-table v-else :data="viewDetailAttachments" size="small" border>
+          <el-table-column label="附件类型" width="150">
+            <template #default="{ row }">
+              {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="文件名称" min-width="220">
+            <template #default="{ row }">
+              <div class="attachment-file-cell">
+                <span
+                  class="attachment-file-name"
+                  :title="row.fileName"
+                  @click="openViewAttachment(row)"
+                >{{ row.fileName }}</span>
+                <el-icon
+                  class="attachment-file-download"
+                  title="下载"
+                  @click.stop="openViewAttachment(row, true)"
+                >
+                  <Download />
+                </el-icon>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="createTime" label="上传时间" width="170" />
+        </el-table>
       </template>
 
       <template #footer>
@@ -429,7 +458,7 @@
       <el-table v-else :data="declareAttachDialogList" size="small" border>
         <el-table-column label="附件类型" width="150">
           <template #default="{ row }">
-            {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
+            {{ dictLabel(declareAttachDictType, row.attachmentType) || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="附件名称" min-width="220">
@@ -721,7 +750,7 @@
       </el-table>
 
       <div class="decl-picker-pager">
-        <span class="decl-picker-tip">已选 {{ declPicker.selection.length }} 条</span>
+        <span class="decl-picker-tip">已选 {{ declPicker.selection.length }} 条明细</span>
         <el-pagination
           v-model:current-page="declPicker.pageNum"
           v-model:page-size="declPicker.pageSize"
@@ -738,9 +767,9 @@
         <el-button @click="declPicker.visible = false">取消</el-button>
         <el-button
           type="primary"
-          :disabled="!declPicker.selection.length"
+          :disabled="!declPicker.selection.some((row) => row._isDetail)"
           @click="confirmDeclPicker"
-        >确定（{{ declPicker.selection.length }}）</el-button>
+        >确定（{{ declPicker.selection.filter((row) => row._isDetail).length }}）</el-button>
       </template>
     </el-dialog>
   </div>
@@ -768,7 +797,8 @@ import {
   type ApprovalDeclareNode,
   type ApprovalDetailNode,
   type ApprovalAttachmentVO,
-  type ApprovalEditDTO
+  type ApprovalEditDTO,
+  type ApprovalDeclareSelection
 } from '@/api/approval'
 
 /**
@@ -791,6 +821,7 @@ const DICT_TYPES = [
   'xiang_mu_lei_xing',
   'xiang_mu_lai_yuan',
   'li_xiang_fu_jian_lei_xing',
+  'fu_jian_lei_xing',
   'shen_bao_lei_bie',
   'shen_bao_lei_xing'
 ]
@@ -1029,6 +1060,9 @@ const viewAttachments = ref<ApprovalAttachmentVO[]>([])
 /** 立项资料附件：仅 declareId 为空的整单级附件，申报材料附件在各自申报块中展示 */
 const viewApprovalAttachments = computed(() => viewAttachments.value.filter((item) => !item.declareId))
 
+/** 三级明细查看的申报材料附件：展示明细自身（农户/公建明细行）的附件，而非所属申报单的附件 */
+const viewDetailAttachments = computed<ApprovalAttachmentVO[]>(() => viewDetail.value?.attachments || [])
+
 /** 项目明细树形行：一级申报，二级农户/设施明细 */
 interface DeclareTreeRow {
   rowKey: string
@@ -1139,6 +1173,8 @@ const openViewAttachment = (row: ApprovalAttachmentVO, download = false) => {
 const declareAttachDialogVisible = ref(false)
 const declareAttachDialogTitle = ref('申报材料附件')
 const declareAttachDialogList = ref<ApprovalAttachmentVO[]>([])
+/** 附件类型字典：立项资料附件用 li_xiang_fu_jian_lei_xing；明细附件来自申报模块，用 fu_jian_lei_xing */
+const declareAttachDictType = ref('li_xiang_fu_jian_lei_xing')
 
 /** 打开某条申报节点的附件明细弹窗 */
 const openDeclareAttachDialog = (row: DeclareTreeRow) => {
@@ -1147,6 +1183,7 @@ const openDeclareAttachDialog = (row: DeclareTreeRow) => {
   const title = row.title || ''
   declareAttachDialogTitle.value = `申报材料附件 — ${code} ${title}`.trim()
   declareAttachDialogList.value = row.attachments || []
+  declareAttachDictType.value = 'li_xiang_fu_jian_lei_xing'
   declareAttachDialogVisible.value = true
 }
 
@@ -1157,6 +1194,8 @@ const openDetailAttachDialog = (row: ApprovalDetailNode) => {
   const code = row.targetCode || ''
   declareAttachDialogTitle.value = `明细附件 — ${name} ${code}`.trim()
   declareAttachDialogList.value = row.attachments || []
+  // 明细附件来自申报模块的农户/公建附件，字典使用 fu_jian_lei_xing
+  declareAttachDictType.value = 'fu_jian_lei_xing'
   declareAttachDialogVisible.value = true
 }
 
@@ -1194,8 +1233,8 @@ const editForm = reactive({
 const attachmentCards = ref<AttachmentEditCard[]>([])
 /** 编辑弹窗展示的关联申报单（立项创建时已绑定，编辑阶段只读） */
 const editDeclarations = ref<ApprovalDeclareNode[]>([])
-/** 本次编辑新增的关联申报单ID（保存时提交后端绑定） */
-const addDeclarationIds = ref<string[]>([])
+/** 本次编辑新增的关联申报单及选中明细（保存时提交后端绑定） */
+const addDeclarations = ref<ApprovalDeclareSelection[]>([])
 /** 本次编辑删除的关联申报单ID（保存时提交后端解绑） */
 const removeDeclarationIds = ref<string[]>([])
 
@@ -1215,6 +1254,16 @@ interface DeclPickerRow {
   snapshotFacilityCode?: string
   snapshotFacilityName?: string
   snapshotRegionName?: string
+  /** 明细行所属申报单信息（勾选明细后按申报单聚合提交） */
+  _parentDeclarationId?: string
+  _parentBusinessCode?: string
+  _parentTitle?: string
+  _parentCategory?: string
+  _parentType?: string
+  _parentTownName?: string
+  _parentAmount?: number
+  /** 明细真实ID（不带 h_/f_ 前缀） */
+  _detailId?: string
   children?: DeclPickerRow[]
 }
 
@@ -1249,7 +1298,15 @@ const declPickerRows = computed<DeclPickerRow[]>(() =>
         snapshotHouseholdNo: hh.snapshotHouseholdNo,
         snapshotHeadName: hh.snapshotHeadName,
         snapshotRegionName: hh.snapshotRegionName,
-        amount: hh.amount
+        amount: hh.amount,
+        _parentDeclarationId: String(decl.id),
+        _parentBusinessCode: decl.businessCode,
+        _parentTitle: decl.title,
+        _parentCategory: decl.declarationCategory,
+        _parentType: decl.declarationType,
+        _parentTownName: decl.townName,
+        _parentAmount: decl.amount,
+        _detailId: String(hh.id)
       })),
       ...(decl.facilities || []).map<DeclPickerRow>((pf) => ({
         id: `f_${pf.id}`,
@@ -1258,14 +1315,22 @@ const declPickerRows = computed<DeclPickerRow[]>(() =>
         snapshotFacilityCode: pf.snapshotFacilityCode,
         snapshotFacilityName: pf.snapshotFacilityName,
         snapshotRegionName: pf.snapshotRegionName,
-        amount: pf.amount
+        amount: pf.amount,
+        _parentDeclarationId: String(decl.id),
+        _parentBusinessCode: decl.businessCode,
+        _parentTitle: decl.title,
+        _parentCategory: decl.declarationCategory,
+        _parentType: decl.declarationType,
+        _parentTownName: decl.townName,
+        _parentAmount: decl.amount,
+        _detailId: String(pf.id)
       }))
     ]
   }))
 )
 
-/** 仅申报单级别可勾选，明细行只做展示 */
-const isDeclSelectable = (row: DeclPickerRow) => !row._isDetail
+/** 立项粒度到三级明细：勾选明细行，同一申报单可分多次立项 */
+const isDeclSelectable = (row: DeclPickerRow) => !!row._isDetail
 
 /** 选择弹窗二级明细行：字体比一级更小 */
 const declPickerRowClass = ({ row }: { row: DeclPickerRow }) =>
@@ -1318,7 +1383,7 @@ const openEdit = async (row: DisplayRow) => {
     remark: approval.remark ?? ''
   })
   editDeclarations.value = approval.children || []
-  addDeclarationIds.value = []
+  addDeclarations.value = []
   removeDeclarationIds.value = []
   declPicker.visible = false
   declPicker.selection = []
@@ -1343,10 +1408,10 @@ const handleRemoveDeclaration = async (idx: number) => {
     return
   }
   const declId = String(item.declarationId ?? '')
-  const addIdx = addDeclarationIds.value.indexOf(declId)
+  const addIdx = addDeclarations.value.findIndex((d) => d.declarationId === declId)
   if (addIdx >= 0) {
     // 本次新增、尚未保存的直接从待新增列表移除
-    addDeclarationIds.value.splice(addIdx, 1)
+    addDeclarations.value.splice(addIdx, 1)
   } else if (declId) {
     if (!removeDeclarationIds.value.includes(declId)) {
       removeDeclarationIds.value.push(declId)
@@ -1362,7 +1427,7 @@ const handleRemoveDeclaration = async (idx: number) => {
 /** 已关联（含本次新增）的申报单ID集合，选择弹窗中不再展示 */
 const linkedDeclarationIds = computed(() => new Set<string>([
   ...editDeclarations.value.map((item) => String(item.declarationId ?? '')),
-  ...addDeclarationIds.value
+  ...addDeclarations.value.map((item) => item.declarationId)
 ]))
 
 /** 打开选择申报单弹窗 */
@@ -1407,37 +1472,48 @@ const handleDeclPickerSelectionChange = (rows: DeclPickerRow[]) => {
   declPicker.selection = rows
 }
 
-/** 确认选择：批量追加到关联申报单列表，随编辑保存一起提交 */
+/** 确认选择：按申报单聚合选中明细后追加，随编辑保存一起提交 */
 const confirmDeclPicker = () => {
-  const rows = declPicker.selection
+  const rows = declPicker.selection.filter((row) => row._isDetail && row._parentDeclarationId)
   if (!rows.length) {
-    ElMessage.warning('请先选择申报单')
+    ElMessage.warning('请先选择申报明细')
     return
   }
+  // 同一申报单可分多次立项：一次只提交本次勾选的明细
+  const grouped = new Map<string, DeclPickerRow[]>()
+  rows.forEach((row) => {
+    const declarationId = String(row._parentDeclarationId)
+    const list = grouped.get(declarationId) || []
+    list.push(row)
+    grouped.set(declarationId, list)
+  })
   let added = 0
-  rows.forEach((decl) => {
-    const id = String(decl.id)
-    if (addDeclarationIds.value.includes(id)) return
+  grouped.forEach((details, declarationId) => {
+    if (addDeclarations.value.some((item) => item.declarationId === declarationId)) return
+    const first = details[0]
     editDeclarations.value.push({
-      id,
-      declarationId: id,
+      id: declarationId,
+      declarationId,
       approvalId: editForm.id,
-      declareCode: decl.businessCode,
-      declareName: decl.title || '',
-      declareCategory: decl.declarationCategory,
-      declareType: decl.declarationType,
-      townName: decl.townName,
-      budget: decl.amount
+      declareCode: first._parentBusinessCode,
+      declareName: first._parentTitle || '',
+      declareCategory: first._parentCategory,
+      declareType: first._parentType,
+      townName: first._parentTownName,
+      budget: first._parentAmount
     })
-    addDeclarationIds.value.push(id)
+    addDeclarations.value.push({
+      declarationId,
+      detailIds: details.map((row) => String(row._detailId))
+    })
     // 若之前删过同一条，重新选择后撤销删除标记
-    const removedIdx = removeDeclarationIds.value.indexOf(id)
+    const removedIdx = removeDeclarationIds.value.indexOf(declarationId)
     if (removedIdx >= 0) removeDeclarationIds.value.splice(removedIdx, 1)
     added++
   })
   declPicker.visible = false
   declPicker.selection = []
-  ElMessage.success(`已添加 ${added} 条关联申报单`)
+  ElMessage.success(`已添加 ${added} 条关联申报单（${rows.length} 条明细）`)
 }
 
 const addAttachment = () => {
@@ -1448,12 +1524,10 @@ const removeAttachment = (idx: number) => {
   attachmentCards.value.splice(idx, 1)
 }
 
-/** 选择附件文件：支持多选，按文件名+大小去重；选中后立即上传到 MinIO 正式归档桶 */
+/** 选择附件文件：支持多选，相同文件允许多次上传；选中后立即上传到 MinIO 正式归档桶 */
 const handleAttachmentFileChange = async (uploadFile: UploadFile, card: AttachmentEditCard) => {
   const raw = uploadFile.raw
   if (!raw) return
-  const duplicated = card.files.some((file) => file.fileName === raw.name && file.fileSize === raw.size)
-  if (duplicated) return
   try {
     const res = await uploadFileToServer(raw)
     card.files.push({
@@ -1512,7 +1586,12 @@ const handleSubmit = async () => {
     applyBy: editForm.applyBy,
     remark: editForm.remark,
     attachments,
-    addDeclarationIds: addDeclarationIds.value.length ? [...addDeclarationIds.value] : undefined,
+    addDeclarations: addDeclarations.value.length
+      ? addDeclarations.value.map((item) => ({
+          declarationId: item.declarationId,
+          detailIds: item.detailIds ? [...item.detailIds] : undefined
+        }))
+      : undefined,
     removeDeclarationIds: removeDeclarationIds.value.length ? [...removeDeclarationIds.value] : undefined
   }
   submitLoading.value = true

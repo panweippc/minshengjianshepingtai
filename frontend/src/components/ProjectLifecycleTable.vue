@@ -1,14 +1,29 @@
 <template>
   <div class="project-lifecycle">
+    <!-- 立项日期筛选：按立项日期区间过滤上方汇总列表 -->
+    <div class="filter-bar">
+      <span class="filter-label">立项日期</span>
+      <el-date-picker
+        v-model="approvalDateRange"
+        class="approval-date-filter"
+        type="daterange"
+        value-format="YYYY-MM-DD"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        size="small"
+        clearable
+      />
+    </div>
     <el-table
       v-loading="loading"
-      :data="rows"
+      :data="filteredRows"
       border
       size="small"
       empty-text="暂无关联项目"
     >
       <!-- 展开行：按阶段展示明细级完整信息（含各阶段附件与记录） -->
-      <el-table-column type="expand" width="40">
+      <el-table-column type="expand" width="34">
         <template #default="{ row }">
           <div class="lifecycle-detail">
             <!-- ============ 申报阶段 ============ -->
@@ -227,33 +242,36 @@
       </el-table-column>
 
       <!-- 汇总列：一条明细对应同一农户/设施的一次项目全周期链路 -->
-      <el-table-column prop="declarationCode" label="申报编号" width="140" show-overflow-tooltip>
+      <el-table-column prop="declarationCode" label="申报编号" width="96" show-overflow-tooltip>
         <template #default="{ row }">{{ row.declarationCode || '—' }}</template>
       </el-table-column>
-      <el-table-column label="申报日期" width="105" align="center">
+      <el-table-column label="申报日期" width="100" align="center">
         <template #default="{ row }">{{ row.declarationDate || '—' }}</template>
       </el-table-column>
-      <el-table-column label="申报金额(元)" width="120" align="right">
+      <el-table-column label="申报金额(元)" width="100" align="right">
         <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
       </el-table-column>
-      <el-table-column label="申报状态" width="100" align="center">
+      <el-table-column label="申报状态" width="76" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="declareStatusTagType(row)">{{ declareStatusLabel(row) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="立项项目" min-width="180" show-overflow-tooltip>
+      <el-table-column label="立项日期" width="100" align="center">
+        <template #default="{ row }">{{ row.approvalSubmitTime ? row.approvalSubmitTime.slice(0, 10) : '—' }}</template>
+      </el-table-column>
+      <el-table-column label="立项项目" min-width="76" show-overflow-tooltip>
         <template #default="{ row }">{{ row.projectName || '—' }}</template>
       </el-table-column>
-      <el-table-column label="立项状态" width="95" align="center">
+      <el-table-column label="立项状态" width="72" align="center">
         <template #default="{ row }">{{ approvalStatusLabel(row.approvalStatus) }}</template>
       </el-table-column>
-      <el-table-column label="施工状态" width="95" align="center">
+      <el-table-column label="施工状态" width="72" align="center">
         <template #default="{ row }">{{ buildStatusLabel(row) }}</template>
       </el-table-column>
-      <el-table-column label="拨付金额(元)" width="120" align="right">
+      <el-table-column label="拨付金额(元)" width="100" align="right">
         <template #default="{ row }">{{ formatMoney(row.fundAmount) }}</template>
       </el-table-column>
-      <el-table-column label="验收状态" width="100" align="center">
+      <el-table-column label="验收状态" width="76" align="center">
         <template #default="{ row }">{{ acceptStatusLabel(row) }}</template>
       </el-table-column>
     </el-table>
@@ -296,7 +314,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getDictByType } from '@/api/dict'
 import { getPresignUrl } from '@/api/file'
@@ -324,6 +342,21 @@ const props = defineProps<{
 const loading = ref(false)
 const rows = ref<ProjectLifecycleVO[]>([])
 const dictMap = ref<Record<string, DictVO[]>>({})
+
+/** 立项日期筛选区间（[开始, 结束]，YYYY-MM-DD） */
+const approvalDateRange = ref<[string, string] | null>(null)
+
+/** 按立项日期过滤后的列表；未选择区间时展示全部 */
+const filteredRows = computed(() => {
+  const range = approvalDateRange.value
+  if (!range || !range[0] || !range[1]) {
+    return rows.value
+  }
+  return rows.value.filter((row) => {
+    const date = row.approvalSubmitTime ? row.approvalSubmitTime.slice(0, 10) : ''
+    return !!date && date >= range[0] && date <= range[1]
+  })
+})
 
 /** 加载字典（申报类型、项目类别/类型、下拨类型、验收结果、各阶段附件类型） */
 const DICT_TYPES = [
@@ -527,6 +560,22 @@ watch(() => props.targetId, load)
 <style scoped>
 .project-lifecycle {
   width: 100%;
+}
+/* 列表上方筛选栏 */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.filter-label {
+  font-size: 13px;
+  color: #606266;
+}
+/* 固定筛选框宽度，避免被弹性布局拉满 */
+.filter-bar :deep(.approval-date-filter.el-date-editor) {
+  width: 230px;
+  flex: 0 0 230px;
 }
 /* 展开行内容：按阶段分区 */
 .lifecycle-detail {

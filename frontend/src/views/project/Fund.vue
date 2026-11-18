@@ -124,13 +124,13 @@
               <el-button
                 v-if="row.nodeType === 'approval' && canRegister"
                 link
-                type="primary"
+                type="success"
                 @click="openForm(row)"
               >资金登记</el-button>
               <el-button
                 v-if="row.nodeType !== 'approval' && canAllocate"
                 link
-                type="primary"
+                type="warning"
                 @click="openForm(row)"
               >下拨资金</el-button>
             </div>
@@ -981,6 +981,30 @@
               <el-descriptions-item label="申报金额">{{ formatMoney(viewRow?.budget) }} 元</el-descriptions-item>
               <el-descriptions-item label="事项说明">{{ viewRow?.raw.detailRemark || '-' }}</el-descriptions-item>
             </el-descriptions>
+            <!-- 申报材料附件：与立项管理三级查看一致，展示明细自身的附件 -->
+            <el-divider content-position="left">申报材料附件</el-divider>
+            <el-empty
+              v-if="!viewRow?.raw.approvalAttachments?.length"
+              description="暂无申报材料附件"
+              :image-size="60"
+            />
+            <el-table v-else :data="viewRow.raw.approvalAttachments" size="small" border>
+              <el-table-column label="附件类型" width="150">
+                <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="文件名称" min-width="220">
+                <template #default="{ row }">
+                  <div class="attachment-file-cell">
+                    <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">{{ row.fileName }}</span>
+                    <el-icon class="upload-file-download" title="下载" @click.stop="openFile(row, true)">
+                      <Download />
+                    </el-icon>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="createTime" label="上传时间" width="170" />
+            </el-table>
           </el-tab-pane>
 
           <!-- 施工页签：与施工管理三级查看一致（施工记录 + 附件） -->

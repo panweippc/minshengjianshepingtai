@@ -93,6 +93,9 @@ public class FundNodeVO implements Serializable {
     @Schema(description = "申报材料附件（仅三级：关联农户/公共基础设施的附件）")
     private List<FundMaterialAttachmentVO> materialAttachments;
 
+    @Schema(description = "立项阶段明细自身的申报材料附件（仅三级：与立项管理三级查看一致）")
+    private List<FundMaterialAttachmentVO> approvalAttachments;
+
     @Schema(description = "资金流水（一级/二级/三级查看）")
     private List<ProjectFund> records;
 

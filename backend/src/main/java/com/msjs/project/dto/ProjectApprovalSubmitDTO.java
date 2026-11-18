@@ -3,7 +3,7 @@ package com.msjs.project.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -66,10 +66,11 @@ public class ProjectApprovalSubmitDTO {
     @Schema(description = "所属村组 code 集合（多选）")
     private List<String> villageCodes;
 
-    // ---- 被选中的申报单（立项弹窗里勾选的主申报单 ID 集合） ----
-    @NotNull(message = "至少勾选一条申报单")
-    @Schema(description = "要新建立项的 t_declaration.id 集合")
-    private List<Long> declarationIds;
+    // ---- 被选中的申报单及明细（同一申报单可按三级明细分多次立项） ----
+    @Valid
+    @NotEmpty(message = "至少勾选一条申报单")
+    @Schema(description = "关联申报单及本次立项选中的三级明细")
+    private List<ApprovalDeclareSelectionDTO> declarations;
 
     // ---- 立项资料附件（多行动态表单） ----
     @Valid

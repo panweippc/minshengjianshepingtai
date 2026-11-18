@@ -1,6 +1,7 @@
 package com.msjs.project.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -56,8 +57,9 @@ public class ApprovalEditDTO {
     @Schema(description = "立项资料附件列表（可新增多条）")
     private List<AttachmentItem> attachments;
 
-    @Schema(description = "本次新增关联的申报单ID集合（编辑时追加，已关联的会自动忽略报错）")
-    private List<Long> addDeclarationIds;
+    @Valid
+    @Schema(description = "本次新增关联的申报单及选中明细（编辑时追加，已关联的会报错提示）")
+    private List<ApprovalDeclareSelectionDTO> addDeclarations;
 
     @Schema(description = "本次移除关联的申报单ID集合（编辑时删除，明细状态回退为已通过）")
     private List<Long> removeDeclarationIds;

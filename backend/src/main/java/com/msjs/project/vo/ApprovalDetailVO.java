@@ -52,4 +52,7 @@ public class ApprovalDetailVO implements Serializable {
 
     @Schema(description = "排序号")
     private Integer sort;
+
+    @Schema(description = "明细自身的申报材料附件（农户/公建明细行挂载的附件）")
+    private java.util.List<ApprovalAttachmentVO> attachments;
 }

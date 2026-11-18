@@ -674,12 +674,10 @@ const removeAttachment = (idx: number) => {
   form.attachments.splice(idx, 1)
 }
 
-/** 选择附件文件：支持多选，按文件名+大小去重；选中后立即上传到 MinIO 正式归档桶 */
+/** 选择附件文件：相同文件允许多次上传，选中后立即上传到 MinIO 正式归档桶 */
 const handleAttachmentFileChange = async (uploadFile: UploadFile, row: AttachmentEditItem) => {
   const raw = uploadFile.raw
   if (!raw) return
-  const duplicated = row.files.some((f) => f.fileName === raw.name && f.fileSize === raw.size)
-  if (duplicated) return
   try {
     const res = await uploadFileToServer(raw)
     row.files.push({

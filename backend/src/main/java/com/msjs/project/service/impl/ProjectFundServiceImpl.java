@@ -9,6 +9,7 @@ import com.msjs.project.dto.FundAttachmentDTO;
 import com.msjs.project.dto.FundSaveDTO;
 import com.msjs.project.dto.FundUpdateDTO;
 import com.msjs.project.entity.BaseFacilityAttachment;
+import com.msjs.project.entity.DeclarationAttachment;
 import com.msjs.project.entity.HouseholdAttachment;
 import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.ProjectApprovalAttachment;
@@ -17,6 +18,7 @@ import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.entity.ProjectFundAttachment;
 import com.msjs.project.mapper.BaseFacilityAttachmentMapper;
+import com.msjs.project.mapper.DeclarationAttachmentMapper;
 import com.msjs.project.mapper.HouseholdAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
@@ -40,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +62,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
     private final ProjectFundAttachmentMapper fundAttachmentMapper;
     private final HouseholdAttachmentMapper householdAttachmentMapper;
     private final BaseFacilityAttachmentMapper facilityAttachmentMapper;
+    private final DeclarationAttachmentMapper declarationAttachmentMapper;
 
     @Override
     public PageVO<FundNodeVO> page(long pageNum, long pageSize, String projectName,
@@ -422,6 +426,8 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         Map<Long, List<ProjectApprovalAttachment>> declareAttachMap = new HashMap<>();
         // 申报明细材料附件：农户取户附件，公共基础设施取设施附件，按关联对象ID分组
         Map<Long, List<FundMaterialAttachmentVO>> materialAttachMap = new HashMap<>();
+        // 立项阶段明细附件：与立项管理三级查看一致，取申报附件表中农户/公建明细行上的附件
+        Map<String, List<FundMaterialAttachmentVO>> approvalDetailAttachMap = new HashMap<>();
         if (!declares.isEmpty()) {
             List<Long> declareIds = declares.stream().map(ProjectApprovalDeclare::getId).toList();
             List<ProjectApprovalDetail> details = detailMapper.selectList(
@@ -430,6 +436,19 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                             .orderByAsc(ProjectApprovalDetail::getSort)
                             .orderByAsc(ProjectApprovalDetail::getId));
             detailMap = details.stream().collect(Collectors.groupingBy(ProjectApprovalDetail::getDeclareId));
+            // 立项阶段明细附件：农户/公建明细对应的申报附件（owner_type=household/public_facility）
+            Set<Long> declHouseholdIds = details.stream()
+                    .filter(detail -> !isFacilityDetail(detail.getDetailType()))
+                    .map(ProjectApprovalDetail::getHouseholdId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<Long> declFacilityIds = details.stream()
+                    .filter(detail -> isFacilityDetail(detail.getDetailType()))
+                    .map(ProjectApprovalDetail::getFacilityId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            fillApprovalDetailAttachments("household", declHouseholdIds, approvalDetailAttachMap);
+            fillApprovalDetailAttachments("public_facility", declFacilityIds, approvalDetailAttachMap);
             // 农户附件
             List<Long> householdIds = details.stream()
                     .filter(detail -> "HOUSEHOLD".equals(detail.getDetailType()))
@@ -616,6 +635,12 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                             detailFundAttach.getOrDefault(detail.getId(), new ArrayList<>()));
                     detailNode.setMaterialAttachments(
                             materialAttachMap.getOrDefault(detail.getTargetId(), new ArrayList<>()));
+                    // 立项页签附件：与立项管理三级查看一致，展示明细自身的申报材料附件
+                    boolean facilityDetail = isFacilityDetail(detail.getDetailType());
+                    Long ownerId = facilityDetail ? detail.getFacilityId() : detail.getHouseholdId();
+                    String ownerType = facilityDetail ? "public_facility" : "household";
+                    detailNode.setApprovalAttachments(ownerId == null ? Collections.emptyList()
+                            : approvalDetailAttachMap.getOrDefault(ownerType + "#" + ownerId, Collections.emptyList()));
                     detailNodes.add(detailNode);
                 }
                 declareNode.setChildren(detailNodes);
@@ -653,6 +678,40 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         vo.setRemark(attachment.getRemark());
         vo.setCreateTime(attachment.getCreateTime());
         return vo;
+    }
+
+    /** 明细类型是否公建（兼容历史 PUBLIC_FACILITY） */
+    private boolean isFacilityDetail(String detailType) {
+        return Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(detailType) || "PUBLIC_FACILITY".equals(detailType);
+    }
+
+    /**
+     * 批量加载立项阶段明细自身附件，key = ownerType#ownerId。
+     * 业务约束：与立项管理三级查看同源，取申报附件表 t_declaration_attachment 中
+     * 农户/公建明细行（owner_type=household/public_facility）挂载的附件。
+     */
+    private void fillApprovalDetailAttachments(String ownerType, Set<Long> ownerIds,
+                                               Map<String, List<FundMaterialAttachmentVO>> result) {
+        if (ownerIds.isEmpty()) {
+            return;
+        }
+        List<DeclarationAttachment> list = declarationAttachmentMapper.selectList(
+                new LambdaQueryWrapper<DeclarationAttachment>()
+                        .eq(DeclarationAttachment::getOwnerType, ownerType)
+                        .in(DeclarationAttachment::getOwnerId, ownerIds)
+                        .orderByAsc(DeclarationAttachment::getId));
+        for (DeclarationAttachment item : list) {
+            FundMaterialAttachmentVO vo = new FundMaterialAttachmentVO();
+            vo.setId(item.getId());
+            vo.setAttachmentType(item.getAttachmentType());
+            vo.setFileName(item.getFileName());
+            vo.setFileKey(item.getFileKey());
+            vo.setBucket(item.getBucket());
+            vo.setFileSize(item.getFileSize());
+            vo.setRemark(item.getRemark());
+            vo.setCreateTime(item.getCreateTime());
+            result.computeIfAbsent(ownerType + "#" + item.getOwnerId(), k -> new ArrayList<>()).add(vo);
+        }
     }
 
     private BigDecimal nvl(BigDecimal value) {
