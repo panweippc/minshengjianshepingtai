@@ -33,11 +33,6 @@ public class ProjectProgressVO {
     @Schema(hidden = true)
     private String acceptStatus;
 
-    /** 是否存在施工中明细：1是 0否（仅用于计算当前阶段，不返回前端） */
-    @JsonIgnore
-    @Schema(hidden = true)
-    private Integer inProgress;
-
     @Schema(description = "当前阶段序号集合（1待审核 2资金 3施工中 4待验收 5已归档），可同时包含多个")
     private List<Integer> currentStages;
 }

@@ -142,7 +142,7 @@
               <el-button
                 v-if="canEdit && (row.nodeType === 'project' || row.nodeType === 'detail')"
                 link
-                type="primary"
+                :type="row.nodeType === 'detail' ? 'success' : 'primary'"
                 @click="openEdit(row)"
               >{{ row.nodeType === 'detail' ? '巡检' : '编辑' }}</el-button>
               <el-button
@@ -1102,23 +1102,6 @@
       </template>
     </el-dialog>
 
-    <!-- 附件图片预览 -->
-    <el-dialog
-      v-model="previewVisible"
-      :title="previewName || '附件预览'"
-      width="820px"
-      destroy-on-close
-      @closed="previewFile = null"
-    >
-      <div class="attachment-preview-body">
-        <img v-if="previewUrl" :src="previewUrl" class="attachment-preview-image" alt="附件预览" />
-      </div>
-      <template #footer>
-        <el-button v-if="previewFile" type="primary" @click="downloadAttachment(previewFile)">下载</el-button>
-        <el-button @click="previewVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
     <!-- 编辑弹窗 -->
     <el-dialog
       v-model="editVisible"
@@ -1602,12 +1585,8 @@ const openRecordAttachments = (row?: { attachments?: FundAttachmentVO[] } | null
 }
 
 /* ============ 附件预览 ============ */
-/** 图片类后缀：图片弹窗预览，其余类型直接下载 */
+/** 图片类后缀：与资金管理一致，图片也在新窗口预览 */
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-const previewVisible = ref(false)
-const previewUrl = ref('')
-const previewName = ref('')
-const previewFile = ref<{ bucket?: string; fileKey?: string; fileName?: string } | null>(null)
 
 /** 三级查看的施工状态：优先取施工记录，其次取列表行状态 */
 const detailStatus = computed(() => detailLog.value?.constructionStatus || viewNode.value?.buildStatus || '')
@@ -2017,20 +1996,13 @@ const previewAttachment = async (item: { bucket?: string; fileKey?: string; file
   if (!item.bucket || !item.fileKey) return
   const ext = (item.fileName || '').split('.').pop()?.toLowerCase() || ''
   const isImage = IMAGE_EXTENSIONS.includes(ext)
-  // 图片弹窗预览；PDF 新窗口预览；其余类型直接下载
+  // 与资金管理一致：附件（含图片）统一在新窗口以时效签名URL预览
   const res = await getPresignUrl({
     bucket: item.bucket,
     fileKey: item.fileKey,
     fileName: item.fileName,
     download: !isImage && ext !== 'pdf'
   })
-  if (isImage) {
-    previewUrl.value = res.data
-    previewName.value = item.fileName || '附件预览'
-    previewFile.value = item
-    previewVisible.value = true
-    return
-  }
   window.open(res.data, '_blank')
 }
 
@@ -2779,21 +2751,6 @@ onMounted(async () => {
 
 .attachment-download:hover {
   color: #337ecc;
-}
-
-/* 附件图片预览弹窗 */
-.attachment-preview-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-height: 70vh;
-  overflow: auto;
-}
-
-.attachment-preview-image {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
 }
 
 .attach-file-chip__download:hover {

@@ -56,13 +56,11 @@ public class DashboardServiceImpl implements DashboardService {
                 if (Constants.APPROVAL_STATUS_PENDING.equalsIgnoreCase(item.getApprovalStatus())) {
                     stages.add(1);
                 }
-                // 已批准项目即已进入资金管理与验收管理（两个页面均按立项状态展示），
-                // 因此“资金”与“待验收”同时作为当前阶段，再叠加施工中
+                // 已批准项目即已进入资金、施工、验收管理（三个页面均按立项状态展示项目），
+                // 因此“资金”“施工中”“待验收”同时作为当前阶段
                 if (Constants.APPROVAL_STATUS_APPROVED.equalsIgnoreCase(item.getApprovalStatus())) {
                     stages.add(2);
-                    if (Integer.valueOf(1).equals(item.getInProgress())) {
-                        stages.add(3);
-                    }
+                    stages.add(3);
                     stages.add(4);
                 }
                 // 兜底：状态缺失时按已批准处理

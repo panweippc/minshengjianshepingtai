@@ -17,7 +17,7 @@ public interface ProjectApprovalMapper extends BaseMapper<ProjectApproval> {
     /**
      * 首页项目进度概览：每个立项项目一条记录，返回阶段判定所需原始状态
      * 由服务层计算当前阶段集合，同一项目可同时处于多个阶段
-     * 已批准项目即视为已进入资金管理（资金管理页按立项状态展示）
+     * 已批准项目即视为已进入资金、施工、验收管理（三个页面均按立项状态展示）
      * 已驳回项目不参与进度展示；已归档项目仅保留一周（按归档操作更新时间）
      */
     @Select("""
@@ -26,15 +26,7 @@ public interface ProjectApprovalMapper extends BaseMapper<ProjectApproval> {
                 pa.approval_code AS approvalCode,
                 pa.project_name AS projectName,
                 UPPER(pa.status) AS approvalStatus,
-                UPPER(pa.accept_status) AS acceptStatus,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM t_project_construction pc
-                        WHERE pc.approval_id = pa.id AND pc.deleted = 0
-                          AND UPPER(pc.build_status) = 'IN_PROGRESS'
-                    ) THEN 1
-                    ELSE 0
-                END AS inProgress
+                UPPER(pa.accept_status) AS acceptStatus
             FROM t_project_approval pa
             WHERE pa.deleted = 0
               AND UPPER(pa.status) <> 'REJECTED'

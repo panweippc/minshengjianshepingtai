@@ -586,7 +586,7 @@
         </el-table-column>
         <el-table-column label="文件名称" min-width="240">
           <template #default="{ row }">
-            <div class="attachment-file-cell">
+            <div class="attachment-file-cell attachment-file-cell--inline">
               <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">
                 {{ row.fileName || '-' }}
               </span>
@@ -1116,6 +1116,11 @@ onMounted(async () => {
   gap: 6px;
 }
 
+/* 验收记录附件：下载箭头紧随文件名，不做两端对齐 */
+.attachment-file-cell--inline .attachment-file-name {
+  flex: 0 1 auto;
+}
+
 .attachment-file-name {
   flex: 1 1 auto;
   min-width: 0;
@@ -1132,12 +1137,12 @@ onMounted(async () => {
 
 .attachment-file-download {
   flex-shrink: 0;
-  color: #909399;
+  color: #409eff;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: var(--el-color-primary, #409eff);
+  color: #337ecc;
 }
 </style>
 

@@ -510,18 +510,14 @@
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
                 </el-table-column>
-                <el-table-column label="附件" min-width="200">
+                <el-table-column label="附件" width="100" align="center">
                   <template #default="{ row }">
-                    <template v-if="row.detailLogSnapshot?.attachments?.length">
-                      <div
-                        v-for="file in row.detailLogSnapshot.attachments"
-                        :key="file.id"
-                        class="record-attachment"
-                      >
-                        <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                        <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="row.detailLogSnapshot?.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openConstructionAttachments(row.detailLogSnapshot)"
+                    >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -553,9 +549,6 @@
                       </el-icon>
                     </div>
                   </template>
-                </el-table-column>
-                <el-table-column label="大小" width="110" align="right">
-                  <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
                 </el-table-column>
                 <el-table-column label="备注" min-width="160">
                   <template #default="{ row }">{{ row.remark || '-' }}</template>
@@ -811,18 +804,14 @@
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
                 </el-table-column>
-                <el-table-column label="附件" min-width="200">
+                <el-table-column label="附件" width="100" align="center">
                   <template #default="{ row }">
-                    <template v-if="row.detailLogSnapshot?.attachments?.length">
-                      <div
-                        v-for="file in row.detailLogSnapshot.attachments"
-                        :key="file.id"
-                        class="record-attachment"
-                      >
-                        <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                        <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="row.detailLogSnapshot?.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openConstructionAttachments(row.detailLogSnapshot)"
+                    >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -1094,8 +1083,36 @@
       </template>
     </el-dialog>
 
+    <!-- 施工页签：明细进度附件列表弹窗（与施工管理保持一致） -->
+    <el-dialog v-model="constructionAttachVisible" title="附件" width="1000px" destroy-on-close append-to-body>
+      <el-table :data="constructionAttachRow?.attachments || []" size="small" border>
+        <el-table-column label="附件类型" width="180">
+          <template #default="{ row }">
+            {{ dictLabel('shi_gong_fu_jian_lei_xing', row.attachmentType) || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="附件" min-width="240">
+          <template #default="{ row }">
+            <template v-if="row.fileKey">
+              <el-link type="primary" :underline="false" @click="openFile(row)">{{ row.fileName || '查看附件' }}</el-link>
+              <el-icon class="attachment-file-download" title="下载" @click.stop="openFile(row, true)">
+                <Download />
+              </el-icon>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="180">
+          <template #default="{ row }">{{ row.remark || '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="constructionAttachVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 编辑验收记录弹窗 -->
-    <el-dialog v-model="recordEditVisible" title="编辑验收记录" width="760px" destroy-on-close>
+    <el-dialog v-model="recordEditVisible" title="编辑验收记录" width="760px" destroy-on-close class="acceptance-record-edit-dialog">
       <el-form ref="recordEditRef" :model="recordEditForm" :rules="recordEditRules" label-width="90px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -1768,19 +1785,6 @@ const inspectionLabel = (status?: string): string => {
   return '-'
 }
 
-/** 文件大小格式化 */
-const formatFileSize = (bytes?: number): string => {
-  if (!bytes || bytes <= 0) return '-'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let idx = 0
-  let size = bytes
-  while (size >= 1024 && idx < units.length - 1) {
-    size /= 1024
-    idx++
-  }
-  return `${size.toFixed(2)} ${units[idx]}`
-}
-
 const viewTitle = computed(() => {
   if (viewRow.value?.nodeType === 'project') return '项目验收详情'
   if (viewRow.value?.nodeType === 'declare') return '申报验收详情'
@@ -1918,6 +1922,15 @@ const openExtraAttachList = (list: ViewAttachItem[], title: string, dictType: st
   extraAttachTitle.value = title
   extraAttachDictType.value = dictType
   extraAttachVisible.value = true
+}
+
+/* ============ 施工页签：明细进度附件列表（与施工管理一致） ============ */
+const constructionAttachVisible = ref(false)
+const constructionAttachRow = ref<ConstructionLogVO | null>(null)
+
+const openConstructionAttachments = (snapshot?: ConstructionLogVO | null) => {
+  constructionAttachRow.value = snapshot || null
+  constructionAttachVisible.value = true
 }
 
 /* ============ 验收记录附件列表 ============ */
@@ -2596,12 +2609,12 @@ onMounted(async () => {
 }
 
 .upload-file-download {
-  color: #909399;
+  color: #409eff;
   cursor: pointer;
 }
 
 .upload-file-download:hover {
-  color: var(--el-color-primary, #409eff);
+  color: #337ecc;
 }
 
 .attachment-file-cell {
@@ -2611,12 +2624,12 @@ onMounted(async () => {
 }
 
 .attachment-file-download {
-  color: #909399;
+  color: #409eff;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: var(--el-color-primary, #409eff);
+  color: #337ecc;
 }
 
 .declare-no-attachment-text {
@@ -2869,6 +2882,11 @@ onMounted(async () => {
 
 /* 验收弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
 .acceptance-form-dialog .el-dialog__body {
+  overflow-x: hidden !important;
+}
+
+/* 一级查看验收详情页签点击编辑打开的弹窗：隐藏底部横向滚动条 */
+.acceptance-record-edit-dialog .el-dialog__body {
   overflow-x: hidden !important;
 }
 </style>

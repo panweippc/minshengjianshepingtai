@@ -330,9 +330,6 @@
             <span v-else>{{ a.fileName }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="文件大小" width="110">
-          <template #default="{ row: a }">{{ formatFileSize(a.fileSize) }}</template>
-        </el-table-column>
         <el-table-column label="备注" min-width="150">
           <template #default="{ row: a }">{{ a.remark || '—' }}</template>
         </el-table-column>
@@ -350,9 +347,6 @@
             <el-link v-if="a.fileKey" type="primary" @click="openAttachmentFile(a, true)">{{ a.fileName }}</el-link>
             <span v-else>{{ a.fileName }}</span>
           </template>
-        </el-table-column>
-        <el-table-column label="文件大小" width="110">
-          <template #default="{ row: a }">{{ formatFileSize(a.fileSize) }}</template>
         </el-table-column>
         <el-table-column label="备注" min-width="150">
           <template #default="{ row: a }">{{ a.remark || '—' }}</template>
@@ -711,6 +705,7 @@ import {
   submitProjectApproval,
   type DeclarationQuery,
   type DeclarationVO,
+  type DeclarationAttachmentItem,
   type DeclarationDetailFull,
   type DeclarationHouseholdDetail,
   type DeclarationFacilityDetail,
@@ -863,14 +858,6 @@ function formatAmount(v?: number | string | null) {
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 文件大小格式化：字节数 → KB/MB */
-function formatFileSize(bytes?: number | null): string {
-  if (bytes == null || bytes === 0) return '—'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
 /** 审核日志 action 常量映射（和 DeclarationSubmit.vue 对齐） */
 const AUDIT_ACTION_MAP: Record<string, { type: string; label: string }> = {
   SUBMIT_FIRST:    { type: 'info',    label: '首次提交审核' },
@@ -988,10 +975,21 @@ function openDetail(row: DeclarationVO) {
   }
 }
 
-/** 附件下载：通过后端获取时效签名 URL */
-async function openAttachmentFile(file: any, download = false) {
+/** 附件访问：与资金管理一致，统一在新窗口以时效签名URL预览；禁止永久直链 */
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+
+async function openAttachmentFile(file: DeclarationAttachmentItem, download = false) {
   if (!file?.fileKey) return
-  const res = await getPresignUrl({ bucket: file.bucket, fileKey: file.fileKey, fileName: file.fileName, download })
+  const bucket = file.bucket || 'archive-formal'
+  const ext = (file.fileName || '').split('.').pop()?.toLowerCase() || ''
+  const isImage = IMAGE_EXTENSIONS.includes(ext)
+  const res = await getPresignUrl({
+    bucket,
+    fileKey: file.fileKey,
+    fileName: file.fileName,
+    // 图片不强制下载，交由浏览器新窗口预览
+    download: download && !isImage
+  })
   window.open(res.data as string, '_blank')
 }
 

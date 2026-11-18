@@ -376,18 +376,14 @@
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
                 </el-table-column>
-                <el-table-column label="附件" min-width="200">
+                <el-table-column label="附件" width="100" align="center">
                   <template #default="{ row }">
-                    <template v-if="row.detailLogSnapshot?.attachments?.length">
-                      <div
-                        v-for="file in row.detailLogSnapshot.attachments"
-                        :key="file.id"
-                        class="record-attachment"
-                      >
-                        <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                        <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="row.detailLogSnapshot?.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openConstructionDetailAttachList(row.detailLogSnapshot)"
+                    >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -417,9 +413,6 @@
                       <el-icon class="upload-file-download" @click="openFile(row, true)"><Download /></el-icon>
                     </div>
                   </template>
-                </el-table-column>
-                <el-table-column label="大小" width="110" align="right">
-                  <template #default="{ row }">{{ row.fileSize ? formatFileSize(row.fileSize) : '-' }}</template>
                 </el-table-column>
                 <el-table-column label="备注" min-width="160">
                   <template #default="{ row }">{{ row.remark || '-' }}</template>
@@ -788,18 +781,14 @@
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
                 </el-table-column>
-                <el-table-column label="附件" min-width="200">
+                <el-table-column label="附件" width="100" align="center">
                   <template #default="{ row }">
-                    <template v-if="row.detailLogSnapshot?.attachments?.length">
-                      <div
-                        v-for="file in row.detailLogSnapshot.attachments"
-                        :key="file.id"
-                        class="record-attachment"
-                      >
-                        <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                        <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                      </div>
-                    </template>
+                    <el-button
+                      v-if="row.detailLogSnapshot?.attachments?.length"
+                      link
+                      type="primary"
+                      @click="openConstructionDetailAttachList(row.detailLogSnapshot)"
+                    >附件（{{ row.detailLogSnapshot.attachments.length }}）</el-button>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -1117,7 +1106,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="上传时间" width="170" />
+        <el-table-column v-if="attachListShowTime" prop="createTime" label="上传时间" width="170" />
       </el-table>
       <template #footer>
         <el-button @click="attachListVisible = false">关闭</el-button>
@@ -1348,6 +1337,7 @@ import type { AcceptanceNodeVO, AcceptanceRecordVO } from '@/api/acceptance'
 import {
   getConstructionDetail,
   getDetailLog,
+  type ConstructionAttachmentVO,
   type ConstructionNodeVO,
   type ConstructionLogVO
 } from '@/api/construction'
@@ -1606,19 +1596,6 @@ const inspectionLabel = (status?: string): string => {
   return '-'
 }
 
-/** 文件大小格式化 */
-const formatFileSize = (bytes?: number): string => {
-  if (!bytes || bytes <= 0) return '-'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let idx = 0
-  let size = bytes
-  while (size >= 1024 && idx < units.length - 1) {
-    size /= 1024
-    idx++
-  }
-  return `${size.toFixed(2)} ${units[idx]}`
-}
-
 /** 切换到施工页签时按需加载施工数据，避免每次查看都额外请求 */
 const loadConstruction = async () => {
   const row = viewRow.value
@@ -1811,11 +1788,13 @@ const loadRecords = async (nodeType?: FundNodeType, nodeId?: string) => {
 }
 
 /* ============ 附件列表弹窗（一级事项申报页签） ============ */
-type AttachListItem = DeclareAttachmentVO | FundAttachmentVO
+type AttachListItem = DeclareAttachmentVO | FundAttachmentVO | ConstructionAttachmentVO
 const attachListVisible = ref(false)
 const attachListTitle = ref('')
 /** 附件类型字典：一级/二级申报材料 li_xiang_fu_jian_lei_xing，三级明细材料 fu_jian_lei_xing，资金凭证 zi_jin_fu_jian_lei_xing */
 const attachDictType = ref('li_xiang_fu_jian_lei_xing')
+/** 是否展示上传时间列：施工附件与施工管理保持一致，不展示 */
+const attachListShowTime = ref(true)
 const attachListData = ref<AttachListItem[]>([])
 
 const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
@@ -1823,6 +1802,7 @@ const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
   attachListData.value = files || []
   attachDictType.value = type === 'material' ? 'li_xiang_fu_jian_lei_xing' : 'zi_jin_fu_jian_lei_xing'
   attachListTitle.value = `${type === 'material' ? '申报材料附件' : '资金凭证附件'} — ${[row.code, row.title].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1833,6 +1813,7 @@ const openDeclareAttachList = () => {
   attachListData.value = row.raw.attachments || []
   attachDictType.value = 'li_xiang_fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1843,6 +1824,7 @@ const openDetailAttachList = () => {
   attachListData.value = row.raw.materialAttachments || []
   attachDictType.value = 'fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1851,6 +1833,7 @@ const openRecordAttachList = (record: FundRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'zi_jin_fu_jian_lei_xing'
   attachListTitle.value = `资金凭证附件 — ${[record.createBy, record.createTime].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1859,6 +1842,16 @@ const openAcceptanceAttachList = (record: AcceptanceRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'yan_shou_fu_jian_lei_xing'
   attachListTitle.value = `验收资料附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
+  attachListVisible.value = true
+}
+
+/** 一级查看-施工页签：明细进度附件按钮，弹出附件列表（与施工管理一致的施工附件字典） */
+const openConstructionDetailAttachList = (snapshot?: ConstructionLogVO | null) => {
+  attachListData.value = snapshot?.attachments || []
+  attachDictType.value = 'shi_gong_fu_jian_lei_xing'
+  attachListShowTime.value = false
+  attachListTitle.value = '附件'
   attachListVisible.value = true
 }
 
