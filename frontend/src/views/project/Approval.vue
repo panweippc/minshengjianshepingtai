@@ -701,6 +701,7 @@
       </div>
 
       <el-table
+        ref="declPickerTableRef"
         v-loading="declPicker.loading"
         :data="declPickerRows"
         border
@@ -709,6 +710,8 @@
         max-height="380"
         class="decl-picker-table"
         :row-class-name="declPickerRowClass"
+        @select="handleDeclPickerSelect"
+        @select-all="handleDeclPickerSelectAll"
         @selection-change="handleDeclPickerSelectionChange"
       >
         <el-table-column type="selection" width="48" reserve-selection :selectable="isDeclSelectable" />
@@ -1330,11 +1333,57 @@ const declPickerRows = computed<DeclPickerRow[]>(() =>
 )
 
 /** 立项粒度到三级明细：勾选明细行，同一申报单可分多次立项 */
-const isDeclSelectable = (row: DeclPickerRow) => !!row._isDetail
+const isDeclSelectable = (_row: DeclPickerRow) => true
 
 /** 选择弹窗二级明细行：字体比一级更小 */
 const declPickerRowClass = ({ row }: { row: DeclPickerRow }) =>
   row._isDetail ? 'decl-picker-detail-row' : ''
+
+/** 申报单行勾选锁标记：避免程序化 toggle 触发递归 */
+const selectingByParent = ref(false)
+const declPickerTableRef = ref<any>(null)
+
+/**
+ * 行勾选：
+ *  - 父申报单行：全量勾/全量取消其 children；父行自身不入 selection，避免后端收到无效行。
+ *  - 子明细行：保留原生行为，不联动父行状态（允许多次立项时只勾部分明细）。
+ */
+const handleDeclPickerSelect = (selection: DeclPickerRow[], row: DeclPickerRow) => {
+  if (selectingByParent.value) return
+  if (!row || row._isDetail) return
+  // row 是父行 → 批量切换 children
+  const children = row.children || []
+  if (children.length === 0) {
+    // 无明细的空壳申报单，取消父行选中，避免底部出现"0 条明细"
+    selectingByParent.value = true
+    declPickerTableRef.value?.toggleRowSelection(row, false)
+    selectingByParent.value = false
+    return
+  }
+  const selectedIds = new Set(selection.filter((r) => r._isDetail).map((r) => r.id))
+  const allSelected = children.every((c) => selectedIds.has(c.id))
+  selectingByParent.value = true
+  const newState = !allSelected // 父行被勾选 → 原本没全选；父行被取消 → 原本全选
+  children.forEach((c) => declPickerTableRef.value?.toggleRowSelection(c, newState))
+  // 父行自身不入 selection（后端只吃明细，父行保留在 selection 会让确认按钮统计错位）
+  declPickerTableRef.value?.toggleRowSelection(row, false)
+  selectingByParent.value = false
+}
+
+/** 表头全选：只对明细行生效，父行不纳入 selection */
+const handleDeclPickerSelectAll = (selection: DeclPickerRow[]) => {
+  if (selectingByParent.value) return
+  const detailOnly = selection.filter((r) => r._isDetail)
+  selectingByParent.value = true
+  declPickerTableRef.value?.clearSelection?.()
+  detailOnly.forEach((r) => declPickerTableRef.value?.toggleRowSelection(r, true))
+  selectingByParent.value = false
+}
+
+/** selection 变更：过滤掉被强制清除的父行，保证 declPicker.selection 永远只含明细 */
+const handleDeclPickerSelectionChange = (rows: DeclPickerRow[]) => {
+  declPicker.selection = rows.filter((r) => r._isDetail)
+}
 
 const editRules: FormRules = {
   projectName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
@@ -1466,10 +1515,6 @@ const handleDeclPickerSearch = () => {
 const resetDeclPickerSearch = () => {
   declPicker.title = ''
   handleDeclPickerSearch()
-}
-
-const handleDeclPickerSelectionChange = (rows: DeclPickerRow[]) => {
-  declPicker.selection = rows
 }
 
 /** 确认选择：按申报单聚合选中明细后追加，随编辑保存一起提交 */
