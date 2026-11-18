@@ -155,8 +155,8 @@
                 link type="primary" size="small" @click="openFacilityDetailView(row)"
               >查看</el-button>
 
-              <!-- 待审核（pending/空）→ 通过 + 驳回 -->
-              <template v-if="row.auditStatus === 'pending' || !row.auditStatus">
+              <!-- 待审核（pending/空）→ 通过 + 驳回（仅父申报单状态为 submitted 时允许，防止已自动推到 approved 后还漏审） -->
+              <template v-if="(row.auditStatus === 'pending' || !row.auditStatus) && row._parentStatus === 'submitted'">
                 <el-button link type="success" size="small" @click="openDetailAuditDialog(row, 'approve')">通过</el-button>
                 <el-button link type="danger" size="small" @click="openDetailAuditDialog(row, 'reject')">驳回</el-button>
               </template>

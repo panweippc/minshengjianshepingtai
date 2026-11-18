@@ -42,10 +42,37 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     private final SysDictService dictService;
     private final SysRegionMapper regionMapper;
 
+    /** 村全量字典缓存（level=5 即村，name 作 join key）——按字典全量 left join，无数据也输出 */
+    private volatile List<String> allVillageNamesCache;
+    private List<String> getAllVillageNames() {
+        if (allVillageNamesCache != null) return allVillageNamesCache;
+        synchronized (this) {
+            if (allVillageNamesCache != null) return allVillageNamesCache;
+            List<SysRegion> levels = regionMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
+                            .eq(SysRegion::getLevel, 5)
+                            .orderByAsc(SysRegion::getSort));
+            List<String> names = new ArrayList<>();
+            for (SysRegion r : levels) if (r.getName() != null && !r.getName().isBlank()) names.add(r.getName());
+            allVillageNamesCache = names;
+            return names;
+        }
+    }
+
     // ================== 对外接口 ==================
 
     @Override
     public ProjectCycleStatVO stat(ProjectCycleQueryDTO query) {
+        // 请求级字典缓存：先构建，finally 里清理，防止 Spring 单例 Service 的字段跨请求残留
+        dictCache = buildDictCache();
+        try {
+            return doStat(query);
+        } finally {
+            dictCache = null;
+        }
+    }
+
+    private ProjectCycleStatVO doStat(ProjectCycleQueryDTO query) {
         ProjectCycleQueryMapper.QueryParams p = buildQueryParams(query.getRegionCode(), query.getYear());
         String queryType = blankToDefault(query.getQueryType(), "category");
 
@@ -65,6 +92,15 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         // 字典翻译
         applyDictLabels(rawList);
 
+        // 方案1（按项目类别）的分组字典：approvalId → 综合 declareCategory（'1'到户 / '2'公建 / '3'到户+公建混合）
+        // 一个 approval 下如果同时有 declare_category=1 和 2 的 declare，则归入 '3' 分组（xiang_mu_lei_bie 字典）
+        Map<Long, String> approvalCategoryMap = "category".equals(queryType)
+                ? buildApprovalMixedCategoryMap(rawList) : Collections.emptyMap();
+
+        // 方案2（按项目类型）的分组字典：approvalId → projectType（approval 级字段，同 approval 下同值）
+        Map<Long, String> approvalTypeMap = "source".equals(queryType)
+                ? buildApprovalProjectTypeMap(rawList) : Collections.emptyMap();
+
         // 预加载施工/验收状态（用于方案4）
         Map<Long, String> constructionStatusMap = Collections.emptyMap();
         Map<Long, String> acceptanceStatusMap = Collections.emptyMap();
@@ -79,7 +115,8 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         vo.setGlobalSummary(buildGlobalSummary(rawList));
 
         // 根据方案类型构建分组
-        List<ProjectCycleStatVO.Row> rows = buildGroupedRows(rawList, queryType, constructionStatusMap, acceptanceStatusMap);
+        List<ProjectCycleStatVO.Row> rows = buildGroupedRows(rawList, queryType,
+                constructionStatusMap, acceptanceStatusMap, approvalCategoryMap, approvalTypeMap);
         vo.setRows(rows);
         vo.setTotal((long) rows.size());
 
@@ -88,6 +125,15 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
 
     @Override
     public List<ProjectCycleDetailVO> detail(ProjectCycleQueryDTO query) {
+        dictCache = buildDictCache();
+        try {
+            return doDetail(query);
+        } finally {
+            dictCache = null;
+        }
+    }
+
+    private List<ProjectCycleDetailVO> doDetail(ProjectCycleQueryDTO query) {
         String queryType = blankToDefault(query.getQueryType(), "category");
         ProjectCycleQueryMapper.QueryParams p = buildQueryParams(query.getRegionCode(), query.getYear());
 
@@ -102,6 +148,12 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             rawList = cycleMapper.selectRawList(p);
         }
         applyDictLabels(rawList);
+
+        // 与 stat() 保持完全一致的分组口径
+        Map<Long, String> approvalCategoryMap = "category".equals(queryType)
+                ? buildApprovalMixedCategoryMap(rawList) : Collections.emptyMap();
+        Map<Long, String> approvalTypeMap = "source".equals(queryType)
+                ? buildApprovalProjectTypeMap(rawList) : Collections.emptyMap();
 
         Map<Long, String> constructionMap = Collections.emptyMap();
         Map<Long, String> acceptanceMap = Collections.emptyMap();
@@ -119,7 +171,8 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
 
         List<ProjectCycleDetailVO> out = new ArrayList<>();
         for (ProjectCycleRawVO raw : rawList) {
-            LabeledRow lr = labelRow(raw, queryType, constructionMap, acceptanceMap);
+            LabeledRow lr = labelRow(raw, queryType, constructionMap, acceptanceMap,
+                    approvalCategoryMap, approvalTypeMap);
             if (lr == null) continue;
             if (groupValue != null && !groupValue.equals(lr.groupKey)) continue;
             if (villageFilter != null && !villageFilter.equals(raw.getVillageName())) continue;
@@ -146,13 +199,14 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         vo.setFacilityCount(raw.getFacilityCount());
         vo.setTotalFund(raw.getTotalFund());
 
+        // 立项状态 label：从字典 li_xiang_zhuang_tai 动态查
         String est = computeEstablishStatus(raw.getApprovalStatus(), raw.getAcceptStatus());
-        vo.setEstablishStatusLabel(est == null
-                ? "已驳回" : ESTABLISH_STATUS_LABELS.getOrDefault(est, est));
+        vo.setEstablishStatusLabel(est == null ? "已驳回" : dictLabel("li_xiang_zhuang_tai", est));
 
+        // 项目状态 label：从字典 xiang_mu_zhuang_tai 动态查
         String ps = computeProjectStatus(raw.getApprovalId(), raw.getApprovalStatus(),
                 raw.getAcceptStatus(), constructionMap, acceptanceMap);
-        vo.setProjectStatusLabel(ps == null ? "-" : PROJECT_STATUS_LABELS.getOrDefault(ps, ps));
+        vo.setProjectStatusLabel(ps == null ? "-" : dictLabel("xiang_mu_zhuang_tai", ps));
 
         vo.setSubmitTime(raw.getSubmitTime());
         vo.setArchiveCreateTime(raw.getArchiveCreateTime());
@@ -251,37 +305,40 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
 
     private static final String[] DICT_TYPES = {
             "shen_bao_lei_bie",    // 申报类别（declare_category：1到户 / 2公建）
-            "xiang_mu_lei_bie",    // 项目类别
-            "xiang_mu_lei_xing",  // 项目类型
-            "xiang_mu_lai_yuan",  // 项目来源
-            "li_xiang_zhuang_tai", // 立项状态
-            "yan_shou_jie_guo"    // 验收结果
+            "xiang_mu_lei_bie",    // 项目类别（方案1 category 对齐）
+            "xiang_mu_lei_xing",   // 项目类型（方案2 source 对齐）
+            "xiang_mu_lai_yuan",   // 项目来源
+            "li_xiang_zhuang_tai", // 立项状态（方案3 establish 对齐）
+            "yan_shou_jie_guo",    // 验收结果
+            "xiang_mu_zhuang_tai"  // 项目阶段（方案4 status 对齐，综合施工+验收）
     };
 
-    /** 翻译字典：declareCategory、projectType 都走字典 */
+    /**
+     * 全服务共享的字典缓存（dict_type → {dict_value → dict_label}），
+     * 由 stat() / detail() 入口统一构建，labelRow 等下游方法直接使用，
+     * 保证同一查询请求内查字典只查一次数据库。
+     */
+    private Map<String, Map<String, String>> dictCache;
+
+    /** 翻译原始 VO 行上的字段字典（declareCategoryLabel / projectTypeLabel 等） */
     private void applyDictLabels(List<ProjectCycleRawVO> rows) {
         if (rows == null || rows.isEmpty()) return;
+        if (dictCache == null) dictCache = buildDictCache();
 
-        Map<String, Map<String, String>> cache = buildDictCache();
-        Map<String, String> categoryDict = cache.getOrDefault("shen_bao_lei_bie", Collections.emptyMap());
-        Map<String, String> typeDict     = cache.getOrDefault("xiang_mu_lei_xing", Collections.emptyMap());
+        Map<String, String> typeDict = dictCache.getOrDefault("xiang_mu_lei_xing", Collections.emptyMap());
 
         for (ProjectCycleRawVO row : rows) {
-            // declareCategory：从字典 shen_bao_lei_bie 翻译（兼容 household/public 旧值）
-            String dc = row.getDeclareCategory();
-            if ("household".equals(dc)) {
-                row.setDeclareCategoryLabel("到户项目");
-            } else if ("public".equals(dc)) {
-                row.setDeclareCategoryLabel("公建项目");
-            } else {
-                row.setDeclareCategoryLabel(blankToLabel(dc, categoryDict));
-            }
+            // declareCategory 原始值（shen_bao_lei_bie：1到户 / 2公建）直接翻译，
+            // 方案1 统计时会在 approval 粒度聚合后再查 xiang_mu_lei_bie 字典
+            row.setDeclareCategoryLabel(blankToLabel(row.getDeclareCategory(),
+                    dictCache.getOrDefault("shen_bao_lei_bie", Collections.emptyMap())));
 
-            // projectType：从字典 xiang_mu_lei_xing 翻译
+            // projectType：xiang_mu_lei_xing
             row.setProjectTypeLabel(blankToLabel(row.getProjectType(), typeDict));
         }
     }
 
+    /** 构建全服务字典缓存：dict_type → {dict_value → dict_label}，同时记录 sort 用于动态排序 */
     private Map<String, Map<String, String>> buildDictCache() {
         Map<String, Map<String, String>> cache = new HashMap<>();
         for (String type : DICT_TYPES) {
@@ -297,6 +354,24 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             cache.put(type, inner);
         }
         return cache;
+    }
+
+    /**
+     * 获取指定字典类型的全部条目（含 sort 用于排序），
+     * 用于 buildGroupedRows 里动态按字典 sort 对分组排序。
+     */
+    private List<SysDict> listDictsByType(String dictType) {
+        return dictService.listByType(dictType);
+    }
+
+    /** 给定字典类型和 value，返回 label；查不到时兜底返回 value 本身 */
+    private String dictLabel(String dictType, String value) {
+        if (value == null) return "";
+        Map<String, String> map = dictCache != null
+                ? dictCache.get(dictType)
+                : null;
+        if (map != null && map.containsKey(value)) return map.get(value);
+        return value;
     }
 
     // ================== 内部：全局汇总 ==================
@@ -382,13 +457,17 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     }
 
     /**
-     * 计算项目综合状态（方案4使用）：
-     *   NOT_STARTED  - 未开工
-     *   IN_PROGRESS  - 施工中
-     *   COMPLETED    - 已完工
-     *   PENDING_ACCEPT - 待验收
-     *   ACCEPTED     - 已验收
-     *   FAILED       - 未通过
+     * 计算项目综合阶段（方案4使用，输出值对齐字典 xiang_mu_zhuang_tai 的 dict_value）：
+     * <pre>
+     *   1 未开工    → 施工模块无记录或全部 NOT_STARTED
+     *   2 施工中    → 存在 IN_PROGRESS（含部分完工+无施工中的情况）
+     *   3 已完工    → 全部施工明细 COMPLETED
+     *   4 待验收    → 已发起验收(accept_status=APPLYING) 但未全部验收，或验收模块有 APPLYING 明细
+     *   5 已验收    → 全部验收明细 ACCEPTED（整改后验收通过也视为已验收）
+     *   6 未通过    → 验收 REJECTED
+     * </pre>
+     * Service 只输出 value（'1'~'6'），label 统一从字典 xiang_mu_zhuang_tai 查——
+     * 用户在字典里加新条目会自动出现在统计方案里。
      */
     private String computeProjectStatus(Long approvalId, String approvalStatus, String acceptStatus,
                                         Map<Long, String> constructionMap, Map<Long, String> acceptanceMap) {
@@ -397,73 +476,56 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             return null; // 不纳入方案4分组，让上游过滤
         }
 
-        // 验收管理模块已有明细 → 优先取验收明细状态（待验收/已验收/未通过）
+        // 验收管理模块已有明细 → 优先取验收结果
         String acceptance = acceptanceMap.get(approvalId);
         if ("PASS".equals(acceptance)) {
-            return "ACCEPTED";
+            return "5"; // 已验收（含整改后通过）
         } else if ("FAIL".equals(acceptance)) {
-            return "FAILED";
+            return "6"; // 未通过
         } else if ("APPLYING".equals(acceptance)) {
-            return "PENDING_ACCEPT";
+            return "4"; // 待验收
         }
 
         // 立项单已进入验收流程（accept_status=APPLYING）但验收模块暂无明细 → 待验收
         if ("APPLYING".equalsIgnoreCase(acceptStatus)) {
-            return "PENDING_ACCEPT";
+            return "4";
         }
 
-        // 无验收记录 → 取施工管理模块明细状态（未开工/施工中/已完工）
+        // 无验收记录 → 取施工管理模块明细状态
         String construction = constructionMap.getOrDefault(approvalId, "NOT_STARTED");
         if ("COMPLETED".equals(construction)) {
-            return "COMPLETED";
+            return "3"; // 已完工
         } else if ("IN_PROGRESS".equals(construction)) {
-            return "IN_PROGRESS";
+            return "2"; // 施工中
         }
-        return "NOT_STARTED";
-    }
-
-    /** 项目综合状态值 → 显示标签 */
-    private static final Map<String, String> PROJECT_STATUS_LABELS = new LinkedHashMap<>();
-    static {
-        PROJECT_STATUS_LABELS.put("NOT_STARTED", "未开工");
-        PROJECT_STATUS_LABELS.put("IN_PROGRESS", "施工中");
-        PROJECT_STATUS_LABELS.put("COMPLETED", "已完工");
-        PROJECT_STATUS_LABELS.put("PENDING_ACCEPT", "待验收");
-        PROJECT_STATUS_LABELS.put("ACCEPTED", "已验收");
-        PROJECT_STATUS_LABELS.put("FAILED", "未通过");
-    }
-
-    /** 立项状态（方案3）→ 显示标签（顺序即分组顺序：待立项→已立项→已归档） */
-    private static final Map<String, String> ESTABLISH_STATUS_LABELS = new LinkedHashMap<>();
-    static {
-        ESTABLISH_STATUS_LABELS.put("PENDING", "待立项");
-        ESTABLISH_STATUS_LABELS.put("APPROVED", "已立项");
-        ESTABLISH_STATUS_LABELS.put("ARCHIVED", "已归档");
+        return "1"; // 未开工
     }
 
     /**
-     * 计算立项状态（方案3使用）——按用户明确口径：
-     * <ul>
-     *   <li>PENDING         → 待立项（立项管理模块待审核）</li>
-     *   <li>APPROVED+ARCHIVED → 已归档（档案管理里的）</li>
-     *   <li>APPROVED+非ARCHIVED → 已立项（总 - 已归档 - 待立项 - 已驳回）</li>
-     *   <li>REJECTED        → 返回 null（不纳入三个分组，过滤掉）</li>
-     * </ul>
+     * 计算立项状态（方案3使用，输出值对齐字典 li_xiang_zhuang_tai 的 dict_value）：
+     * <pre>
+     *   pending   → 待立项（立项管理待审核）
+     *   approved  → 已立项（已通过但未归档也未驳回）
+     *   archived  → 已归档（accept_status=ARCHIVED）
+     *   rejected  → 已驳回（审批被驳回）
+     * </pre>
+     * 全部立项状态都纳入统计——4 个分组覆盖所有 approved 状态值，
+     * 总计 = 待立项 + 已立项 + 已归档 + 已驳回 = 全量表数。
      */
     private String computeEstablishStatus(String approvalStatus, String acceptStatus) {
         if ("REJECTED".equals(approvalStatus)) {
-            return null; // 已驳回排除
+            return "rejected";
         }
         if ("PENDING".equals(approvalStatus)) {
-            return "PENDING"; // 待立项
+            return "pending";
         }
         if ("APPROVED".equals(approvalStatus)) {
             if ("ARCHIVED".equals(acceptStatus)) {
-                return "ARCHIVED"; // 已归档
+                return "archived";
             }
-            return "APPROVED"; // 已立项
+            return "approved";
         }
-        return null; // 其他未知状态也排除
+        return null; // 其他未知状态过滤（目前字典只定义了 4 种）
     }
 
     // ================== 内部：分组聚合 ==================
@@ -471,28 +533,84 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     /**
      * 根据 queryType 构建分组行。
      * 所有方案的输出格式统一：大分组 → 村组明细 → grandTotal 总计行
+     *
+     * @param approvalCategoryMap approvalId → 综合 declareCategory（方案1 category 使用，含 MIXED）
+     * @param approvalTypeMap     approvalId → 综合 projectType（方案2 source 使用）
      */
     private List<ProjectCycleStatVO.Row> buildGroupedRows(
             List<ProjectCycleRawVO> rawList, String queryType,
-            Map<Long, String> constructionMap, Map<Long, String> acceptanceMap) {
+            Map<Long, String> constructionMap, Map<Long, String> acceptanceMap,
+            Map<Long, String> approvalCategoryMap, Map<Long, String> approvalTypeMap) {
+
+        boolean isVillageQuery = "village".equals(queryType);
+
+        // ==== 村字典全量（level=5） ====
+        List<String> allVillageNames = getAllVillageNames();
 
         // 1) 给每行标注其所属的大分组（groupKey + groupLabel）
         List<LabeledRow> labeled = rawList.stream()
-                .map(r -> labelRow(r, queryType, constructionMap, acceptanceMap))
+                .map(r -> labelRow(r, queryType, constructionMap, acceptanceMap,
+                        approvalCategoryMap, approvalTypeMap))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
+        // ==== 先把 labeled 按 villageName 建索引（给外层 village query 和二级村组用） ====
+        Map<String, List<LabeledRow>> labeledByVillage = new HashMap<>();
+        for (LabeledRow lr : labeled) {
+            String vn = blankToNull(lr.row.getVillageName()) == null ? "(未填)" : lr.row.getVillageName();
+            labeledByVillage.computeIfAbsent(vn, k -> new ArrayList<>()).add(lr);
+        }
+
         // 2) 按大分组分桶
-        Map<String, List<LabeledRow>> grouped = new LinkedHashMap<>();
+        Map<String, List<LabeledRow>> dataBucket = new LinkedHashMap<>();
         Map<String, String> labels = new HashMap<>();
         for (LabeledRow lr : labeled) {
             labels.put(lr.groupKey, lr.groupLabel);
-            grouped.computeIfAbsent(lr.groupKey, k -> new ArrayList<>()).add(lr);
+            dataBucket.computeIfAbsent(lr.groupKey, k -> new ArrayList<>()).add(lr);
         }
 
-        // 3) 排序（方案4按固定状态顺序，其他按预算降序）
-        List<Map.Entry<String, List<LabeledRow>>> sortedGroups = new ArrayList<>(grouped.entrySet());
-        sortGroups(sortedGroups, queryType);
+        // 3) 构建全量大分组：先按字典全量建基线桶（空也出一行 count=0），
+        //    再合并 dataBucket；village 方案 5 本身就是"村组"维度，不走字典基线。
+        List<Map.Entry<String, List<LabeledRow>>> sortedGroups;
+        if (isVillageQuery) {
+            sortedGroups = new ArrayList<>();
+            for (String vName : allVillageNames) {
+                List<LabeledRow> vRows = labeledByVillage.getOrDefault(vName, Collections.emptyList());
+                sortedGroups.add(new java.util.AbstractMap.SimpleEntry<>(vName, vRows));
+                labels.put(vName, vName);
+            }
+        } else {
+            String dictType = queryTypeToDictType(queryType);
+            Map<String, List<LabeledRow>> allGroups = new LinkedHashMap<>();
+            if (dictType != null) {
+                List<SysDict> dicts = listDictsByType(dictType);
+                // 按 sort 顺序铺全量基线桶
+                if (dicts != null) {
+                    // 按 sort 排序（已经 sortGroups 里有同样逻辑，这里也保证一次）
+                    dicts.sort(Comparator.comparingInt(d -> d.getSort() == null ? 999 : d.getSort()));
+                    for (SysDict d : dicts) {
+                        if (d.getDictValue() != null) {
+                            String v = d.getDictValue();
+                            allGroups.put(v, dataBucket.getOrDefault(v, Collections.emptyList()));
+                            labels.put(v, d.getDictLabel());
+                        }
+                    }
+                }
+                // dataBucket 里字典没覆盖到的"脏数据"也要保留（放到末尾）
+                for (Map.Entry<String, List<LabeledRow>> e : dataBucket.entrySet()) {
+                    allGroups.computeIfAbsent(e.getKey(), k -> {
+                        labels.put(e.getKey(), e.getKey());
+                        return e.getValue();
+                    });
+                }
+            } else {
+                // 理论走不到（非 village 查询都有字典），兜底用 dataBucket
+                allGroups.putAll(dataBucket);
+            }
+            sortedGroups = new ArrayList<>(allGroups.entrySet());
+            // sortGroups 不再需要（基线桶已按字典 sort 铺好），保留调用兼容
+            sortGroups(sortedGroups, queryType);
+        }
 
         // 4) 构建输出：每个大分组先输出 groupSummary 行，再输出 village 明细行
         List<ProjectCycleStatVO.Row> out = new ArrayList<>();
@@ -504,13 +622,18 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             // 4a) groupSummary 行
             out.add(buildRow(gk, gl, "全部村组", bucket, queryType, true, false));
 
-            // 4b) 村组明细行
-            Map<String, List<LabeledRow>> villageBucket = bucket.stream()
-                    .collect(Collectors.groupingBy(
-                            r -> blankToNull(r.row.getVillageName()) == null ? "(未填)" : r.row.getVillageName(),
-                            LinkedHashMap::new, Collectors.toList()));
-            for (Map.Entry<String, List<LabeledRow>> ve : villageBucket.entrySet()) {
-                out.add(buildRow(gk, gl, ve.getKey(), ve.getValue(), queryType, false, false));
+            // 4b) 村组明细行：按字典全量输出（无数据也出一行 0 值）
+            // village query 本身最细粒度就是村组，不再嵌套二级
+            if (!isVillageQuery) {
+                Map<String, List<LabeledRow>> villageBucket = new HashMap<>();
+                for (LabeledRow lr : bucket) {
+                    String vn = blankToNull(lr.row.getVillageName()) == null ? "(未填)" : lr.row.getVillageName();
+                    villageBucket.computeIfAbsent(vn, k -> new ArrayList<>()).add(lr);
+                }
+                for (String vName : allVillageNames) {
+                    List<LabeledRow> vRows = villageBucket.getOrDefault(vName, Collections.emptyList());
+                    out.add(buildRow(gk, gl, vName, vRows, queryType, false, false));
+                }
             }
         }
 
@@ -522,37 +645,66 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         return out;
     }
 
-    /** 给原始行标注其所属的大分组 key + label */
+    /**
+     * 给原始行标注其所属的大分组 key + label。
+     *
+     * <p>所有方案的 groupKey 对齐对应字典的 dict_value，groupLabel 从字典查——
+     * 字典加条目 → 左侧面板和主表格自动多出分组，无需改代码。</p>
+     *
+     * <table>
+     *   <tr><th>方案</th><th>字典类型</th><th>value 来源</th></tr>
+     *   <tr><td>category 按项目类别</td><td>xiang_mu_lei_bie</td><td>approval 粒度聚合 declareCategory（'1'/'2'/'3'混合）</td></tr>
+     *   <tr><td>source   按项目类型</td><td>xiang_mu_lei_xing</td><td>approval.projectType（approval 级字段）</td></tr>
+     *   <tr><td>establish 按立项状态</td><td>li_xiang_zhuang_tai</td><td>computeEstablishStatus 计算</td></tr>
+     *   <tr><td>status   按项目状态</td><td>xiang_mu_zhuang_tai</td><td>computeProjectStatus 计算</td></tr>
+     *   <tr><td>village  按所属村组</td><td>无字典</td><td>数据里的 villageName 去重</td></tr>
+     * </table>
+     */
     private LabeledRow labelRow(ProjectCycleRawVO row, String queryType,
-                                Map<Long, String> constructionMap, Map<Long, String> acceptanceMap) {
-        String groupKey, groupLabel;
+                                Map<Long, String> constructionMap, Map<Long, String> acceptanceMap,
+                                Map<Long, String> approvalCategoryMap, Map<Long, String> approvalTypeMap) {
+        String groupKey, groupLabel, dictType;
         switch (blankToDefault(queryType, "category")) {
-            case "category":
-                groupKey = blankToDefault(row.getDeclareCategory(), "unknown");
-                groupLabel = row.getDeclareCategoryLabel();
+            case "category": {
+                dictType = "xiang_mu_lei_bie";
+                Long aid = row.getApprovalId();
+                groupKey = approvalCategoryMap.getOrDefault(aid, blankToDefault(row.getDeclareCategory(), "unknown"));
+                groupLabel = dictLabel(dictType, groupKey);
                 break;
-            case "source":
-                groupKey = blankToDefault(row.getProjectType(), "unknown");
-                groupLabel = blankToLabel(row.getProjectType(), row.getProjectTypeLabel());
+            }
+            case "source": {
+                dictType = "xiang_mu_lei_xing";
+                Long aid = row.getApprovalId();
+                groupKey = approvalTypeMap.getOrDefault(aid, blankToDefault(row.getProjectType(), "unknown"));
+                groupLabel = dictLabel(dictType, groupKey);
                 break;
-            case "establish":
+            }
+            case "establish": {
+                dictType = "li_xiang_zhuang_tai";
                 groupKey = computeEstablishStatus(row.getApprovalStatus(), row.getAcceptStatus());
-                if (groupKey == null) return null; // REJECTED 等排除
-                groupLabel = ESTABLISH_STATUS_LABELS.getOrDefault(groupKey, groupKey);
+                if (groupKey == null) return null;
+                groupLabel = dictLabel(dictType, groupKey);
                 break;
-            case "status":
+            }
+            case "status": {
+                dictType = "xiang_mu_zhuang_tai";
                 groupKey = computeProjectStatus(row.getApprovalId(), row.getApprovalStatus(),
                         row.getAcceptStatus(), constructionMap, acceptanceMap);
-                if (groupKey == null) return null; // 非 APPROVED 排除
-                groupLabel = PROJECT_STATUS_LABELS.getOrDefault(groupKey, groupKey);
+                if (groupKey == null) return null;
+                groupLabel = dictLabel(dictType, groupKey);
                 break;
+            }
             case "village":
+                // 村组本身就是动态数据，不需要字典翻译
                 groupKey = blankToDefault(row.getVillageName(), "(未填)");
                 groupLabel = groupKey;
                 break;
-            default:
-                groupKey = blankToDefault(row.getDeclareCategory(), "unknown");
-                groupLabel = row.getDeclareCategoryLabel();
+            default: {
+                dictType = "xiang_mu_lei_bie";
+                Long aid = row.getApprovalId();
+                groupKey = approvalCategoryMap.getOrDefault(aid, blankToDefault(row.getDeclareCategory(), "unknown"));
+                groupLabel = dictLabel(dictType, groupKey);
+            }
         }
         return new LabeledRow(row, groupKey, groupLabel);
     }
@@ -566,24 +718,49 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         }
     }
 
+    /**
+     * 把方案 queryType 映射到对应的 dict_type，用于构建全量基线桶（空也出一行）。
+     * 返回 null 表示该方案不依赖字典（目前只有 village 方案 5：按村组统计本身就是动态数据）。
+     */
+    private static String queryTypeToDictType(String queryType) {
+        switch (blankToDefault(queryType, "category")) {
+            case "category":  return "xiang_mu_lei_bie";
+            case "source":    return "xiang_mu_lei_xing";
+            case "establish": return "li_xiang_zhuang_tai";
+            case "status":    return "xiang_mu_zhuang_tai";
+            default:          return null;
+        }
+    }
+
     private void sortGroups(List<Map.Entry<String, List<LabeledRow>>> sortedGroups, String queryType) {
-        if ("status".equals(queryType)) {
-            // 按项目状态固定顺序
-            List<String> order = new ArrayList<>(PROJECT_STATUS_LABELS.keySet());
+        // 需要按字典 sort 顺序排的方案：方案3/4
+        String dictType = null;
+        switch (queryType) {
+            case "status":    dictType = "xiang_mu_zhuang_tai"; break;
+            case "establish": dictType = "li_xiang_zhuang_tai"; break;
+            case "category":  dictType = "xiang_mu_lei_bie"; break;
+            case "source":    dictType = "xiang_mu_lei_xing"; break;
+            default:          dictType = null;
+        }
+        if (dictType != null) {
+            // 构建字典 value → sort 的映射
+            List<SysDict> dicts = listDictsByType(dictType);
+            Map<String, Integer> valueSort = new HashMap<>();
+            if (dicts != null) {
+                for (SysDict d : dicts) {
+                    if (d.getDictValue() != null) {
+                        valueSort.put(d.getDictValue(), d.getSort() == null ? 999 : d.getSort());
+                    }
+                }
+            }
+            Map<String, Integer> finalMap = valueSort;
             sortedGroups.sort((a, b) -> {
-                int ia = order.indexOf(a.getKey());
-                int ib = order.indexOf(b.getKey());
-                return Integer.compare(ia < 0 ? 999 : ia, ib < 0 ? 999 : ib);
-            });
-        } else if ("establish".equals(queryType)) {
-            List<String> order = new ArrayList<>(ESTABLISH_STATUS_LABELS.keySet());
-            sortedGroups.sort((a, b) -> {
-                int ia = order.indexOf(a.getKey());
-                int ib = order.indexOf(b.getKey());
-                return Integer.compare(ia < 0 ? 999 : ia, ib < 0 ? 999 : ib);
+                Integer ia = finalMap.getOrDefault(a.getKey(), 9999);
+                Integer ib = finalMap.getOrDefault(b.getKey(), 9999);
+                return Integer.compare(ia, ib);
             });
         } else {
-            // 其他方案按总预算降序
+            // 村组等动态方案：按总预算降序
             sortedGroups.sort((a, b) -> sumBudget(b.getValue()).compareTo(sumBudget(a.getValue())));
         }
     }
@@ -601,15 +778,17 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         r.setGroupSummary(groupSummary);
         r.setGrandTotal(grandTotal);
 
-        boolean isVillageQuery = "village".equals(queryType);
-        // 方案3（按立项状态）和方案4（按项目状态）→ 只统计户数/设施数
-        boolean isHouseholdFacilityQuery = "establish".equals(queryType) || "status".equals(queryType);
+        // ===== 方案3/4 先算 householdCount + facilityCount（按 approvalId 聚合去重）=====
+        // 方案3（立项状态）/ 方案4（项目状态） 的明细量纲是户数+设施数，
+        // 同时也需要 projectCount（approval 去重数）、budget（项目预算）这些通用字段
+        boolean needHHFF = "establish".equals(queryType) || "status".equals(queryType);
 
-        if (isHouseholdFacilityQuery) {
-            Map<Long, Integer> householdAgg = new LinkedHashMap<>();
-            Map<Long, Integer> facilityAgg = new LinkedHashMap<>();
+        Map<Long, Integer> householdAgg = new LinkedHashMap<>();
+        Map<Long, Integer> facilityAgg = new LinkedHashMap<>();
+        if (needHHFF) {
             for (LabeledRow lr : rows) {
                 Long aid = lr.row.getApprovalId();
+                if (aid == null) continue;
                 int hh = lr.row.getHouseholdCount() != null ? lr.row.getHouseholdCount() : 0;
                 int ff = lr.row.getFacilityCount() != null ? lr.row.getFacilityCount() : 0;
                 householdAgg.merge(aid, hh, Integer::sum);
@@ -617,55 +796,47 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             }
             r.setHouseholdCount(householdAgg.values().stream().mapToInt(Integer::intValue).sum());
             r.setFacilityCount(facilityAgg.values().stream().mapToInt(Integer::intValue).sum());
-            return r;
         }
 
-        // 其他方案：统计项目数量、覆盖村组、预算、累计拨付
-        // 项目预算和累计拨付需要按 approvalId 去重后求和（一个 approve 可能有多行 declare）
+        // ===== 所有方案通用：统计 projectCount / villageCoverage / budget / totalFund =====
+        boolean isVillageQuery = "village".equals(queryType);
         Map<Long, ProjectCycleRawVO> approvalFirstRow = new LinkedHashMap<>();
         int projectCount = 0;
 
         if (isVillageQuery) {
-            // 方案5：项目数量 = (approvalId, villageName) 维度去重
             Set<String> projectVillageKeys = new HashSet<>();
-            // 先收集 (approvalId, villageName) 唯一键
             Set<Long> approvalIdsInThisVillage = new HashSet<>();
             for (LabeledRow lr : rows) {
                 ProjectCycleRawVO row = lr.row;
                 Long aid = row.getApprovalId();
                 String vn = row.getVillageName();
-                String key = aid + "|" + vn;
+                if (aid == null) continue;
+                String key = aid + "|" + (vn == null ? "" : vn);
                 if (projectVillageKeys.add(key)) {
                     projectCount++;
                     approvalIdsInThisVillage.add(aid);
                 }
             }
-            // 按 approvalId 去重后聚合预算和拨付
             for (LabeledRow lr : rows) {
                 Long aid = lr.row.getApprovalId();
-                if (approvalIdsInThisVillage.contains(aid)) {
+                if (aid != null && approvalIdsInThisVillage.contains(aid)) {
                     approvalFirstRow.putIfAbsent(aid, lr.row);
                 }
             }
         } else {
-            // 其他方案：项目数量 = 行数（不去重）？不——需求说"项目数量：符合条件项目记录条数"
-            // 这里的"项目"实际上是 approval 维度的行数？不对，再看需求
-            // 需求1/2/4：项目数量 = 符合条件项目记录条数（不去重）
-            // 因为以 declare 为粒度查询，一个 approval 可能有多行，所以"项目数量"应该是 approval 去重计数
+            // 按 approvalId 去重计数
             Set<Long> approvalIds = new HashSet<>();
             for (LabeledRow lr : rows) {
-                if (lr.row.getApprovalId() != null) {
-                    approvalIds.add(lr.row.getApprovalId());
-                    approvalFirstRow.putIfAbsent(lr.row.getApprovalId(), lr.row);
+                Long aid = lr.row.getApprovalId();
+                if (aid != null) {
+                    approvalIds.add(aid);
+                    approvalFirstRow.putIfAbsent(aid, lr.row);
                 }
             }
             projectCount = approvalIds.size();
         }
 
-        // 覆盖村组 = 行数（不去重）
         int villageCoverage = rows.size();
-
-        // 预算和拨付 = 去重后的 approvalFirstRow 求和
         BigDecimal budget = BigDecimal.ZERO;
         BigDecimal totalFund = BigDecimal.ZERO;
         for (ProjectCycleRawVO prv : approvalFirstRow.values()) {
@@ -680,6 +851,63 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         r.setBudget(budget);
         r.setTotalFund(totalFund);
         return r;
+    }
+
+    // ================== 内部：approval 粒度聚合 helper ==================
+
+    /**
+     * 按 approval 粒度聚合 declareCategory。
+     * 一个 approval 下的所有 declare，收集其 declare_category 的唯一值，
+     * 对齐字典 xiang_mu_lei_bie 的 dict_value：
+     * <ul>
+     *   <li>只有 '1' → 输出 '1'（到户项目）</li>
+     *   <li>只有 '2' → 输出 '2'（公建项目）</li>
+     *   <li>同时有 '1' 和 '2' → 输出 '3'（到户+公建混合项目，字典里已配）</li>
+     * </ul>
+     * 查 label 时由 labelRow 统一走字典 xiang_mu_lei_bie。
+     */
+    private Map<Long, String> buildApprovalMixedCategoryMap(List<ProjectCycleRawVO> rawList) {
+        Map<Long, Set<String>> approvalToCats = new LinkedHashMap<>();
+        for (ProjectCycleRawVO row : rawList) {
+            Long aid = row.getApprovalId();
+            String cat = row.getDeclareCategory();
+            if (aid == null || blankToNull(cat) == null) continue;
+            approvalToCats.computeIfAbsent(aid, k -> new LinkedHashSet<>()).add(cat);
+        }
+        Map<Long, String> out = new LinkedHashMap<>();
+        for (Map.Entry<Long, Set<String>> e : approvalToCats.entrySet()) {
+            Set<String> cats = e.getValue();
+            boolean has1 = cats.contains("1");
+            boolean has2 = cats.contains("2");
+            if (has1 && has2) {
+                out.put(e.getKey(), "3"); // 到户+公建混合项目
+            } else if (has1) {
+                out.put(e.getKey(), "1");
+            } else if (has2) {
+                out.put(e.getKey(), "2");
+            } else if (!cats.isEmpty()) {
+                // 其他未知值（字典里可能配了新项），原样输出让字典翻译兜底
+                out.put(e.getKey(), cats.iterator().next());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 按 approval 粒度聚合 projectType。
+     * 一个 approval 下的所有 declare，projectType 理论上是 approval 级字段，
+     * 所以同 approval 的所有 declare.projectType 值相同；如果遇到不同值（数据异常），取第一条非空值。
+     */
+    private Map<Long, String> buildApprovalProjectTypeMap(List<ProjectCycleRawVO> rawList) {
+        Map<Long, String> out = new LinkedHashMap<>();
+        for (ProjectCycleRawVO row : rawList) {
+            Long aid = row.getApprovalId();
+            if (aid == null) continue;
+            if (!out.containsKey(aid) && blankToNull(row.getProjectType()) != null) {
+                out.put(aid, row.getProjectType());
+            }
+        }
+        return out;
     }
 
     // ================== 内部：工具方法 ==================
@@ -734,12 +962,6 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
 
     private static String blankToDefault(String s, String def) {
         return blankToNull(s) == null ? def : s.trim();
-    }
-
-    private static String blankToLabel(String value, String directLabel) {
-        if (value == null) return "";
-        // directLabel 已经是翻译后的
-        return directLabel != null ? directLabel : value;
     }
 
     private static String blankToLabel(String value, Map<String, String> dict) {

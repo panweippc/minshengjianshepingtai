@@ -5,27 +5,27 @@
       <div class="filter-row">
         <div class="filter-left">
           <div class="filter-item">
-            <span class="filter-label">年度</span>
-            <el-select v-model="query.year" placeholder="全部" clearable style="width: 120px">
+            <span class="filter-label">年度筛选</span>
+            <el-select v-model="query.year" placeholder="全部年度" clearable style="width: 140px">
               <el-option v-for="y in yearOptions" :key="y" :label="y + '年'" :value="String(y)" />
             </el-select>
           </div>
           <div class="filter-item">
-            <span class="filter-label">区划</span>
+            <span class="filter-label">区划选择</span>
             <el-cascader
               v-model="query.regionCodePath"
               :options="regionTree"
               :props="cascaderProps"
-              placeholder="请选择区划"
+              placeholder="全部区划"
               clearable
-              style="width: 220px"
+              style="width: 240px"
             />
           </div>
         </div>
         <div class="filter-right">
           <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          <el-button type="success" icon="Download" :loading="exporting" @click="handleExport">导出Excel</el-button>
+          <el-button icon="Download" :loading="exporting" @click="handleExport">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -35,7 +35,7 @@
       <!-- 左侧筛选面板 -->
       <el-card shadow="never" class="sidebar">
         <template #header>
-          <div class="sidebar-title">统计筛选</div>
+          <div class="sidebar-title">查询方案</div>
         </template>
 
         <div class="filter-section">
@@ -45,8 +45,11 @@
               label="category"
               @change="onGroupByChange('category')"
             >
-              <span class="section-title-inline">按申报类别</span>
+              <span class="section-title-inline">按申报类别统计</span>
             </el-radio>
+          </div>
+          <div class="section-sub">
+            <span>申报类别（{{ sidebar.byCategory.length }}）</span>
           </div>
           <div
             v-for="item in sidebar.byCategory"
@@ -58,13 +61,12 @@
             }"
             @click="onSidebarItemClick('declarationCategory', 'category', item.value)"
           >
+            <span class="stat-check" />
             <span class="stat-label">{{ item.label }}</span>
             <span class="stat-count">{{ item.count }}</span>
           </div>
           <div v-if="sidebar.byCategory.length === 0" class="empty-hint">暂无数据</div>
         </div>
-
-        <el-divider class="sidebar-divider" />
 
         <div class="filter-section">
           <div class="section-header">
@@ -73,8 +75,11 @@
               label="status"
               @change="onGroupByChange('status')"
             >
-              <span class="section-title-inline">按审批状态</span>
+              <span class="section-title-inline">按审批状态统计</span>
             </el-radio>
+          </div>
+          <div class="section-sub">
+            <span>审批状态（{{ sidebar.byStatus.length }}）</span>
           </div>
           <div
             v-for="item in sidebar.byStatus"
@@ -86,13 +91,12 @@
             }"
             @click="onSidebarItemClick('status', 'status', item.value)"
           >
+            <span class="stat-check" />
             <span class="stat-label">{{ item.label }}</span>
             <span class="stat-count">{{ item.count }}</span>
           </div>
           <div v-if="sidebar.byStatus.length === 0" class="empty-hint">暂无数据</div>
         </div>
-
-        <el-divider class="sidebar-divider" />
 
         <div class="filter-section">
           <div class="section-header">
@@ -101,8 +105,11 @@
               label="village"
               @change="onGroupByChange('village')"
             >
-              <span class="section-title-inline">按所属村组</span>
+              <span class="section-title-inline">按所属村组统计</span>
             </el-radio>
+          </div>
+          <div class="section-sub">
+            <span>所属村组（{{ sidebar.byVillage.length }}）</span>
           </div>
           <div class="stat-scroll">
             <div
@@ -115,6 +122,7 @@
               }"
               @click="onSidebarItemClick('villageGroupCode', 'village', item.value)"
             >
+              <span class="stat-check" />
               <span class="stat-label">{{ item.label }}</span>
               <span class="stat-count">{{ item.count }}</span>
             </div>
@@ -129,19 +137,27 @@
 
       <!-- 右侧表格区 -->
       <el-card shadow="never" class="result-card">
+        <template #header>
+          <div class="result-header">
+            <div class="result-title-wrap">
+              <div class="result-sub">{{ resultSubtitle }}</div>
+            </div>
+            <div class="record-badge">共 {{ sourceRecordCount }} 条源记录</div>
+          </div>
+        </template>
         <el-table
           v-loading="loading"
           :data="rows"
-          border
           :row-class-name="rowClassName"
           :span-method="objectSpanMethod"
           @row-contextmenu="handleRowContextMenu"
         >
           <el-table-column
             :label="groupHeader"
-            min-width="140"
+            min-width="120"
           >
             <template #default="{ row }">
+              <span v-if="!row.groupSummary && !row.grandTotal" class="tree-line" />
               <span :class="{ 'grand-total': row.grandTotal, 'group-summary': row.groupSummary && !row.grandTotal }">
                 {{ query.groupBy === 'village' ? (row.villageName || row.groupLabel) : row.groupLabel }}
               </span>
@@ -151,7 +167,7 @@
             v-if="query.groupBy !== 'village'"
             prop="villageName"
             label="村组"
-            min-width="140"
+            min-width="100"
           >
             <template #default="{ row }">
               <span :class="{ 'grand-total': row.grandTotal }">
@@ -163,31 +179,31 @@
             v-if="query.groupBy !== 'status'"
             prop="declarationCount"
             label="申报单数（单）"
-            min-width="130"
+            min-width="110"
             align="right"
           >
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.declarationCount }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.declarationCount }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="householdCount" label="涉及户数（户）" min-width="130" align="right">
+          <el-table-column prop="householdCount" label="涉及户数（户）" min-width="110" align="right">
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.householdCount }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.householdCount }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="facilityCount" label="公建设施数（个）" min-width="140" align="right">
+          <el-table-column prop="facilityCount" label="公建设施数（个）" min-width="120" align="right">
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.facilityCount }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.facilityCount }}</span>
             </template>
           </el-table-column>
           <el-table-column
             v-if="query.groupBy !== 'status'"
             label="申报金额（元）"
-            min-width="160"
+            min-width="130"
             align="right"
           >
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">
+              <span class="amount-text" :class="{ 'grand-total': row.grandTotal }">
                 {{ formatMoney(row.amount) }}
               </span>
             </template>
@@ -315,6 +331,33 @@ const groupHeader = computed(() => {
   if (query.groupBy === 'status') return '审批状态'
   return '村组'
 })
+
+/** 右侧卡片副标题：年度 · 区划 · 统计结果 */
+const resultSubtitle = computed(() => {
+  const year = query.year ? `${query.year}年` : '全部年度'
+  const lastCode = query.regionCodePath[query.regionCodePath.length - 1]
+  const region = query.regionCodePath.length
+    ? findRegionLabel(regionTree.value, lastCode) || lastCode
+    : '全部区划'
+  return `${year} · ${region} · 统计结果`
+})
+
+/** 右侧卡片右上角：符合条件申报单总数 */
+const sourceRecordCount = computed(
+  () => rows.value.find((r) => r.grandTotal)?.declarationCount ?? 0
+)
+
+/** 在区划树中按 code 找名称（未命中返回空串，保证递归能继续搜兄弟节点） */
+function findRegionLabel(nodes: RegionNode[], code: string): string {
+  for (const n of nodes) {
+    if (n.value === code) return n.label
+    if (n.children && n.children.length) {
+      const hit = findRegionLabel(n.children, code)
+      if (hit) return hit
+    }
+  }
+  return ''
+}
 
 /** 当前是否有左侧面板筛选条件 */
 const hasSidebarFilter = computed(
@@ -535,6 +578,16 @@ onBeforeUnmount(() => {
 .declaration-query {
   padding: 0;
 }
+
+/* 通用卡片：圆角 + 柔和阴影 */
+.top-filter,
+.sidebar,
+.result-card {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(31, 45, 61, 0.06);
+  background: #fff;
+}
 .context-menu {
   position: fixed;
   z-index: 3000;
@@ -563,99 +616,158 @@ onBeforeUnmount(() => {
   color: #606266;
 }
 .top-filter {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+}
+.top-filter :deep(.el-card__body) {
+  padding: 18px 22px;
 }
 .filter-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 .filter-left {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-end;
+  gap: 26px;
   flex-wrap: wrap;
 }
 .filter-right {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+.filter-right :deep(.el-button) {
+  border-radius: 8px;
+  padding: 9px 18px;
+}
+.filter-right :deep(.el-button--primary) {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.28);
 }
 .filter-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
 .filter-label {
-  font-size: 13px;
-  color: #606266;
+  font-size: 12px;
+  color: #8a94a6;
+  letter-spacing: 0.4px;
   white-space: nowrap;
 }
 
 .main-body {
   display: flex;
-  gap: 12px;
-  height: calc(100vh - 160px);
+  gap: 14px;
+  height: calc(100vh - 174px);
   min-height: 520px;
 }
 
 /* 左侧筛选面板 */
 .sidebar {
-  flex: 0 0 260px;
-  overflow-y: auto;
+  flex: 0 0 206px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
+.sidebar :deep(.el-card__header) {
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0f2f5;
+}
 .sidebar :deep(.el-card__body) {
-  padding: 12px 14px 10px;
+  padding: 10px 10px 10px;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+.sidebar :deep(.el-card__body)::-webkit-scrollbar {
+  display: none;
 }
 .sidebar-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  color: #1f2d3d;
 }
 .filter-section {
-  margin-bottom: 4px;
-}
-.section-title {
-  font-size: 13px;
-  color: #909399;
-  margin-bottom: 6px;
-  font-weight: 500;
+  border: 1px solid #eef1f6;
+  border-radius: 12px;
+  padding: 10px 8px 6px;
+  margin-bottom: 10px;
+  background: #fcfdff;
 }
 .section-header {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+.section-header :deep(.el-radio) {
+  height: auto;
+  margin-right: 0;
+}
+.section-header :deep(.el-radio__label) {
+  padding-left: 6px;
 }
 .section-title-inline {
   font-size: 13px;
-  color: #606266;
-  font-weight: 500;
-  margin-left: 4px;
+  font-weight: 600;
+  color: #3a4557;
 }
-.stat-item {
+.section-sub {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
+  font-size: 12px;
+  color: #a0a8b9;
+  margin: 2px 0 8px;
+  padding-left: 0;
+}
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
   margin-bottom: 4px;
-  cursor: pointer;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 13px;
-  color: #303133;
-  transition: background 0.15s;
+  color: #3a4557;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 .stat-item:hover {
-  background: #f5f7fa;
+  background: #f4f7fd;
+}
+.stat-check {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid #d6dbe6;
+  background: #fff;
+  flex: 0 0 auto;
+  transition: all 0.15s;
 }
 .stat-item.active {
-  background: #ecf5ff;
-  color: #409eff;
+  background: #eef4ff;
+  color: #2f6bff;
   font-weight: 500;
+}
+.stat-item.active .stat-check {
+  background: #2f6bff;
+  border-color: #2f6bff;
+}
+.stat-item.active .stat-check::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .stat-label {
   flex: 1;
@@ -666,36 +778,45 @@ onBeforeUnmount(() => {
 }
 .stat-count {
   flex: 0 0 auto;
-  margin-left: 8px;
-  color: #909399;
+  font-size: 12px;
+  color: #8a94a6;
+  background: #f2f4f8;
+  border-radius: 10px;
+  padding: 1px 8px;
 }
 .stat-item.active .stat-count {
-  color: #409eff;
+  color: #2f6bff;
+  background: #e0eaff;
 }
 .stat-item.disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 .stat-item.disabled:hover {
   background: transparent;
 }
 .stat-scroll {
-  max-height: 260px;
+  max-height: 240px;
   overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: none;
+}
+.stat-scroll::-webkit-scrollbar {
+  display: none;
 }
 .empty-hint {
   font-size: 12px;
   color: #c0c4cc;
   padding: 6px 10px;
 }
-.sidebar-divider {
-  margin: 10px 0;
-}
 .sidebar-actions {
   padding-top: 10px;
-  border-top: 1px solid #ebeef5;
-  margin-top: 6px;
+  border-top: 1px solid #f0f2f5;
+  margin-top: auto;
   text-align: center;
+}
+.sidebar-actions :deep(.el-button) {
+  border-radius: 8px;
 }
 
 /* 右侧表格区 */
@@ -704,44 +825,116 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+.result-card :deep(.el-card__header) {
+  padding: 16px 22px;
+  border-bottom: 1px solid #f0f2f5;
 }
 .result-card :deep(.el-card__body) {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: 10px;
+  padding: 4px 22px 12px;
 }
 .result-card :deep(.el-table) {
   flex: 1;
 }
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.result-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.result-sub {
+  margin-top: 0;
+  font-size: 12px;
+  color: #a0a8b9;
+}
+.record-badge {
+  font-size: 12px;
+  color: #409eff;
+  background: #eef4ff;
+  border-radius: 14px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* 表格：隐藏竖线，仅保留浅色横线 */
+.result-card :deep(.el-table) {
+  --el-table-border-color: #f0f2f5;
+}
+.result-card :deep(.el-table::before) {
+  display: none;
+}
+.result-card :deep(.el-table th.el-table__cell) {
+  background: #f8fafd;
+  color: #8a94a6;
+  font-weight: 500;
+  font-size: 13px;
+  border-bottom: 1px solid #eef1f6;
+  padding: 12px 0;
+}
+.result-card :deep(.el-table td.el-table__cell) {
+  border-bottom: 1px solid #f4f6fa;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #3a4557;
+}
+.result-card :deep(.el-table tr:last-child td.el-table__cell) {
+  border-bottom: none;
+}
+.result-card :deep(.el-table__row:hover > td.el-table__cell) {
+  background: #f8fbff !important;
+}
 
 /* 行样式 */
 .row-grand-total {
-  background: #f0f4fa !important;
-  font-weight: 600;
+  background: #f5f8fd !important;
 }
 .row-group-summary {
-  background: #fafbfc !important;
-  font-weight: 500;
+  background: #fafcff !important;
 }
 .grand-total {
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: #1f2d3d;
 }
 .group-summary {
-  font-weight: 500;
-  color: #303133;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.num-text {
+  font-variant-numeric: tabular-nums;
+}
+.amount-text {
+  color: #16a34a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tree-line {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: #e3e8f0;
+  margin-right: 10px;
+  vertical-align: -1px;
+  border-radius: 1px;
 }
 
 /* 口径说明 */
 .caliber-note {
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: #f4f4f5;
-  border-radius: 4px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f8fafd;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
   font-size: 12px;
-  color: #909399;
+  color: #8a94a6;
   display: flex;
   align-items: center;
   gap: 6px;

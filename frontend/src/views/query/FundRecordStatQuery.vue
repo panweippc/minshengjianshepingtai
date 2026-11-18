@@ -1,113 +1,131 @@
 <template>
   <div class="fund-stat-query">
-    <!-- ========= 顶部筛选区（参考图：只有年度 + 区划 + 查询按钮） ========= -->
+    <!-- ========= 顶部筛选区 ========= -->
     <el-card shadow="never" class="top-filter">
       <div class="filter-row">
-        <div class="filter-item">
-          <span class="filter-label">年度</span>
-          <el-select v-model="query.year" placeholder="全部" clearable style="width: 120px">
-            <el-option v-for="y in yearOptions" :key="y" :label="y + '年'" :value="String(y)" />
-          </el-select>
+        <div class="filter-left">
+          <div class="filter-item">
+            <span class="filter-label">年度筛选</span>
+            <el-select v-model="query.year" placeholder="全部年度" clearable style="width: 140px">
+              <el-option v-for="y in yearOptions" :key="y" :label="y + '年'" :value="String(y)" />
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <span class="filter-label">区划选择</span>
+            <el-cascader
+              v-model="query.regionCodePath"
+              :options="regionTree"
+              :props="{ value: 'code', label: 'name', children: 'children', checkStrictly: true }"
+              placeholder="全部区划"
+              clearable
+              filterable
+              style="width: 240px"
+            />
+          </div>
         </div>
-        <div class="filter-item">
-          <span class="filter-label">区划</span>
-          <el-cascader
-            v-model="query.regionCodePath"
-            :options="regionTree"
-            :props="{ value: 'code', label: 'name', children: 'children', checkStrictly: true }"
-            placeholder="请选择区划"
-            clearable
-            filterable
-            style="width: 260px"
-          />
-        </div>
-        <div class="filter-item filter-item--btns">
-          <el-button type="primary" :loading="loading" @click="handleQuery">查询</el-button>
-          <el-button @click="resetQuery">重置</el-button>
+        <div class="filter-right">
+          <el-button type="primary" icon="Search" :loading="loading" @click="handleQuery">查询</el-button>
+          <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         </div>
       </div>
     </el-card>
 
     <!-- ========= 左侧维度面板 + 右侧主区域 ========= -->
     <div class="main-body">
-      <!-- 左侧维度面板（和 DeclarationQuery 风格一致） -->
+      <!-- 左侧维度面板 -->
       <el-card shadow="never" class="sidebar">
+        <template #header>
+          <div class="sidebar-title">查询方案</div>
+        </template>
+
         <div class="filter-section">
           <div class="section-header">
-            <span class="section-title-inline" :class="{ 'section-title-inline--active': query.groupType === 'fundType' }" @click="switchGroupTypeOnly('fundType')">按资金类型</span>
+            <el-radio :model-value="query.groupType" label="fundType" @change="switchGroupTypeOnly('fundType')">
+              <span class="section-title-inline">按资金类型统计</span>
+            </el-radio>
           </div>
-          <div class="stat-scroll">
-            <div
-              v-for="item in sidebar.byFundType"
-              :key="item.value"
-              class="stat-item"
-              :class="{
-                active: query.groupType === 'fundType' && query.groupValue && String(item.value) === String(query.groupValue),
-                disabled: query.groupType !== 'fundType'
-              }"
-              @click="onSidebarItemClick('fundType', item.value)"
-            >
-              <span class="stat-label">{{ item.label }}</span>
-              <span class="stat-count">{{ item.count }}</span>
-            </div>
-            <div v-if="sidebar.byFundType.length === 0" class="empty-hint">暂无数据</div>
+          <div class="section-sub">
+            <span>资金类型（{{ sidebar.byFundType.length }}）</span>
           </div>
+          <div
+            v-for="item in sidebar.byFundType"
+            :key="item.value"
+            class="stat-item"
+            :class="{
+              active: query.groupType === 'fundType' && query.groupValue && String(item.value) === String(query.groupValue),
+              disabled: query.groupType !== 'fundType'
+            }"
+            @click="onSidebarItemClick('fundType', item.value)"
+          >
+            <span class="stat-check" />
+            <span class="stat-label">{{ item.label }}</span>
+            <span class="stat-count">{{ item.count }}</span>
+          </div>
+          <div v-if="sidebar.byFundType.length === 0" class="empty-hint">暂无数据</div>
         </div>
 
-        <el-divider class="sidebar-divider" />
-
         <div class="filter-section">
           <div class="section-header">
-            <span class="section-title-inline" :class="{ 'section-title-inline--active': query.groupType === 'fundSource' }" @click="switchGroupTypeOnly('fundSource')">按资金来源</span>
+            <el-radio :model-value="query.groupType" label="fundSource" @change="switchGroupTypeOnly('fundSource')">
+              <span class="section-title-inline">按资金来源统计</span>
+            </el-radio>
           </div>
-          <div class="stat-scroll">
-            <div
-              v-for="item in sidebar.byFundSource"
-              :key="item.value"
-              class="stat-item"
-              :class="{
-                active: query.groupType === 'fundSource' && query.groupValue && String(item.value) === String(query.groupValue),
-                disabled: query.groupType !== 'fundSource'
-              }"
-              @click="onSidebarItemClick('fundSource', item.value)"
-            >
-              <span class="stat-label">{{ item.label }}</span>
-              <span class="stat-count">{{ item.count }}</span>
-            </div>
-            <div v-if="sidebar.byFundSource.length === 0" class="empty-hint">暂无数据</div>
+          <div class="section-sub">
+            <span>资金来源（{{ sidebar.byFundSource.length }}）</span>
           </div>
+          <div
+            v-for="item in sidebar.byFundSource"
+            :key="item.value"
+            class="stat-item"
+            :class="{
+              active: query.groupType === 'fundSource' && query.groupValue && String(item.value) === String(query.groupValue),
+              disabled: query.groupType !== 'fundSource'
+            }"
+            @click="onSidebarItemClick('fundSource', item.value)"
+          >
+            <span class="stat-check" />
+            <span class="stat-label">{{ item.label }}</span>
+            <span class="stat-count">{{ item.count }}</span>
+          </div>
+          <div v-if="sidebar.byFundSource.length === 0" class="empty-hint">暂无数据</div>
         </div>
 
-        <el-divider class="sidebar-divider" />
-
         <div class="filter-section">
           <div class="section-header">
-            <span class="section-title-inline" :class="{ 'section-title-inline--active': query.groupType === 'nodeLevel' }" @click="switchGroupTypeOnly('nodeLevel')">按节点层级</span>
+            <el-radio :model-value="query.groupType" label="nodeLevel" @change="switchGroupTypeOnly('nodeLevel')">
+              <span class="section-title-inline">按节点层级统计</span>
+            </el-radio>
           </div>
-          <div class="stat-scroll">
-            <div
-              v-for="item in sidebar.byNodeLevel"
-              :key="item.value"
-              class="stat-item"
-              :class="{
-                active: query.groupType === 'nodeLevel' && query.groupValue && String(item.value) === String(query.groupValue),
-                disabled: query.groupType !== 'nodeLevel'
-              }"
-              @click="onSidebarItemClick('nodeLevel', item.value)"
-            >
-              <span class="stat-label">{{ item.label }}</span>
-              <span class="stat-count">{{ item.count }}</span>
-            </div>
+          <div class="section-sub">
+            <span>节点层级（{{ sidebar.byNodeLevel.length }}）</span>
           </div>
+          <div
+            v-for="item in sidebar.byNodeLevel"
+            :key="item.value"
+            class="stat-item"
+            :class="{
+              active: query.groupType === 'nodeLevel' && query.groupValue && String(item.value) === String(query.groupValue),
+              disabled: query.groupType !== 'nodeLevel'
+            }"
+            @click="onSidebarItemClick('nodeLevel', item.value)"
+          >
+            <span class="stat-check" />
+            <span class="stat-label">{{ item.label }}</span>
+            <span class="stat-count">{{ item.count }}</span>
+          </div>
+          <div v-if="sidebar.byNodeLevel.length === 0" class="empty-hint">暂无数据</div>
         </div>
 
-        <el-divider class="sidebar-divider" />
-
         <div class="filter-section">
           <div class="section-header">
-            <span class="section-title-inline" :class="{ 'section-title-inline--active': query.groupType === 'village' }" @click="switchGroupTypeOnly('village')">按所属村组</span>
+            <el-radio :model-value="query.groupType" label="village" @change="switchGroupTypeOnly('village')">
+              <span class="section-title-inline">按所属村组统计</span>
+            </el-radio>
           </div>
-          <div class="stat-scroll stat-scroll--village">
+          <div class="section-sub">
+            <span>所属村组（{{ sidebar.byVillage.length }}）</span>
+          </div>
+          <div class="stat-scroll">
             <div
               v-for="item in sidebar.byVillage"
               :key="item.value"
@@ -118,41 +136,38 @@
               }"
               @click="onSidebarItemClick('village', item.value)"
             >
+              <span class="stat-check" />
               <span class="stat-label">{{ item.label }}</span>
               <span class="stat-count">{{ item.count }}</span>
             </div>
-            <div v-if="sidebar.byVillage.length === 0" class="empty-hint">暂无数据</div>
           </div>
+          <div v-if="sidebar.byVillage.length === 0" class="empty-hint">暂无数据</div>
         </div>
 
-        <div class="sidebar-actions">
-          <el-button link type="primary" @click="clearSidebarFilter">清除筛选</el-button>
+        <div v-if="query.groupValue" class="sidebar-actions">
+          <el-button size="small" @click="clearSidebarFilter">清除筛选</el-button>
         </div>
       </el-card>
 
-      <!-- 右侧主区域：主统计汇总表（参考图嵌套结构 + DeclarationQuery 模式） -->
+      <!-- 右侧表格区 -->
       <el-card shadow="never" class="result-card">
-        <!-- 表头顶部：副标题 + 右上角总条数 -->
-        <div class="table-header-bar">
-          <div class="table-subtitle">
-            {{ query.year || '全部' }}年 · {{ regionLabel }} · 统计结果
+        <template #header>
+          <div class="result-header">
+            <div class="result-title-wrap">
+              <div class="result-sub">{{ resultSubtitle }}</div>
+            </div>
+            <div class="record-badge">共 {{ globalSummary.recordCount }} 条源记录</div>
           </div>
-          <div class="table-total">
-            共 <span class="table-total-num">{{ globalSummary.recordCount }}</span> 条源记录
-          </div>
-        </div>
+        </template>
 
-        <!-- 主统计表：嵌套展平 + grandTotal 总计行 -->
         <el-table
           :data="rows"
           v-loading="loading"
-          border
-          stripe
           :row-class-name="rowClassName"
-          style="flex: 1"
         >
-          <el-table-column :label="groupHeader" min-width="140">
+          <el-table-column :label="groupHeader" min-width="120">
             <template #default="{ row }">
+              <span v-if="!row.groupSummary && !row.grandTotal" class="tree-line" />
               <span :class="{
                 'grand-total': row.grandTotal,
                 'group-summary': row.groupSummary && !row.grandTotal
@@ -163,30 +178,30 @@
             v-if="query.groupType !== 'village'"
             prop="villageName"
             label="村组"
-            min-width="140"
+            min-width="100"
           >
             <template #default="{ row }">
               <span :class="{ 'grand-total': row.grandTotal }">{{ row.villageName }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="recordCount" label="资金笔数（笔）" min-width="120" align="right">
+          <el-table-column prop="recordCount" label="资金笔数（笔）" min-width="110" align="right">
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.recordCount }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.recordCount }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="projectCount" label="涉及项目（个）" min-width="120" align="right">
+          <el-table-column prop="projectCount" label="涉及项目（个）" min-width="110" align="right">
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.projectCount }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.projectCount }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="villageCoverage" label="覆盖村组（个）" min-width="130" align="right">
+          <el-table-column prop="villageCoverage" label="覆盖村组（个）" min-width="120" align="right">
             <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.villageCoverage }}</span>
+              <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.villageCoverage }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="资金金额（元）" min-width="180" align="right">
+          <el-table-column label="资金金额（元）" min-width="130" align="right">
             <template #default="{ row }">
-              <span class="amount-cell" :class="{ 'grand-total': row.grandTotal }">
+              <span class="amount-text" :class="{ 'grand-total': row.grandTotal }">
                 {{ formatMoney(row.amount) }}
               </span>
             </template>
@@ -294,6 +309,12 @@ const regionLabel = computed(() => {
     return ''
   }
   return walk(regionTree.value, query.regionCode) || '全部区划'
+})
+
+/** 结果区副标题：年度 · 区划 · 统计结果 */
+const resultSubtitle = computed(() => {
+  const year = query.year ? `${query.year}年` : '全部年度'
+  return `${year} · ${regionLabel.value} · 统计结果`
 })
 
 /** 根据 row 标记加 class（grandTotal 最底总计、groupSummary 大分组汇总） */
@@ -414,69 +435,337 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.fund-stat-query { padding: 0; }
-.top-filter { margin-bottom: 12px; }
-.filter-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-.filter-item { display: flex; align-items: center; gap: 8px; }
-.filter-item--btns { margin-left: auto; }
-.filter-label { font-size: 13px; color: #606266; white-space: nowrap; }
+.fund-stat-query {
+  padding: 0;
+}
 
-.main-body { display: flex; gap: 12px; height: calc(100vh - 260px); min-height: 520px; }
-.sidebar { flex: 0 0 260px; overflow-y: auto; }
-.sidebar > :deep(.el-card__body) { padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 4px; }
+/* 通用卡片：圆角 + 柔和阴影 */
+.top-filter,
+.sidebar,
+.result-card {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(31, 45, 61, 0.06);
+  background: #fff;
+}
+.top-filter {
+  margin-bottom: 14px;
+}
+.top-filter :deep(.el-card__body) {
+  padding: 18px 22px;
+}
+.filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.filter-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+.filter-right {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filter-right :deep(.el-button) {
+  border-radius: 8px;
+  padding: 9px 18px;
+}
+.filter-right :deep(.el-button--primary) {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.28);
+}
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.filter-label {
+  font-size: 12px;
+  color: #8a94a6;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
 
-.filter-section { margin-bottom: 4px; }
-.section-header { margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-.section-title-inline { font-size: 13px; color: #606266; font-weight: 500; margin-left: 4px; cursor: pointer; user-select: none; }
-.section-title-inline:hover { color: #409eff; }
-.section-title-inline--active { color: #409eff; }
+.main-body {
+  display: flex;
+  gap: 14px;
+  height: calc(100vh - 174px);
+  min-height: 520px;
+}
 
-.stat-scroll { max-height: 160px; overflow-y: auto; }
-.stat-scroll--village { max-height: 260px; }
-
+/* 左侧筛选面板 */
+.sidebar {
+  flex: 0 0 206px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar :deep(.el-card__header) {
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.sidebar :deep(.el-card__body) {
+  padding: 10px 10px 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.sidebar :deep(.el-card__body)::-webkit-scrollbar {
+  display: none;
+}
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.filter-section {
+  border: 1px solid #eef1f6;
+  border-radius: 12px;
+  padding: 10px 8px 6px;
+  margin-bottom: 10px;
+  background: #fcfdff;
+}
+.section-header {
+  margin-bottom: 4px;
+}
+.section-header :deep(.el-radio) {
+  height: auto;
+  margin-right: 0;
+}
+.section-header :deep(.el-radio__label) {
+  padding-left: 6px;
+}
+.section-title-inline {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a4557;
+}
+.section-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #a0a8b9;
+  margin: 2px 0 8px;
+  padding-left: 0;
+}
 .stat-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 10px; margin-bottom: 4px;
-  cursor: pointer; border-radius: 4px; font-size: 13px; color: #606266; transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #3a4557;
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.stat-item:hover { background: #f5f7fa; }
-.stat-item.active { background: #ecf5ff; color: #409eff; font-weight: 500; }
-.stat-item.disabled { color: #909399; }
-.stat-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stat-count { flex: 0 0 auto; margin-left: 8px; color: #c0c4cc; font-size: 12px; font-variant-numeric: tabular-nums; }
-.stat-item.active .stat-count { color: #409eff; }
-
-.empty-hint { font-size: 12px; color: #c0c4cc; padding: 6px 10px; text-align: center; }
-.sidebar-divider { margin: 10px 0; }
-.sidebar-actions { padding-top: 10px; border-top: 1px solid #ebeef5; margin-top: 6px; text-align: center; }
-
-.result-card { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px; }
-.result-card :deep(.el-card__body) { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px; }
-
-/* 表头顶部副标题条 */
-.table-header-bar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0 4px 10px; font-size: 13px; margin-bottom: 0;
+.stat-item:hover {
+  background: #f4f7fd;
 }
-.table-subtitle { color: #606266; font-weight: 500; }
-.table-total { color: #909399; }
-.table-total-num { color: #409eff; font-weight: 600; font-variant-numeric: tabular-nums; margin: 0 2px; }
+.stat-check {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid #d6dbe6;
+  background: #fff;
+  flex: 0 0 auto;
+  transition: all 0.15s;
+}
+.stat-item.active {
+  background: #eef4ff;
+  color: #2f6bff;
+  font-weight: 500;
+}
+.stat-item.active .stat-check {
+  background: #2f6bff;
+  border-color: #2f6bff;
+}
+.stat-item.active .stat-check::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.stat-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #8a94a6;
+  background: #f2f4f8;
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.stat-item.active .stat-count {
+  color: #2f6bff;
+  background: #e0eaff;
+}
+.stat-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.stat-item.disabled:hover {
+  background: transparent;
+}
+.stat-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: none;
+}
+.stat-scroll::-webkit-scrollbar {
+  display: none;
+}
+.empty-hint {
+  font-size: 12px;
+  color: #c0c4cc;
+  padding: 6px 10px;
+}
+.sidebar-actions {
+  padding-top: 10px;
+  border-top: 1px solid #f0f2f5;
+  margin-top: auto;
+  text-align: center;
+}
+.sidebar-actions :deep(.el-button) {
+  border-radius: 8px;
+}
 
-/* 行类型样式 */
-:deep(.row-grand-total) { background: #fdf6ec !important; font-weight: 600; }
-:deep(.row-grand-total td.el-table__cell),
-:deep(.row-grand-total td.el-table__cell .cell) { background: #fdf6ec !important; }
-:deep(.row-group-summary) { background: #fafafa !important; }
-:deep(.row-group-summary td.el-table__cell),
-:deep(.row-group-summary td.el-table__cell .cell) { background: #fafafa !important; font-weight: 500; }
+/* 右侧表格区 */
+.result-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.result-card :deep(.el-card__header) {
+  padding: 16px 22px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.result-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 4px 22px 12px;
+}
+.result-card :deep(.el-table) {
+  flex: 1;
+}
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.result-sub {
+  margin-top: 0;
+  font-size: 12px;
+  color: #a0a8b9;
+}
+.record-badge {
+  font-size: 12px;
+  color: #409eff;
+  background: #eef4ff;
+  border-radius: 14px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
 
-/* grandTotal / groupSummary span 样式 */
-.grand-total { font-weight: 700; color: #303133; }
-.group-summary { font-weight: 600; color: #303133; }
+/* 表格：隐藏竖线，仅保留浅色横线 */
+.result-card :deep(.el-table) {
+  --el-table-border-color: #f0f2f5;
+}
+.result-card :deep(.el-table::before) {
+  display: none;
+}
+.result-card :deep(.el-table th.el-table__cell) {
+  background: #f8fafd;
+  color: #8a94a6;
+  font-weight: 500;
+  font-size: 13px;
+  border-bottom: 1px solid #eef1f6;
+  padding: 12px 0;
+}
+.result-card :deep(.el-table td.el-table__cell) {
+  border-bottom: 1px solid #f4f6fa;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #3a4557;
+}
+.result-card :deep(.el-table tr:last-child td.el-table__cell) {
+  border-bottom: none;
+}
+.result-card :deep(.el-table__row:hover > td.el-table__cell) {
+  background: #f8fbff !important;
+}
 
-/* 金额列 —— 参考图：绿色 */
-.amount-cell { color: #52c41a; font-variant-numeric: tabular-nums; }
-.amount-cell.grand-total { color: #52c41a; font-weight: 700; }
+/* 行样式 */
+.row-grand-total {
+  background: #f5f8fd !important;
+}
+.row-group-summary {
+  background: #fafcff !important;
+}
+.grand-total {
+  font-weight: 700;
+  color: #1f2d3d;
+}
+.group-summary {
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.num-text {
+  font-variant-numeric: tabular-nums;
+}
+.amount-text {
+  color: #16a34a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tree-line {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: #e3e8f0;
+  margin-right: 10px;
+  vertical-align: -1px;
+  border-radius: 1px;
+}
 
-.caliber-note { margin-top: 12px; padding: 8px 12px; background: #f4f5f5; border-radius: 4px; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 6px; line-height: 1.6; }
+/* 口径说明 */
+.caliber-note {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f8fafd;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #8a94a6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.6;
+}
 </style>
