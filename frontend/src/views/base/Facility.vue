@@ -376,24 +376,6 @@
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
-
-    <!-- 附件图片预览 -->
-    <el-dialog
-      v-model="previewVisible"
-      :title="previewName || '附件预览'"
-      width="820px"
-      destroy-on-close
-      @closed="handlePreviewClosed"
-    >
-      <div class="preview-body">
-        <img v-if="previewUrl" :src="previewUrl" class="preview-image" alt="附件预览" />
-      </div>
-      <!-- 预览弹窗内提供下载入口，避免只能看图无法保存 -->
-      <template #footer>
-        <el-button v-if="previewFile" type="primary" @click="handleDownloadAttachment(previewFile)">下载</el-button>
-        <el-button @click="previewVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -628,17 +610,10 @@ const detailDialogVisible = ref(false)
 const detailActiveTab = ref('info')
 const detail = ref<FacilityDetailVO | null>(null)
 
-/** 附件预览弹窗（图片） */
-const previewVisible = ref(false)
-const previewUrl = ref('')
-const previewName = ref('')
-/** 当前预览中的文件，供弹窗内“下载”按钮复用 */
-const previewFile = ref<FacilityAttachmentVO | null>(null)
-
 /** 图片类后缀 */
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
 
-/** 点击附件文件名：图片弹窗预览、PDF 新窗口打开、其它类型触发下载 */
+/** 点击附件文件名：与资金管理一致，统一在新窗口以时效签名URL预览 */
 const handlePreviewAttachment = async (row: FacilityAttachmentVO) => {
   if (!row.filePath) {
     ElMessage.warning('该附件未上传文件，请编辑后重新上传')
@@ -654,13 +629,7 @@ const handlePreviewAttachment = async (row: FacilityAttachmentVO) => {
     download: !isImage && ext !== 'pdf'
   })
   const url = res.data
-  if (isImage) {
-    previewUrl.value = url
-    previewName.value = row.fileName || '附件预览'
-    previewFile.value = row
-    previewVisible.value = true
-    return
-  }
+  // 与资金管理一致：附件（含图片）统一在新窗口以时效签名URL预览
   window.open(url, '_blank')
 }
 
@@ -688,13 +657,6 @@ const handleDownloadAttachment = async (file: AttachmentFileItem) => {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-}
-
-/** 关闭预览弹窗（签名URL无需释放） */
-const handlePreviewClosed = () => {
-  previewUrl.value = ''
-  previewName.value = ''
-  previewFile.value = null
 }
 
 /** 查看弹窗附件：按「附件类型 + 备注」归并，与编辑弹窗保持一致（一个附件含多个文件） */
@@ -1222,19 +1184,6 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
-}
-/* 附件预览：图片等比缩放并居中 */
-.preview-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-height: 70vh;
-  overflow: auto;
-}
-.preview-image {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
 }
 /* 查看弹窗附件：同一附件下的多个文件逐行展示 */
 .attachment-file-line {

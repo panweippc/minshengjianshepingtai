@@ -602,7 +602,7 @@
     <el-dialog
       v-model="detailEditDialog.visible"
       :title="detailEditDialog.kind === 'household' ? '编辑农户明细' : '编辑公建设施明细'"
-      width="600px"
+      width="900px"
       :close-on-click-modal="false"
     >
       <el-form label-width="120px" :model="detailEditDialog.data">
@@ -637,23 +637,37 @@
           <el-button type="primary" link :disabled="detailAttachments.length >= 30" @click="addDetailAttachmentRow">+ 添加一组附件</el-button>
         </div>
         <div v-if="!detailAttachments.length" class="detail-attach-empty">暂无附件，点击上方按钮添加</div>
-        <div v-for="(_, idx) in detailAttachments" :key="idx" class="detail-attach-row">
-          <el-select v-model="detailAttachments[idx].attachmentType" placeholder="附件类型" style="width: 140px">
-            <el-option v-for="d in attachmentTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
-          </el-select>
-          <el-upload
-            :auto-upload="false"
-            :show-file-list="false"
-            :disabled="!!detailAttachments[idx].fileKey"
-            @change="(file: any) => handleDetailAttachmentFileChange(file, idx)"
-          >
-            <div class="upload-trigger detail-upload-trigger">
-              <el-icon><Upload /></el-icon>
-              <span class="attach-file-name">{{ detailAttachments[idx].fileName || '点击选择文件' }}</span>
+        <div v-for="(_, idx) in detailAttachments" :key="idx" class="attachment-row">
+          <div class="attachment-row-header">
+            <span class="attachment-row-index">#{{ idx + 1 }}</span>
+            <el-button link type="danger" icon="Delete" @click="removeDetailAttachmentRow(idx)">删除</el-button>
+          </div>
+          <div class="attachment-row-body">
+            <div class="attachment-field">
+              <label>附件类型</label>
+              <el-select v-model="detailAttachments[idx].attachmentType" placeholder="请选择" style="width: 100%">
+                <el-option v-for="d in attachmentTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
+              </el-select>
             </div>
-          </el-upload>
-          <el-input v-model="detailAttachments[idx].remark" placeholder="备注" style="flex: 1" />
-          <el-button type="danger" link @click="removeDetailAttachmentRow(idx)">删除</el-button>
+            <div class="attachment-field">
+              <label>上传文件</label>
+              <el-upload
+                :auto-upload="false"
+                :show-file-list="false"
+                :disabled="!!detailAttachments[idx].fileKey"
+                @change="(file: any) => handleDetailAttachmentFileChange(file, idx)"
+              >
+                <div class="upload-trigger">
+                  <el-icon><Upload /></el-icon>
+                  <span>{{ detailAttachments[idx].fileName || '点击选择文件' }}</span>
+                </div>
+              </el-upload>
+            </div>
+            <div class="attachment-field attachment-field-wide">
+              <label>备注</label>
+              <el-input v-model="detailAttachments[idx].remark" placeholder="选填" maxlength="256" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -681,9 +695,6 @@
             <span v-else>{{ row.fileName }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="文件大小" width="110">
-          <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
-        </el-table-column>
         <el-table-column label="备注" min-width="150">
           <template #default="{ row }">{{ row.remark || '—' }}</template>
         </el-table-column>
@@ -707,9 +718,6 @@
             <el-link v-if="a.fileKey" type="primary" @click="openAttachmentFile(a, true)">{{ a.fileName }}</el-link>
             <span v-else>{{ a.fileName }}</span>
           </template>
-        </el-table-column>
-        <el-table-column label="文件大小" width="110">
-          <template #default="{ row: a }">{{ formatFileSize(a.fileSize) }}</template>
         </el-table-column>
         <el-table-column label="备注" min-width="150">
           <template #default="{ row: a }">{{ a.remark || '—' }}</template>
@@ -862,6 +870,7 @@ import {
   editPublicFacilityDetail,
   type DeclarationQuery,
   type DeclarationSaveDTO,
+  type DeclarationAttachmentItem,
   type DeclarationVO,
   type UserRegionVO,
   type VillageGroupOption,
@@ -1059,15 +1068,6 @@ function formatAmount(v?: number | string | null) {
   const n = Number(v)
   if (isNaN(n)) return String(v)
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-/** 文件大小展示：B / KB / MB / GB */
-function formatFileSize(bytes?: number): string {
-  if (!bytes || bytes <= 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let idx = 0
-  let size = bytes
-  while (size >= 1024 && idx < units.length - 1) { size /= 1024; idx++ }
-  return `${size.toFixed(2)} ${units[idx]}`
 }
 
 /**
@@ -1540,9 +1540,21 @@ async function handleAttachmentFileChange(file: any, row: AttachmentRow) {
     // ElMessage 已拦截
   }
 }
-async function openAttachmentFile(file: any, download = false) {
+/** 附件访问：与资金管理一致，统一在新窗口以时效签名URL预览；禁止永久直链 */
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+
+async function openAttachmentFile(file: DeclarationAttachmentItem, download = false) {
   if (!file?.fileKey) return
-  const res = await getPresignUrl({ bucket: file.bucket, fileKey: file.fileKey, fileName: file.fileName, download })
+  const bucket = file.bucket || 'archive-formal'
+  const ext = (file.fileName || '').split('.').pop()?.toLowerCase() || ''
+  const isImage = IMAGE_EXTENSIONS.includes(ext)
+  const res = await getPresignUrl({
+    bucket,
+    fileKey: file.fileKey,
+    fileName: file.fileName,
+    // 图片不强制下载，交由浏览器新窗口预览
+    download: download && !isImage
+  })
   window.open(res.data as string, '_blank')
 }
 
@@ -1955,9 +1967,6 @@ onMounted(async () => {
 .detail-attachments { margin-top: 8px; border-top: 1px dashed #ebeef5; padding-top: 12px; }
 .detail-attach-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #606266; font-weight: 600; }
 .detail-attach-empty { color: #909399; font-size: 13px; padding: 12px 0; text-align: center; }
-.detail-attach-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.attach-file-name { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #606266; }
-.detail-upload-trigger { padding: 4px 10px; min-height: 30px; font-size: 12px; gap: 4px; }
 </style>
 
 <!-- ============ 非 scoped style 块 ============ -->
