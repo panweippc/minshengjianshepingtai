@@ -150,11 +150,9 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         approval.setUpdateTime(now);
         approvalMapper.insert(approval);
 
-        // 3.1 先把 parentList 中"已被其他非终态 approval 绑定"的申报单解绑出来，作废旧立项
-        //     —— 审批人重新发起同一申报单的立项时，旧 PENDING 单自动作废，避免 declare_code 唯一键冲突
-        for (Declaration d : parentList) {
-            evictFromPendingApproval(d.getId(), d.getBusinessCode(), username, now);
-        }
+        // 3.1 不再对"同申报单已被其他 PENDING 立项绑定"做自动作废，
+        //     业务上允许一条申报单同时出现在多条立项单中（可按明细分批立项）。
+        //     evictFromPendingApproval 方法保留给后续若有需要的手动作废入口调用。
 
         // 4. declare + detail + 状态推进（按前端选中的明细绑定，未选明细时绑定该申报单下全部已通过明细）
         int declareCount = 0, detailCount = 0;

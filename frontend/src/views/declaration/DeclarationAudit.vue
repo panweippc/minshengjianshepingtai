@@ -45,6 +45,7 @@
         </div>
       </div>
       <el-table
+        ref="auditTableRef"
         v-loading="loading"
         :data="treeTableData"
         border stripe
@@ -55,7 +56,7 @@
         :row-class-name="isDetailRowClass"
         @selection-change="onSelectionChange"
       >
-        <!-- selection：只在已通过页签生效，且只选父申报单行 -->
+        <!-- selection：只在已通过页签生效，利用 Element Plus 树形内置联动（勾父行自动全选可勾子明细；子全选父自动变蓝；子部分选父半选） -->
         <el-table-column v-if="activeStatusTab === 'approved'" type="selection" width="45" :selectable="isSelectableRow" />
 
         <!-- 第 0 列：树形展开箭头列（空 label），Element Plus 自动把箭头放这 -->
@@ -1102,7 +1103,10 @@ async function doRevertDetailDeclaration() {
 
 // ================== 多选（已通过页签） ==================
 const selectedRows = ref<any[]>([])
-/** 已选明细所属的申报单数量（同一申报单不同明细可分多次立项，勾选粒度到明细） */
+/** 表格实例 ref（保留，后续若需手动 clearSelection 等操作可复用） */
+const auditTableRef = ref<any>(null)
+
+/** 已选明细所属的申报单数量（Element Plus 树形联动会把父行也放进 selection，这里再过滤回只统计明细 → 申报单） */
 const selectedDeclarationIds = computed(() =>
   Array.from(new Set(
     selectedRows.value
@@ -1112,12 +1116,23 @@ const selectedDeclarationIds = computed(() =>
 )
 
 function isSelectableRow(row: any) {
-  // 立项粒度到三级明细：仅已通过的明细行可勾选，同一申报单可分批立项
-  return !!row._isDetail && row.auditStatus === 'approved'
+  // 立项粒度到三级明细：
+  //  - 父申报单行：允许勾选（勾上后 Element Plus 自动把其 children 中 selectable 的子明细一起勾上）
+  //  - 子明细行：仅 audit_status === approved 的可勾选（其余状态不可立项）
+  if (!row._isDetail) return true
+  return row.auditStatus === 'approved'
 }
 
+/**
+ * 全链路交给 Element Plus 树形 table 内置联动，这里只做两件事：
+ *  1. selectedRows 只保留明细行（父行被 @selectable 允许进 selection，但后端立项只认明细）
+ *  2. 父行 checkbox 的蓝/半选状态完全由 Element Plus 自动维护，不干预
+ *     - 子全选 → 父行变蓝（is-checked）
+ *     - 子部分选 → 父行半选灰条（is-indeterminate）
+ *     - 子全未选 → 父行未选灰框
+ */
 function onSelectionChange(rows: any[]) {
-  selectedRows.value = rows
+  selectedRows.value = rows.filter((r: any) => r._isDetail)
 }
 
 // ================== 立项弹窗（已通过页签 → 新建立项） ==================
