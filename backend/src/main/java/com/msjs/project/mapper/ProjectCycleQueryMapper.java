@@ -41,7 +41,7 @@ public interface ProjectCycleQueryMapper {
             "   IFNULL(f.facility_cnt, 0) AS facilityCount, " +
             "   IFNULL(fund.total_fund, 0) AS totalFund " +
             " FROM t_project_approval a " +
-            " JOIN t_project_approval_declare d ON d.approval_id = a.id AND d.deleted = 0 " +
+            " LEFT JOIN t_project_approval_declare d ON d.approval_id = a.id AND d.deleted = 0 " +
             " LEFT JOIN t_project_archive ar ON ar.approval_id = a.id AND ar.deleted = 0 " +
             " LEFT JOIN (" +
             "   SELECT declare_id, COUNT(*) AS household_cnt " +
@@ -97,7 +97,7 @@ public interface ProjectCycleQueryMapper {
             "   IFNULL(f.facility_cnt, 0) AS facilityCount, " +
             "   IFNULL(fund.total_fund, 0) AS totalFund " +
             " FROM t_project_approval a " +
-            " JOIN t_project_approval_declare d ON d.approval_id = a.id AND d.deleted = 0 " +
+            " LEFT JOIN t_project_approval_declare d ON d.approval_id = a.id AND d.deleted = 0 " +
             " LEFT JOIN t_project_archive ar ON ar.approval_id = a.id AND ar.deleted = 0 " +
             " LEFT JOIN (" +
             "   SELECT declare_id, COUNT(*) AS household_cnt " +

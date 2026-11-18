@@ -279,12 +279,8 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
         BigDecimal totalBalance = payAmt.subtract(allocAmt);
 
         out.add(buildSimpleAmountRow("balance", "结余", "全部村组", totalBalance, true));
-        // 结余 village 子层 = pay(village) - allocate(village)
-        Set<String> allVillages = new LinkedHashSet<>();
-        Stream.of(applyRows.stream(), payRows.stream(), allocateRows.stream())
-                .forEach(s -> s.map(r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName())
-                        .forEach(allVillages::add));
-        for (String v : allVillages) {
+        // 结余 village 子层 = pay(village) - allocate(village) —— 按字典全量输出（无数据也出 0 值）
+        for (String v : getAllVillageNames()) {
             BigDecimal pv = sumAmount(filterByVillage(payRows, v));
             BigDecimal av = sumAmount(filterByVillage(allocateRows, v));
             out.add(buildSimpleAmountRow("balance", "结余", v, pv.subtract(av), false));
@@ -331,13 +327,14 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
         List<FundStatVO.Row> out = new ArrayList<>();
         // summary 行（全部村组）
         out.add(buildOneRow(groupValue, groupLabel, "全部村组", rows, true, false, null));
-        // village 明细行
+        // village 明细行：按字典全量输出（无数据也出一行 0 值）
         Map<String, List<FundDetailRowVO>> villageBucket = rows.stream()
                 .collect(Collectors.groupingBy(
                         r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName(),
-                        LinkedHashMap::new, Collectors.toList()));
-        for (Map.Entry<String, List<FundDetailRowVO>> ve : villageBucket.entrySet()) {
-            out.add(buildOneRow(groupValue, groupLabel, ve.getKey(), ve.getValue(), false, false, null));
+                        HashMap::new, Collectors.toList()));
+        for (String v : getAllVillageNames()) {
+            List<FundDetailRowVO> vRows = villageBucket.getOrDefault(v, Collections.emptyList());
+            out.add(buildOneRow(groupValue, groupLabel, v, vRows, false, false, null));
         }
         return out;
     }
@@ -379,19 +376,48 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
 
     // ============== 嵌套聚合（仿照 DeclarationQuery 后端模式） ==============
 
+    /** 村全量字典缓存（level=5 即村，name 作 join key）——按字典全量 left join，无数据也输出 */
+    private volatile List<String> allVillageNamesCache;
+    private List<String> getAllVillageNames() {
+        if (allVillageNamesCache != null) return allVillageNamesCache;
+        synchronized (this) {
+            if (allVillageNamesCache != null) return allVillageNamesCache;
+            List<SysRegion> levels = regionMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
+                            .eq(SysRegion::getLevel, 5)
+                            .orderByAsc(SysRegion::getSort));
+            List<String> names = new ArrayList<>();
+            for (SysRegion r : levels) if (r.getName() != null && !r.getName().isBlank()) names.add(r.getName());
+            allVillageNamesCache = names;
+            return names;
+        }
+    }
+
     /**
      * 构造两层嵌套 rows：大分组（按 groupType）→ 每个大分组下按 village 子分组
      * 每个大分组先输出一行 groupSummary=true 的 "全部村组" 汇总行，再依次输出该大分组下的具体村组明细行。
      * 最后追加一行 grandTotal=true 的总计行（remark="全部区划"）。
      *
-     * <p>特例：groupType=village 时，大分组就是村组本身，不展示 villageName 子列（前端用 v-if 隐藏），
-     * 所有行当作普通明细行，只在最底追加 grandTotal。</p>
+     * <p>特例：groupType=village 时，大分组就是村组本身，按字典全量村组顺序输出（无数据也出一行 0 值）。</p>
+     * <p>二级村组：按字典全量输出（无数据也出一行 0 值），left join 当前大分组下的实际数据。</p>
      */
     private List<FundStatVO.Row> buildNestedRows(List<FundDetailRowVO> all, String groupType) {
         String gt = (groupType == null || groupType.isBlank()) ? "fundType" : groupType;
         boolean isVillageGroup = "village".equals(gt);
+        // 需要按字典全量输出的分组维度（无数据也出一行 0 值）
+        boolean dictAllMode = isVillageGroup || "fundSource".equals(gt) || "nodeLevel".equals(gt);
 
-        // 1) 先按大分组 gt 分桶
+        // ==== 村字典全量（level=5） ====
+        List<String> allVillageNames = getAllVillageNames();
+
+        // ==== 先把 all 按 villageName 建索引（给外层 village group 和二级村组用） ====
+        Map<String, List<FundDetailRowVO>> allByVillage = new HashMap<>();
+        for (FundDetailRowVO row : all) {
+            String vn = blankToNull(row.getVillageName()) == null ? "(未填)" : row.getVillageName();
+            allByVillage.computeIfAbsent(vn, k -> new ArrayList<>()).add(row);
+        }
+
+        // 1) 大分组：先按 gt 分桶
         Map<String, List<FundDetailRowVO>> grouped = new LinkedHashMap<>();
         Map<String, String> labels = new HashMap<>();
         for (FundDetailRowVO row : all) {
@@ -403,15 +429,58 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
 
         List<FundStatVO.Row> out = new ArrayList<>();
 
-        // nodeLevel 固定按 1→2→3 顺序，其他维度按总金额降序
-        List<Map.Entry<String, List<FundDetailRowVO>>> sortedGroups = new ArrayList<>(grouped.entrySet());
-        if ("nodeLevel".equals(gt)) {
-            sortedGroups.sort((a, b) -> {
-                int ia = parseIntOr(a.getKey(), Integer.MAX_VALUE);
-                int ib = parseIntOr(b.getKey(), Integer.MAX_VALUE);
-                return Integer.compare(ia, ib);
-            });
+        // 排序：nodeLevel 固定按 1→2→3 顺序；fundSource 按字典全量顺序；village 按字典全量顺序；其余按总金额降序
+        List<Map.Entry<String, List<FundDetailRowVO>>> sortedGroups;
+        if (isVillageGroup) {
+            // village 分组：外层按字典全量顺序（name 匹配 grouped key）
+            sortedGroups = new ArrayList<>();
+            for (String vName : allVillageNames) {
+                List<FundDetailRowVO> vRows = allByVillage.getOrDefault(vName, Collections.emptyList());
+                if (vRows.isEmpty() && !grouped.containsKey(vName)) {
+                    sortedGroups.add(new java.util.AbstractMap.SimpleEntry<>(vName, Collections.emptyList()));
+                    labels.put(vName, vName);
+                } else if (grouped.containsKey(vName)) {
+                    sortedGroups.add(new java.util.AbstractMap.SimpleEntry<>(vName, grouped.get(vName)));
+                }
+            }
+        } else if ("nodeLevel".equals(gt)) {
+            // nodeLevel：固定 3 个层级，全量输出（字典里没数据也出 0 值）
+            sortedGroups = new ArrayList<>();
+            String[][] fixed = {
+                    {"1", "项目级资金登记"},
+                    {"2", "申报单下拨资金"},
+                    {"3", "到户/公建下拨资金"}
+            };
+            for (String[] item : fixed) {
+                String val = item[0];
+                String lb  = item[1];
+                List<FundDetailRowVO> bucket = grouped.getOrDefault(val, Collections.emptyList());
+                labels.put(val, lb);
+                sortedGroups.add(new java.util.AbstractMap.SimpleEntry<>(val, bucket));
+            }
+        } else if ("fundSource".equals(gt)) {
+            // fundSource：按字典全量输出（zi_jin_lai_yuan），无数据也出 0 值
+            sortedGroups = new ArrayList<>();
+            List<SysDict> dictItems = dictService.listByType("zi_jin_lai_yuan");
+            if (dictItems != null) {
+                for (SysDict d : dictItems) {
+                    String val = d.getDictValue();
+                    if (val == null) continue;
+                    List<FundDetailRowVO> bucket = grouped.getOrDefault(val, Collections.emptyList());
+                    labels.put(val, d.getDictLabel() != null ? d.getDictLabel() : val);
+                    sortedGroups.add(new java.util.AbstractMap.SimpleEntry<>(val, bucket));
+                }
+            }
+            // 再补上数据里有但字典里没的（脏数据兜底）
+            for (Map.Entry<String, List<FundDetailRowVO>> e : grouped.entrySet()) {
+                boolean already = sortedGroups.stream().anyMatch(s -> s.getKey().equals(e.getKey()));
+                if (!already) {
+                    labels.putIfAbsent(e.getKey(), e.getKey());
+                    sortedGroups.add(e);
+                }
+            }
         } else {
+            sortedGroups = new ArrayList<>(grouped.entrySet());
             sortedGroups.sort((a, b) -> {
                 BigDecimal sa = sumAmount(a.getValue()), sb = sumAmount(b.getValue());
                 return sb.compareTo(sa);
@@ -429,13 +498,15 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
                     true, false, null));
 
             if (!isVillageGroup) {
-                // 2b) 该大分组下再按 village 细分输出明细行
-                Map<String, List<FundDetailRowVO>> villageBucket = bucket.stream()
-                        .collect(Collectors.groupingBy(
-                                r -> blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName(),
-                                LinkedHashMap::new, Collectors.toList()));
-                for (Map.Entry<String, List<FundDetailRowVO>> ve : villageBucket.entrySet()) {
-                    out.add(buildOneRow(bigGroupValue, bigGroupLabel, ve.getKey(), ve.getValue(),
+                // 2b) 该大分组下按字典全量村组输出明细行（无数据也出一行 0 值）
+                Map<String, List<FundDetailRowVO>> bucketByVillage = new HashMap<>();
+                for (FundDetailRowVO r : bucket) {
+                    String vn = blankToNull(r.getVillageName()) == null ? "(未填)" : r.getVillageName();
+                    bucketByVillage.computeIfAbsent(vn, k -> new ArrayList<>()).add(r);
+                }
+                for (String vName : allVillageNames) {
+                    List<FundDetailRowVO> vRows = bucketByVillage.getOrDefault(vName, Collections.emptyList());
+                    out.add(buildOneRow(bigGroupValue, bigGroupLabel, vName, vRows,
                             false, false, null));
                 }
             }
@@ -444,6 +515,9 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
         // 3) 最底追加 grandTotal 行
         if (!all.isEmpty()) {
             out.add(buildOneRow("", "总计", "全部区划", all, false, true, "全部区划"));
+        } else if (!sortedGroups.isEmpty()) {
+            // all 为空但 sortedGroups 不为空（全是字典里的空桶），仍输出 grandTotal
+            out.add(buildOneRow("", "总计", "全部区划", Collections.emptyList(), false, true, "全部区划"));
         }
 
         return out;

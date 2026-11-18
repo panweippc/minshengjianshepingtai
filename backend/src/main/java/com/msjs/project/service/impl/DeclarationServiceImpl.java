@@ -59,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -752,7 +753,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (SysUser u : list) {
             Map<String, Object> m = new HashMap<>();
-            m.put("id", u.getId());
+            // 雪花ID必须手动 toString，否则 Map<String, Object> 里 Jackson 按 Long 数字序列化
+            // 前端 JSON.parse 19 位 Long 超出 Number.MAX_SAFE_INTEGER 丢精度 → 提交时 recipientUserId 变错 → "审核人不存在"
+            m.put("id", String.valueOf(u.getId()));
             m.put("username", u.getUsername());
             m.put("realName", u.getRealName());
             m.put("phone", u.getPhone());
@@ -1762,6 +1765,19 @@ public class DeclarationServiceImpl implements DeclarationService {
         // ==== 字典缓存（申报类别动态，审批状态固定口径） ====
         List<SysDict> catDict = sysDictService.listByType("shen_bao_lei_bie");
 
+        // ==== 村全量字典（区划表 level=5 即村）——按字典全量 left join，保证无数据村也显示 ====
+        List<SysRegion> allVillageRegions = regionMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
+                        .eq(SysRegion::getLevel, 5)
+                        .orderByAsc(SysRegion::getSort)
+        );
+        Map<String, String> villageCode2Name = new LinkedHashMap<>();
+        List<String> villageCodeOrder = new ArrayList<>();
+        for (SysRegion r : allVillageRegions) {
+            villageCode2Name.put(r.getCode(), r.getName());
+            villageCodeOrder.add(r.getCode());
+        }
+
         // 2) 构建扁平明细列表（ household + facility 拍平成 FlatItem）
         Set<Long> declIds = declarations.stream().map(Declaration::getId).collect(Collectors.toSet());
         // 主表查找 declId → 主表对象（用于回填 category/village 信息）
@@ -1857,6 +1873,15 @@ public class DeclarationServiceImpl implements DeclarationService {
             mainGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
         }
         List<String> orderedMainKeys = orderedKeys(mainGroup.keySet(), groupBy, catDict);
+        // 当 groupBy='village' 时 mainKey 就是村组 code，需要按全量字典顺序重新排（并 left join 数据）
+        if ("village".equals(groupBy)) {
+            List<String> allVillageKeys = new ArrayList<>(villageCodeOrder);
+            // 字典里没有但数据里有的（兜底）
+            for (String k : mainGroup.keySet()) {
+                if (!villageCode2Name.containsKey(k) && !k.isEmpty()) allVillageKeys.add(k);
+            }
+            orderedMainKeys = allVillageKeys;
+        }
 
         // 全局总计（申报单数按 distinct declarationId；户数/设施数不去重累加）
         Set<Long> grandDeclIds = new HashSet<>();
@@ -1871,31 +1896,37 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
 
         for (String mainKey : orderedMainKeys) {
-            List<FlatItem> groupItems = mainGroup.get(mainKey);
-            String mainLbl = mainLabel.getOrDefault(mainKey, mainKey);
-
-            // 二级：按 villageGroupCode 再拆
-            Map<String, List<FlatItem>> byVillage = new HashMap<>();
-            Map<String, String> villageNameMap = new HashMap<>();
-            for (FlatItem f : groupItems) {
-                String vgKey = f.villageGroupCode == null ? "" : f.villageGroupCode;
-                byVillage.computeIfAbsent(vgKey, k -> new ArrayList<>()).add(f);
-                villageNameMap.putIfAbsent(vgKey, f.villageGroupName == null ? (vgKey.isEmpty() ? "未知村组" : vgKey) : f.villageGroupName);
+            // mainGroup 里可能没有（字典有但数据无），此时 groupItems 为空
+            List<FlatItem> groupItems = mainGroup.getOrDefault(mainKey, Collections.emptyList());
+            String mainLbl;
+            if ("village".equals(groupBy)) {
+                mainLbl = villageCode2Name.getOrDefault(mainKey, mainKey);
+            } else {
+                mainLbl = mainLabel.getOrDefault(mainKey, mainKey);
             }
-            List<String> vgKeys = new ArrayList<>(byVillage.keySet());
-            java.util.Collections.sort(vgKeys);
 
-            // 分组汇总行（一级）
-            DeclarationStatisticsVO.Row summaryRow = buildRow(groupItems, mainLbl, "全部村组", null, true, false);
-            rows.add(summaryRow);
+            if ("village".equals(groupBy)) {
+                // village 分组已经是最细粒度，直接输出扁平普通行（不嵌套 summary + 二级）
+                DeclarationStatisticsVO.Row flatRow = buildRow(groupItems, mainLbl, mainLbl, mainKey, false, false);
+                rows.add(flatRow);
+            } else {
+                // 分组汇总行（一级）
+                DeclarationStatisticsVO.Row summaryRow = buildRow(groupItems, mainLbl, "全部村组", null, true, false);
+                rows.add(summaryRow);
 
-            // 二级：村组明细行
-            for (String vgKey : vgKeys) {
-                List<FlatItem> vgItems = byVillage.get(vgKey);
-                DeclarationStatisticsVO.Row detailRow = buildRow(vgItems, "",
-                        villageNameMap.getOrDefault(vgKey, vgKey),
-                        vgKey.isEmpty() ? null : vgKey, false, false);
-                rows.add(detailRow);
+                // 二级：按字典全量村组顺序输出明细行
+                Map<String, List<FlatItem>> byVillage = new HashMap<>();
+                for (FlatItem f : groupItems) {
+                    String vgKey = f.villageGroupCode == null ? "" : f.villageGroupCode;
+                    byVillage.computeIfAbsent(vgKey, k -> new ArrayList<>()).add(f);
+                }
+                for (String vgKey : villageCodeOrder) {
+                    List<FlatItem> vgItems = byVillage.getOrDefault(vgKey, Collections.emptyList());
+                    DeclarationStatisticsVO.Row detailRow = buildRow(vgItems, "",
+                            villageCode2Name.getOrDefault(vgKey, vgKey),
+                            vgKey, false, false);
+                    rows.add(detailRow);
+                }
             }
         }
 
@@ -1952,24 +1983,31 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         sidebar.setByStatus(byStatus);
 
-        // 按所属村组
+        // 按所属村 —— 区划表全量（level=5），无数据也输出 count=0
         List<DeclarationStatisticsVO.StatItem> byVillage = new ArrayList<>();
         Map<String, Set<Long>> vgDecl = new HashMap<>();
-        Map<String, String> vgNameMap = new HashMap<>();
         for (FlatItem f : flatItems) {
             String vg = f.villageGroupCode == null ? "" : f.villageGroupCode;
             vgDecl.computeIfAbsent(vg, k -> new HashSet<>());
             if (f.declarationId != null) vgDecl.get(vg).add(f.declarationId);
-            vgNameMap.putIfAbsent(vg, f.villageGroupName == null ? (vg.isEmpty() ? "未知村组" : vg) : f.villageGroupName);
         }
-        List<String> vgKeysSorted = new ArrayList<>(vgDecl.keySet());
-        java.util.Collections.sort(vgKeysSorted, (a, b) -> vgNameMap.getOrDefault(a, a).compareTo(vgNameMap.getOrDefault(b, b)));
-        for (String vg : vgKeysSorted) {
+        // 先按字典全量输出（villageCodeOrder 有顺序）
+        for (String vg : villageCodeOrder) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
-            it.setValue(vg.isEmpty() ? null : vg);
-            it.setLabel(vgNameMap.getOrDefault(vg, vg));
+            it.setValue(vg);
+            it.setLabel(villageCode2Name.getOrDefault(vg, vg));
             it.setCount(vgDecl.getOrDefault(vg, Collections.emptySet()).size());
             byVillage.add(it);
+        }
+        // 再补：有 flatItems 但字典里没有的（兜底，理论上不应出现）
+        for (String vg : vgDecl.keySet()) {
+            if (!villageCode2Name.containsKey(vg) && !vg.isEmpty()) {
+                DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
+                it.setValue(vg);
+                it.setLabel(vg);
+                it.setCount(vgDecl.get(vg).size());
+                byVillage.add(it);
+            }
         }
         sidebar.setByVillage(byVillage);
 

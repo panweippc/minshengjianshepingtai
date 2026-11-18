@@ -132,6 +132,12 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         approval.setUpdateTime(now);
         approvalMapper.insert(approval);
 
+        // 3.1 先把 parents 中"已被其他非终态 approval 绑定"的申报单解绑出来，作废旧立项
+        //     —— 审批人重新发起同一申报单的立项时，旧 PENDING 单自动作废，避免 declare_code 唯一键冲突
+        for (Declaration d : parents) {
+            evictFromPendingApproval(d.getId(), d.getBusinessCode(), username, now);
+        }
+
         // 4. declare + detail + 状态推进
         int declareCount = 0, detailCount = 0;
         for (Declaration d : parents) {
@@ -262,6 +268,40 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         // 移除关联申报单：删除 declare + 明细，并把申报明细状态回退为已通过
         if (dto.getRemoveDeclarationIds() != null && !dto.getRemoveDeclarationIds().isEmpty()) {
             unbindDeclarations(approval, dto.getRemoveDeclarationIds());
+        }
+    }
+
+    /**
+     * 若某 declarationId 已被**其他非终态审批单**绑定（PENDING 或类似待审状态），
+     * 则自动作废旧审批单 + 硬删 declare/detail/attachment + 明细状态回退为 approved。
+     * —— 目的：允许审批人重新发起同一申报单的立项，不会撞 declare_code 唯一键。
+     * （终态 APPROVED/REJECTED 不动，防止篡改已归档审批结果）
+     */
+    private void evictFromPendingApproval(Long declarationId, String businessCode, String username, LocalDateTime now) {
+        if (declarationId == null) return;
+        List<ProjectApprovalDeclare> linked = declareMapper.selectList(
+                new LambdaQueryWrapper<ProjectApprovalDeclare>()
+                        .eq(ProjectApprovalDeclare::getDeclarationId, declarationId));
+        if (linked.isEmpty()) return;
+
+        // 同 declarationId 可能被多次绑定，取最近那条（sort/更新时间最大）对应的 approval
+        for (ProjectApprovalDeclare declare : linked) {
+            ProjectApproval oldApproval = approvalMapper.selectById(declare.getApprovalId());
+            if (oldApproval == null) continue;
+            if (Constants.APPROVAL_STATUS_APPROVED.equals(oldApproval.getStatus())
+                    || Constants.APPROVAL_STATUS_REJECTED.equals(oldApproval.getStatus())) {
+                continue; // 终态不动
+            }
+            // 作废旧审批单
+            oldApproval.setStatus(Constants.APPROVAL_STATUS_REJECTED);
+            oldApproval.setRemark("作废（由系统自动处理：申报单 " + businessCode
+                    + " 被重新立项，旧审批单 " + oldApproval.getApprovalCode() + " 自动作废）");
+            oldApproval.setUpdateBy(username);
+            oldApproval.setUpdateTime(now);
+            approvalMapper.updateById(oldApproval);
+
+            // 复用 unbindDeclarations 的解绑逻辑（当前 approval 无所谓，只拿 declare 链）
+            unbindDeclarations(oldApproval, List.of(declarationId));
         }
     }
 
@@ -698,14 +738,53 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
             }
         }
 
-        // 3. 父申报单状态回算：established 也算"全部完成"，推进到 approved（或维持）
-        d.setStatus("approved");
-        d.setAuditBy(userId);
-        d.setAuditTime(now);
-        d.setAuditRemark("明细已立项（审批单：" + approval.getApprovalCode() + "）");
-        d.setUpdateBy(username);
-        d.setUpdateTime(now);
-        declarationMapper.updateById(d);
+        // 3. 父申报单状态回算（增量立项：只把 approved 明细推进成 established，其余 pending 明细不动）
+        //    有 pending → 保持 submitted（不锁死剩余审核入口，审批人还能继续驳回/通过）
+        //    无 pending 且无 rejected → 推 approved（全部完成）
+        //    无 pending 但有 rejected → 推 rejected（整体驳回）
+        boolean hasPending;
+        boolean hasRejected;
+        if ("1".equals(d.getDeclarationCategory())) {
+            List<String> ss = householdMapper.selectList(new LambdaQueryWrapper<DeclarationHousehold>()
+                            .eq(DeclarationHousehold::getDeclarationId, d.getId()))
+                    .stream().map(DeclarationHousehold::getAuditStatus).toList();
+            hasPending = ss.stream().anyMatch(s -> s == null || s.isEmpty() || "pending".equals(s));
+            hasRejected = ss.stream().anyMatch("rejected"::equals);
+        } else if ("2".equals(d.getDeclarationCategory())) {
+            List<String> ss = facilityMapper.selectList(new LambdaQueryWrapper<DeclarationPublicFacility>()
+                            .eq(DeclarationPublicFacility::getDeclarationId, d.getId()))
+                    .stream().map(DeclarationPublicFacility::getAuditStatus).toList();
+            hasPending = ss.stream().anyMatch(s -> s == null || s.isEmpty() || "pending".equals(s));
+            hasRejected = ss.stream().anyMatch("rejected"::equals);
+        } else {
+            hasPending = false;
+            hasRejected = false;
+        }
+
+        Declaration upd = new Declaration();
+        upd.setId(d.getId());
+        upd.setUpdateBy(username);
+        upd.setUpdateTime(now);
+        if (hasPending) {
+            // 还有 pending：保持 submitted，让剩余明细还能驳回/通过
+            upd.setStatus("submitted");
+            upd.setAuditBy(userId);
+            upd.setAuditTime(now);
+            upd.setAuditRemark("部分明细已立项（审批单：" + approval.getApprovalCode() + "），剩余明细待审");
+        } else if (hasRejected) {
+            // 无 pending 但有 rejected：整体驳回
+            upd.setStatus("rejected");
+            upd.setAuditBy(userId);
+            upd.setAuditTime(now);
+            upd.setAuditRemark("明细全部处理完毕，存在驳回项（审批单：" + approval.getApprovalCode() + "）");
+        } else {
+            // 无 pending、无 rejected：全部 approved/established → 整体 approved
+            upd.setStatus("approved");
+            upd.setAuditBy(userId);
+            upd.setAuditTime(now);
+            upd.setAuditRemark("明细全部立项通过（审批单：" + approval.getApprovalCode() + "）");
+        }
+        declarationMapper.updateById(upd);
         return detailCount;
     }
 
