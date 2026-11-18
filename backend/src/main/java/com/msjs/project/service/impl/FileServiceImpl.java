@@ -102,19 +102,7 @@ public class FileServiceImpl implements FileService {
             throw new BizException("文件读取失败，请稍后重试");
         }
 
-        // 秒传：命中记录且对象仍存在时直接复用，不再写新对象
-        SysFile staleRecord = null;
-        SysFile existing = findExistingBySha256(sha256);
-        if (existing != null) {
-            if (isObjectExists(existing.getBucket(), existing.getFileKey())) {
-                log.info("命中秒传，复用已有文件: fileId={}, sha256={}", existing.getId(), sha256);
-                return toVO(existing, true);
-            }
-            // 对象已被清理：忽略该记录继续正常上传，后续复用该记录修复元数据（避免唯一键冲突）
-            log.warn("秒传记录对应对象已不存在，重新上传: fileId={}, fileKey={}", existing.getId(), existing.getFileKey());
-            staleRecord = existing;
-        }
-
+        // 业务约束：相同文件允许多次上传，每次都生成新的 MinIO 对象记录，不复用已有 SHA256
         try {
             ensureBucket(Constants.BUCKET_ARCHIVE_FORMAL);
             // 对象 key：日期分目录 + UUID 防重名，保留原后缀
@@ -132,7 +120,7 @@ public class FileServiceImpl implements FileService {
                         .build());
             }
 
-            SysFile record = persistRecord(staleRecord, originalName, fileKey,
+            SysFile record = persistRecord(null, originalName, fileKey,
                     Constants.BUCKET_ARCHIVE_FORMAL, file.getSize(), contentType, sha256, effectiveBizType);
             return toVO(record, false);
         } catch (BizException e) {
@@ -277,20 +265,7 @@ public class FileServiceImpl implements FileService {
             // 流式计算合并后文件的 SHA256
             String sha256 = calcObjectSha256(mergedObject);
 
-            // 秒传：命中记录且对象仍存在，清理临时分片并返回原记录
-            SysFile staleRecord = null;
-            SysFile existing = findExistingBySha256(sha256);
-            if (existing != null) {
-                if (isObjectExists(existing.getBucket(), existing.getFileKey())) {
-                    removeTempObjects(validUploadId);
-                    log.info("分片合并命中秒传，复用已有文件: fileId={}, sha256={}", existing.getId(), sha256);
-                    return toVO(existing, true);
-                }
-                log.warn("秒传记录对应对象已不存在，重新归档: fileId={}, fileKey={}",
-                        existing.getId(), existing.getFileKey());
-                staleRecord = existing;
-            }
-
+            // 业务约束：相同文件允许多次上传，每次生成分片都归档为新的对象记录
             // 复制到正式归档桶（沿用日期目录 + UUID key 规则）
             String fileKey = buildFileKey(suffix);
             minioClient.copyObject(CopyObjectArgs.builder()
@@ -302,7 +277,7 @@ public class FileServiceImpl implements FileService {
                             .build())
                     .build());
 
-            SysFile record = persistRecord(staleRecord, originalName, fileKey,
+            SysFile record = persistRecord(null, originalName, fileKey,
                     Constants.BUCKET_ARCHIVE_FORMAL, mergedStat.size(), mergedStat.contentType(),
                     sha256, effectiveBizType);
             // 归档完成后清理该 uploadId 下全部临时分片与合并对象

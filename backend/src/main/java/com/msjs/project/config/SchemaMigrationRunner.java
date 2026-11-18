@@ -40,6 +40,7 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         fixApprovalDetailTargetCode();
         migrateApprovalProjectType();
         ensureHomeMenu();
+        dropSysFileSha256Unique();
     }
 
     /**
@@ -200,6 +201,40 @@ public class SchemaMigrationRunner implements ApplicationRunner {
             rm.setMenuId(home.getId());
             roleMenuMapper.insert(rm);
             log.info("[Migration] 已为区级经办人授予「首页」菜单");
+        }
+    }
+
+    /**
+     * 业务变更：相同文件允许重复上传，删除 t_sys_file.sha256 上的唯一索引。
+     * 保留普通索引即可（若后续查询性能不足可按需改为普通索引）。
+     * 幂等：索引不存在会被 MySQL 报错，catch 后仅 info 记录。
+     */
+    private void dropSysFileSha256Unique() {
+        // 先查询该列上是否存在唯一索引（不同建表脚本可能起了不同名字，遍历所有 UQ 类型索引）
+        try {
+            Integer uniqueCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS " +
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_sys_file' " +
+                    "AND COLUMN_NAME = 'sha256' AND NON_UNIQUE = 0", Integer.class);
+            if (uniqueCount == null || uniqueCount == 0) {
+                log.info("[Migration] t_sys_file.sha256 上不存在唯一索引，跳过");
+                return;
+            }
+            // 查出具体索引名（可能是 uk_sha256，也可能是其他脚本起的名字）
+            java.util.List<String> idxNames = jdbcTemplate.queryForList(
+                    "SELECT DISTINCT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS " +
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_sys_file' " +
+                    "AND COLUMN_NAME = 'sha256' AND NON_UNIQUE = 0", String.class);
+            for (String idx : idxNames) {
+                try {
+                    jdbcTemplate.update("ALTER TABLE t_sys_file DROP INDEX `" + idx + "`");
+                    log.info("[Migration] 已删除 t_sys_file.sha256 上的唯一索引：{}", idx);
+                } catch (Exception e) {
+                    log.warn("[Migration] DROP INDEX {} 失败：{}", idx, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[Migration] 查询 INFORMATION_SCHEMA 失败：{}", e.getMessage());
         }
     }
 }

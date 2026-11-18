@@ -111,6 +111,14 @@ export interface ApprovalQuery extends PageQuery {
   endTime?: string
 }
 
+/** 立项关联申报单及选中的三级明细 */
+export interface ApprovalDeclareSelection {
+  /** 申报单ID */
+  declarationId: string
+  /** 选中的三级明细ID集合；不传表示该申报单下全部已通过明细 */
+  detailIds?: string[]
+}
+
 /** 立项编辑入参 */
 export interface ApprovalEditDTO {
   id: string
@@ -123,8 +131,8 @@ export interface ApprovalEditDTO {
   applyBy?: string
   remark?: string
   attachments?: ApprovalAttachmentItem[]
-  /** 本次新增关联的申报单ID集合（编辑时追加） */
-  addDeclarationIds?: string[]
+  /** 本次新增关联的申报单及选中明细（编辑时追加） */
+  addDeclarations?: ApprovalDeclareSelection[]
   /** 本次移除关联的申报单ID集合（编辑时解绑） */
   removeDeclarationIds?: string[]
 }

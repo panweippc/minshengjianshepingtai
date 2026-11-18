@@ -135,7 +135,8 @@
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button link type="primary" @click="openView(row)">查看</el-button>
-              <!-- 一级项目 / 二级申报：每级只维护自己的验收状态；施工中 / 未开工禁用并提示 -->
+              <!-- 一级项目 / 二级申报：每级只维护自己的验收状态；施工中 / 未开工禁用并提示
+                   按钮配色：一级绿色（success），二级橙色（warning） -->
               <el-tooltip
                 v-if="row.nodeType !== 'detail' && row.acceptStatus !== 'ACCEPTED'"
                 :content="acceptDisabledTip(row)"
@@ -145,7 +146,7 @@
                 <span class="accept-btn-wrap">
                   <el-button
                     link
-                    type="primary"
+                    :type="row.nodeType === 'project' ? 'success' : 'warning'"
                     :disabled="!!acceptDisabledTip(row)"
                     @click="openAcceptForm(row)"
                   >验收</el-button>
@@ -160,7 +161,7 @@
                 :title="(row.raw.percent ?? 0) < 100 ? '项目尚有明细未完成验收，不可归档' : ''"
                 @click="handleArchive(row)"
               >归档</el-button>
-              <!-- 三级明细节点：验收按钮；施工中 / 未开工禁用并提示 -->
+              <!-- 三级明细节点：验收按钮；施工中 / 未开工禁用并提示；按三级配色为橙色（warning） -->
               <el-tooltip
                 v-if="row.nodeType === 'detail' && row.acceptStatus !== 'ACCEPTED'"
                 :content="acceptDisabledTip(row)"
@@ -170,7 +171,7 @@
                 <span class="accept-btn-wrap">
                   <el-button
                     link
-                    type="primary"
+                    type="warning"
                     :disabled="!!acceptDisabledTip(row)"
                     @click="openAcceptForm(row)"
                   >验收</el-button>
@@ -914,6 +915,32 @@
                 <el-descriptions-item label="申报金额">{{ formatMoney(viewApprovalDetail?.amount) }} 元</el-descriptions-item>
                 <el-descriptions-item label="事项说明">{{ viewApprovalDetail?.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
+              <!-- 申报材料附件：明细自身的附件，与立项管理三级查看一致 -->
+              <el-divider content-position="left">申报材料附件</el-divider>
+              <el-empty
+                v-if="!viewApprovalDetail?.attachments?.length"
+                description="暂无申报材料附件"
+                :image-size="60"
+              />
+              <el-table v-else :data="viewApprovalDetail.attachments" size="small" border>
+                <el-table-column label="附件类型" width="150">
+                  <template #default="{ row }">
+                    {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="文件名称" min-width="220">
+                  <template #default="{ row }">
+                    <div class="attachment-file-cell">
+                      <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">{{ row.fileName }}</span>
+                      <el-icon class="attachment-file-download" title="下载" @click.stop="openFile(row, true)">
+                        <Download />
+                      </el-icon>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="createTime" label="上传时间" width="170" />
+              </el-table>
             </el-tab-pane>
 
             <!-- 资金页签：与资金管理三级查看“明细资金”页签一致 -->

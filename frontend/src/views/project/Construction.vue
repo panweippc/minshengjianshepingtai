@@ -808,6 +808,40 @@
                   <el-descriptions-item label="申报金额">{{ formatMoney(viewApprovalDetail?.amount) }} 元</el-descriptions-item>
                   <el-descriptions-item label="事项说明">{{ viewApprovalDetail?.remark || '-' }}</el-descriptions-item>
                 </el-descriptions>
+                <!-- 申报材料附件：明细自身的附件，与立项管理三级查看一致 -->
+                <el-divider content-position="left">申报材料附件</el-divider>
+                <el-empty
+                  v-if="!viewApprovalDetail?.attachments?.length"
+                  description="暂无申报材料附件"
+                  :image-size="60"
+                />
+                <el-table v-else :data="viewApprovalDetail.attachments" size="small" border>
+                  <el-table-column label="附件类型" width="150">
+                    <template #default="{ row }">
+                      {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="文件名称" min-width="220">
+                    <template #default="{ row }">
+                      <div class="attachment-file-cell">
+                        <span
+                          class="attachment-file-name"
+                          :title="row.fileName"
+                          @click="previewAttachment(row)"
+                        >{{ row.fileName }}</span>
+                        <el-icon
+                          class="attachment-file-download"
+                          title="下载"
+                          @click.stop="downloadAttachment(row)"
+                        >
+                          <Download />
+                        </el-icon>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="createTime" label="上传时间" width="170" />
+                </el-table>
               </el-tab-pane>
 
               <el-tab-pane label="资金" name="fund">

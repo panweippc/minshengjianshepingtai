@@ -634,6 +634,7 @@
                 disabled
                 class="decl-amount"
               />
+              <el-tag v-if="item.detailIds?.length" size="small" type="info">已选明细 {{ item.detailIds.length }} 条</el-tag>
               <el-button link type="danger" size="small" :icon="Delete" @click="removeApprovalDecl(idx)" />
             </div>
           </div>
@@ -804,7 +805,16 @@ const treeTableData = computed(() => {
         _isDetail: true,
         _detailKind: 'household',
         _parentStatus: parent.status,
-        _parentRef: { id: parent.id, declarationCategory: parent.declarationCategory, status: parent.status }
+        _parentRef: {
+          id: parent.id,
+          businessCode: parent.businessCode,
+          title: parent.title,
+          amount: parent.amount ?? null,
+          declarationCategory: parent.declarationCategory,
+          status: parent.status,
+          townCode: parent.townCode,
+          townName: parent.townName
+        }
       }))
     } else if (parent.declarationCategory === '2' && parent.facilities?.length) {
       children = parent.facilities.map(pf => ({
@@ -813,7 +823,16 @@ const treeTableData = computed(() => {
         _isDetail: true,
         _detailKind: 'public_facility',
         _parentStatus: parent.status,
-        _parentRef: { id: parent.id, declarationCategory: parent.declarationCategory, status: parent.status }
+        _parentRef: {
+          id: parent.id,
+          businessCode: parent.businessCode,
+          title: parent.title,
+          amount: parent.amount ?? null,
+          declarationCategory: parent.declarationCategory,
+          status: parent.status,
+          townCode: parent.townCode,
+          townName: parent.townName
+        }
       }))
     }
     node._children = children
@@ -848,6 +867,8 @@ function resetQuery() {
 function onStatusTabChange(tab: string) {
   activeStatusTab.value = tab
   query.pageNum = 1
+  // 切换页签后旧行数据会被替换，清空勾选避免把上一页签的明细带进立项弹窗
+  selectedRows.value = []
   loadData()
 }
 
@@ -1083,17 +1104,18 @@ async function doRevertDetailDeclaration() {
 
 // ================== 多选（已通过页签） ==================
 const selectedRows = ref<any[]>([])
+/** 已选明细所属的申报单数量（同一申报单不同明细可分多次立项，勾选粒度到明细） */
 const selectedDeclarationIds = computed(() =>
-  selectedRows.value
-    .filter((r: any) => !r._isDetail && (r.auditStatus === 'approved' || !r.auditStatus))
-    .map((r: any) => String(r.id))
+  Array.from(new Set(
+    selectedRows.value
+      .filter((r: any) => r._isDetail && r._parentRef?.id)
+      .map((r: any) => String(r._parentRef.id))
+  ))
 )
 
 function isSelectableRow(row: any) {
-  // 只允许选父申报单行，且该行必须至少有一条 approved 明细（立项才有意义）
-  if (row._isDetail) return false
-  const approvedExists = Array.isArray(row._children) && row._children.some((c: any) => c.auditStatus === 'approved')
-  return approvedExists
+  // 立项粒度到三级明细：仅已通过的明细行可勾选，同一申报单可分批立项
+  return !!row._isDetail && row.auditStatus === 'approved'
 }
 
 function onSelectionChange(rows: any[]) {
@@ -1116,7 +1138,14 @@ const approvalRules: FormRules = {
   remark: [{ required: true, message: '建设依据必填', trigger: 'blur' }]
 }
 
-interface ApprovalRowRef { id: string; businessCode: string; title: string; amount: number | null }
+interface ApprovalRowRef {
+  id: string
+  businessCode: string
+  title: string
+  amount: number | null
+  /** 本次立项选中的三级明细ID集合 */
+  detailIds?: string[]
+}
 
 const approvalDialog = reactive({
   visible: false,
@@ -1146,21 +1175,31 @@ function openApprovalDialog() {
   getDictByType('xiang_mu_lei_bie').then((r: any) => { approvalProjectCategoryOpts.value = r?.data || [] })
   getDictByType('li_xiang_fu_jian_lei_xing').then((r: any) => { approvalAttachmentTypeOpts.value = r?.data || [] })
 
-  // 从已选申报单行里抽信息做快照（只读，后端存 declaration_id 即可）
-  approvalDialog.declarationRows = selectedRows.value
-    .filter((r: any) => !r._isDetail)
-    .map((r: any) => ({
-      id: String(r.id),
-      businessCode: r.businessCode || '',
-      title: r.title || '',
-      amount: r.amount ?? null
-    }))
+  // 按申报单聚合本次勾选的明细：同一申报单可分多次立项，每次只带选中的明细
+  const grouped = new Map<string, ApprovalRowRef>()
+  for (const row of selectedRows.value) {
+    if (!row._isDetail || !row._parentRef?.id) continue
+    const parentId = String(row._parentRef.id)
+    let item = grouped.get(parentId)
+    if (!item) {
+      item = {
+        id: parentId,
+        businessCode: row._parentRef.businessCode || '',
+        title: row._parentRef.title || '',
+        amount: row._parentRef.amount ?? null,
+        detailIds: []
+      }
+      grouped.set(parentId, item)
+    }
+    item.detailIds!.push(String(row.id))
+  }
+  approvalDialog.declarationRows = Array.from(grouped.values())
 
-  // 所属乡镇：自动从第一条带 town 信息的申报单里取（所有勾的申报单本来就应该同乡镇）
-  const firstWithTown = selectedRows.value.find((r: any) => r.townCode && !r._isDetail)
+  // 所属乡镇：自动从第一条带 town 信息的已选明细所属申报单里取（同一批立项应同乡镇）
+  const firstWithTown = selectedRows.value.find((r: any) => r._parentRef?.townCode)
   if (firstWithTown) {
-    approvalDialog.form.townCode = firstWithTown.townCode
-    approvalDialog.form.townName = firstWithTown.townName
+    approvalDialog.form.townCode = firstWithTown._parentRef.townCode
+    approvalDialog.form.townName = firstWithTown._parentRef.townName
   }
 
   // 重置表单
@@ -1212,9 +1251,11 @@ async function doSubmitApproval() {
     return
   }
 
+  const detailTotal = approvalDialog.declarationRows
+    .reduce((sum, r) => sum + (r.detailIds?.length || 0), 0)
   try {
     await ElMessageBox.confirm(
-      `确认提交立项申请「${approvalDialog.form.projectName}」？\n提交后 ${approvalDialog.declarationRows.length} 条申报单下的已通过明细将变为已立项。`,
+      `确认提交立项申请「${approvalDialog.form.projectName}」？\n本次将关联 ${approvalDialog.declarationRows.length} 条申报单、${detailTotal} 条明细立项。`,
       '提交确认',
       { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
     )
@@ -1235,7 +1276,10 @@ async function doSubmitApproval() {
       townCode: approvalDialog.form.townCode || undefined,
       townName: approvalDialog.form.townName || undefined,
       establishDate: approvalDialog.form.establishDate || undefined,
-      declarationIds: approvalDialog.declarationRows.map((r) => r.id),
+      declarations: approvalDialog.declarationRows.map((r) => ({
+        declarationId: r.id,
+        detailIds: r.detailIds?.length ? [...r.detailIds] : undefined
+      })),
       attachments: approvalDialog.form.attachments.filter((a) => a.fileKey)
     }
     const res = await submitProjectApproval(dto)
@@ -1245,7 +1289,6 @@ async function doSubmitApproval() {
     approvalDialog.visible = false
     // 回清空选、重新拉列表（已立项的明细会消失，parent 状态被推进）
     selectedRows.value = []
-    selectedDeclarationIds.value.length = 0
     loadData()
   } catch { /* 拦截器处理业务错误（立项编号重复、申报单归属校验等） */ }
   finally { approvalDialog.submitting = false }

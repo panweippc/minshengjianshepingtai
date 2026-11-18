@@ -810,15 +810,10 @@ const addAttachment = () => {
 /** 附件上传中状态（上传完成前禁止重复选择） */
 const attachmentUploading = ref(false)
 
-/** 选择附件文件：立即上传，成功后记录文件元信息（支持多选，按文件名+大小去重） */
+/** 选择附件文件：相同文件允许多次上传，立即上传成功后记录文件元信息 */
 const handleAttachmentFileChange = async (uploadFile: UploadFile, att: AttachmentEditItem) => {
   const raw = uploadFile.raw
   if (!raw) return
-  const duplicated = att.files.some((f) => f.fileName === raw.name && f.fileSize === raw.size)
-  if (duplicated) {
-    ElMessage.warning('该文件已添加')
-    return
-  }
   attachmentUploading.value = true
   try {
     const res = await uploadFileApi(raw)

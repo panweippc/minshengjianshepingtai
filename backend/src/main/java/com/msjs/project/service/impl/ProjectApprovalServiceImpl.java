@@ -7,10 +7,12 @@ import com.msjs.project.common.Constants;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.common.UserContext;
+import com.msjs.project.dto.ApprovalDeclareSelectionDTO;
 import com.msjs.project.dto.ApprovalEditDTO;
 import com.msjs.project.dto.ProjectApprovalSubmitDTO;
 import com.msjs.project.dto.ProjectApprovalSubmitDTO.AttachmentItem;
 import com.msjs.project.entity.Declaration;
+import com.msjs.project.entity.DeclarationAttachment;
 import com.msjs.project.entity.DeclarationHousehold;
 import com.msjs.project.entity.DeclarationPublicFacility;
 import com.msjs.project.entity.ProjectApproval;
@@ -20,6 +22,7 @@ import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.mapper.DeclarationHouseholdMapper;
 import com.msjs.project.mapper.DeclarationMapper;
 import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
+import com.msjs.project.mapper.DeclarationAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
 import com.msjs.project.mapper.ProjectApprovalDetailMapper;
@@ -69,6 +72,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     private final DeclarationMapper declarationMapper;
     private final DeclarationHouseholdMapper householdMapper;
     private final DeclarationPublicFacilityMapper facilityMapper;
+    private final DeclarationAttachmentMapper declarationAttachmentMapper;
 
     private static final String DEFAULT_BUCKET = "archive-formal";
 
@@ -90,11 +94,25 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         }
 
         // 2. 校验所选申报单（必须都是 createBy=当前人 或 recpientUserId=当前登录人，且状态为 submitted/approved/rejected）
-        List<Declaration> parents = declarationMapper.selectBatchIds(dto.getDeclarationIds());
-        if (parents == null || parents.isEmpty()) {
+        // 同一申报单允许按三级明细拆分成多次立项，这里按「申报单 + 选中明细」组合处理
+        List<ApprovalDeclareSelectionDTO> selections = dto.getDeclarations();
+        List<Long> declarationIds = selections.stream()
+                .map(ApprovalDeclareSelectionDTO::getDeclarationId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (declarationIds.isEmpty() || declarationIds.size() != selections.size()) {
+            throw new BizException("关联申报单不能为空且不能重复，请刷新后重试");
+        }
+        List<Declaration> parentList = declarationMapper.selectBatchIds(declarationIds);
+        if (parentList == null || parentList.size() != declarationIds.size()) {
             throw new BizException("未找到所选的申报单");
         }
-        for (Declaration d : parents) {
+        Map<Long, List<Long>> detailIdsByDeclaration = selections.stream()
+                .collect(Collectors.toMap(ApprovalDeclareSelectionDTO::getDeclarationId,
+                        item -> item.getDetailIds() == null ? Collections.emptyList() : item.getDetailIds(),
+                        (a, b) -> a));
+        for (Declaration d : parentList) {
             boolean owned = username.equals(d.getCreateBy())
                     || (userId != null && d.getRecipientUserId() != null && userId.equals(d.getRecipientUserId()));
             if (!owned) {
@@ -132,11 +150,16 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         approval.setUpdateTime(now);
         approvalMapper.insert(approval);
 
-        // 4. declare + detail + 状态推进
+        // 4. declare + detail + 状态推进（按前端选中的明细绑定，未选明细时绑定该申报单下全部已通过明细）
         int declareCount = 0, detailCount = 0;
-        for (Declaration d : parents) {
-            // bindDeclaration 内部已完成：declare 创建 + approved 明细立项 + 状态回算
-            detailCount += bindDeclaration(approval, d, declareCount, userId, username, now);
+        for (Long declarationId : declarationIds) {
+            Declaration d = parentList.stream()
+                    .filter(item -> declarationId.equals(item.getId()))
+                    .findFirst()
+                    .orElseThrow(() -> new BizException("未找到所选的申报单"));
+            // bindDeclaration 内部已完成：declare 创建 + 选中明细立项 + 状态回算
+            detailCount += bindDeclaration(approval, d, declareCount,
+                    detailIdsByDeclaration.get(declarationId), userId, username, now);
             declareCount++;
         }
 
@@ -254,14 +277,13 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
 
         saveProjectAttachments(approval.getId(), dto.getAttachments());
 
-        // 新增关联申报单：落 declare + 明细，并推进申报明细为已立项
-        if (dto.getAddDeclarationIds() != null && !dto.getAddDeclarationIds().isEmpty()) {
-            bindNewDeclarations(approval, dto.getAddDeclarationIds());
-        }
-
-        // 移除关联申报单：删除 declare + 明细，并把申报明细状态回退为已通过
+        // 先移除关联申报单：删除 declare + 明细，并把申报明细状态回退为已通过
+        // 再新增关联申报单：避免「移除后又重新按其他明细关联同一申报单」时命中同立项重复校验
         if (dto.getRemoveDeclarationIds() != null && !dto.getRemoveDeclarationIds().isEmpty()) {
             unbindDeclarations(approval, dto.getRemoveDeclarationIds());
+        }
+        if (dto.getAddDeclarations() != null && !dto.getAddDeclarations().isEmpty()) {
+            bindNewDeclarations(approval, dto.getAddDeclarations());
         }
     }
 
@@ -311,14 +333,14 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         }
     }
 
-    /** 编辑时追加关联申报单：去重校验后逐条绑定 */
-    private void bindNewDeclarations(ProjectApproval approval, List<Long> addIds) {
+    /** 编辑时追加关联申报单：去重校验后按选中明细逐条绑定 */
+    private void bindNewDeclarations(ProjectApproval approval, List<ApprovalDeclareSelectionDTO> addSelections) {
         LoginUser me = UserContext.get();
         String username = me != null ? me.getUsername() : "system";
         Long userId = me != null ? me.getUserId() : null;
         LocalDateTime now = LocalDateTime.now();
 
-        // 已绑定的申报单集合，避免重复挂接
+        // 已绑定的申报单集合，避免同一立项内重复挂接（跨立项允许同一申报单按明细拆分）
         List<ProjectApprovalDeclare> existing = declareMapper.selectList(
                 new LambdaQueryWrapper<ProjectApprovalDeclare>()
                         .eq(ProjectApprovalDeclare::getApprovalId, approval.getId()));
@@ -327,7 +349,18 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        List<Long> distinctIds = addIds.stream().distinct().filter(java.util.Objects::nonNull).toList();
+        List<Long> distinctIds = addSelections.stream()
+                .map(ApprovalDeclareSelectionDTO::getDeclarationId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinctIds.isEmpty() || distinctIds.size() != addSelections.size()) {
+            throw new BizException("新增申报单不能为空且不能重复，请刷新后重试");
+        }
+        Map<Long, List<Long>> detailIdsByDeclaration = addSelections.stream()
+                .collect(Collectors.toMap(ApprovalDeclareSelectionDTO::getDeclarationId,
+                        item -> item.getDetailIds() == null ? Collections.emptyList() : item.getDetailIds(),
+                        (a, b) -> a));
         List<Declaration> declarations = declarationMapper.selectBatchIds(distinctIds);
         if (declarations == null || declarations.size() != distinctIds.size()) {
             throw new BizException("部分申报单不存在，请刷新后重试");
@@ -338,7 +371,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
             if (linkedIds.contains(d.getId())) {
                 throw new BizException("申报单「" + d.getTitle() + "」已关联，请勿重复添加");
             }
-            int detailCount = bindDeclaration(approval, d, sort++, userId, username, now);
+            int detailCount = bindDeclaration(approval, d, sort++,
+                    detailIdsByDeclaration.get(d.getId()), userId, username, now);
             if (detailCount == 0) {
                 throw new BizException("申报单「" + d.getTitle() + "」下没有已通过的明细可立项");
             }
@@ -425,6 +459,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         Map<Long, List<ApprovalAttachmentVO>> attachmentsByDeclare = declareAttachments.stream()
                 .collect(Collectors.groupingBy(ProjectApprovalAttachment::getDeclareId,
                         Collectors.mapping(this::toAttachmentVO, Collectors.toList())));
+        // 明细自身附件：取申报模块中挂在农户/公建明细行上的附件，而非申报单附件
+        Map<String, List<ApprovalAttachmentVO>> detailAttachments = loadDetailAttachments(details);
 
         List<ApprovalVO> records = new ArrayList<>(approvals.size());
         for (ProjectApproval approval : approvals) {
@@ -434,7 +470,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                 ApprovalDeclareVO declareNode = toDeclareVO(declare);
                 declareNode.setChildren(detailsByDeclare
                         .getOrDefault(declare.getId(), Collections.emptyList())
-                        .stream().map(this::toDetailVO).toList());
+                        .stream().map(detail -> toDetailVO(detail, detailAttachments)).toList());
                 declareNode.setAttachments(attachmentsByDeclare.getOrDefault(declare.getId(), Collections.emptyList()));
                 declareNodes.add(declareNode);
             }
@@ -482,7 +518,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         return vo;
     }
 
-    private ApprovalDetailVO toDetailVO(ProjectApprovalDetail detail) {
+    private ApprovalDetailVO toDetailVO(ProjectApprovalDetail detail,
+                                        Map<String, List<ApprovalAttachmentVO>> detailAttachments) {
         ApprovalDetailVO vo = new ApprovalDetailVO();
         vo.setId(detail.getId());
         vo.setDeclareId(detail.getDeclareId());
@@ -495,7 +532,61 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         vo.setQuantity(detail.getQuantity());
         vo.setRemark(detail.getRemark());
         vo.setSort(detail.getSort());
+        // 明细附件按明细类型取对应归属行的附件：农户 → household，公建 → public_facility
+        boolean facility = Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(vo.getDetailType());
+        Long ownerId = facility ? detail.getFacilityId() : detail.getHouseholdId();
+        String ownerType = facility ? "public_facility" : "household";
+        vo.setAttachments(ownerId == null ? Collections.emptyList()
+                : detailAttachments.getOrDefault(ownerType + "#" + ownerId, Collections.emptyList()));
         return vo;
+    }
+
+    /**
+     * 批量加载明细自身附件。
+     * 业务约束：农户/公建明细的附件存放在申报附件表 t_declaration_attachment，
+     * owner_type = household / public_facility，owner_id = 明细对应的申报农户/公建行 ID。
+     */
+    private Map<String, List<ApprovalAttachmentVO>> loadDetailAttachments(List<ProjectApprovalDetail> details) {
+        Set<Long> householdIds = new HashSet<>();
+        Set<Long> facilityIds = new HashSet<>();
+        for (ProjectApprovalDetail detail : details) {
+            if (Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(normalizeDetailType(detail.getDetailType()))) {
+                if (detail.getFacilityId() != null) {
+                    facilityIds.add(detail.getFacilityId());
+                }
+            } else if (detail.getHouseholdId() != null) {
+                householdIds.add(detail.getHouseholdId());
+            }
+        }
+        Map<String, List<ApprovalAttachmentVO>> result = new java.util.HashMap<>();
+        collectDetailAttachments("household", householdIds, result);
+        collectDetailAttachments("public_facility", facilityIds, result);
+        return result;
+    }
+
+    /** 按归属类型批量查询明细附件，key = ownerType#ownerId */
+    private void collectDetailAttachments(String ownerType, Set<Long> ownerIds,
+                                          Map<String, List<ApprovalAttachmentVO>> result) {
+        if (ownerIds.isEmpty()) {
+            return;
+        }
+        List<DeclarationAttachment> list = declarationAttachmentMapper.selectList(
+                new LambdaQueryWrapper<DeclarationAttachment>()
+                        .eq(DeclarationAttachment::getOwnerType, ownerType)
+                        .in(DeclarationAttachment::getOwnerId, ownerIds)
+                        .orderByAsc(DeclarationAttachment::getId));
+        for (DeclarationAttachment item : list) {
+            ApprovalAttachmentVO vo = new ApprovalAttachmentVO();
+            vo.setId(item.getId());
+            vo.setAttachmentType(item.getAttachmentType());
+            vo.setFileName(item.getFileName());
+            vo.setFileKey(item.getFileKey());
+            vo.setBucket(item.getBucket());
+            vo.setFileSize(item.getFileSize());
+            vo.setRemark(item.getRemark());
+            vo.setCreateTime(item.getCreateTime());
+            result.computeIfAbsent(ownerType + "#" + item.getOwnerId(), k -> new ArrayList<>()).add(vo);
+        }
     }
 
     private ApprovalAttachmentVO toAttachmentVO(ProjectApprovalAttachment attachment) {
@@ -625,15 +716,16 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     }
 
     /**
-     * 将一条申报单绑定到立项单：
+     * 将一条申报单（及本次选中的三级明细）绑定到立项单：
      * 1) 落一条 t_project_approval_declare（申报内容节点）
-     * 2) 抓该申报单下所有 approved 明细 → 落 t_project_approval_detail
+     * 2) 按 selectedDetailIds 抓 approved 明细 → 落 t_project_approval_detail
+     *    selectedDetailIds 为空时绑定该申报单下全部 approved 明细
      * 3) 明细 audit_status 推进为 established，父申报单状态回算为 approved
      *
      * @return 本次落库的明细条数（0 表示该申报单下没有已通过明细）
      */
     private int bindDeclaration(ProjectApproval approval, Declaration d, int sort,
-                                Long userId, String username, LocalDateTime now) {
+                                List<Long> selectedDetailIds, Long userId, String username, LocalDateTime now) {
         // 1. 申报内容节点
         ProjectApprovalDeclare declare = new ProjectApprovalDeclare();
         declare.setApprovalId(approval.getId());
@@ -647,11 +739,14 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         declare.setBudget(d.getAmount());
         declare.setSort(sort);
         declare.setCreateTime(now);
-        // declare_code 有唯一索引，先清理历史逻辑删除行，避免同一申报单重新关联时唯一键冲突
+        // 同一申报编号允许出现在多个立项下（按明细拆分立项），这里仍清理历史逻辑删除行，避免脏数据堆积
         declareMapper.hardDeleteSoftDeletedByCode(declare.getDeclareCode());
         declareMapper.insert(declare);
 
-        // 2. 已通过明细 → 立项明细，并推进为已立项
+        // 2. 已通过明细 → 立项明细，并推进为已立项；选中明细为空时视为该申报单下全部已通过明细
+        Set<Long> selectedIds = selectedDetailIds == null ? Collections.emptySet()
+                : selectedDetailIds.stream().filter(java.util.Objects::nonNull)
+                        .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
         int detailCount = 0;
         if ("1".equals(d.getDeclarationCategory())) {
             // 农户
@@ -659,20 +754,33 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                     new LambdaQueryWrapper<DeclarationHousehold>()
                             .eq(DeclarationHousehold::getDeclarationId, d.getId())
                             .eq(DeclarationHousehold::getDeleted, 0));
+            Map<Long, DeclarationHousehold> detailMap = all.stream()
+                    .collect(Collectors.toMap(DeclarationHousehold::getId, item -> item, (a, b) -> a));
             for (DeclarationHousehold hh : all) {
-                if ("approved".equals(hh.getAuditStatus())) {
-                    ProjectApprovalDetail pd = buildHouseholdDetail(declare.getId(), hh);
-                    pd.setDeclarationId(d.getId());
-                    detailMapper.insert(pd);
-                    // 改状态：approved → established
-                    DeclarationHousehold upd = new DeclarationHousehold();
-                    upd.setId(hh.getId());
-                    upd.setAuditStatus("established");
-                    upd.setAuditBy(userId);
-                    upd.setAuditTime(now);
-                    upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
-                    householdMapper.updateById(upd);
-                    detailCount++;
+                if (!isDetailPicked(selectedIds, hh.getId())) {
+                    continue;
+                }
+                if (!"approved".equals(hh.getAuditStatus())) {
+                    throw new BizException("农户明细「" + hh.getSnapshotHeadName()
+                            + "」当前状态为「" + auditStatusLabel(hh.getAuditStatus()) + "」，不能重复立项");
+                }
+                ProjectApprovalDetail pd = buildHouseholdDetail(declare.getId(), hh);
+                pd.setDeclarationId(d.getId());
+                detailMapper.insert(pd);
+                // 改状态：approved → established
+                DeclarationHousehold upd = new DeclarationHousehold();
+                upd.setId(hh.getId());
+                upd.setAuditStatus("established");
+                upd.setAuditBy(userId);
+                upd.setAuditTime(now);
+                upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
+                householdMapper.updateById(upd);
+                detailCount++;
+            }
+            // 选中的明细必须都属于该申报单，避免跨申报单串数据
+            for (Long detailId : selectedIds) {
+                if (!detailMap.containsKey(detailId)) {
+                    throw new BizException("所选农户明细不属于该申报单或已被删除，请刷新后重试");
                 }
             }
         } else if ("2".equals(d.getDeclarationCategory())) {
@@ -681,19 +789,31 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                     new LambdaQueryWrapper<DeclarationPublicFacility>()
                             .eq(DeclarationPublicFacility::getDeclarationId, d.getId())
                             .eq(DeclarationPublicFacility::getDeleted, 0));
+            Map<Long, DeclarationPublicFacility> detailMap = all.stream()
+                    .collect(Collectors.toMap(DeclarationPublicFacility::getId, item -> item, (a, b) -> a));
             for (DeclarationPublicFacility pf : all) {
-                if ("approved".equals(pf.getAuditStatus())) {
-                    ProjectApprovalDetail pd = buildFacilityDetail(declare.getId(), pf);
-                    pd.setDeclarationId(d.getId());
-                    detailMapper.insert(pd);
-                    DeclarationPublicFacility upd = new DeclarationPublicFacility();
-                    upd.setId(pf.getId());
-                    upd.setAuditStatus("established");
-                    upd.setAuditBy(userId);
-                    upd.setAuditTime(now);
-                    upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
-                    facilityMapper.updateById(upd);
-                    detailCount++;
+                if (!isDetailPicked(selectedIds, pf.getId())) {
+                    continue;
+                }
+                if (!"approved".equals(pf.getAuditStatus())) {
+                    throw new BizException("公共基础设施明细「" + pf.getSnapshotFacilityName()
+                            + "」当前状态为「" + auditStatusLabel(pf.getAuditStatus()) + "」，不能重复立项");
+                }
+                ProjectApprovalDetail pd = buildFacilityDetail(declare.getId(), pf);
+                pd.setDeclarationId(d.getId());
+                detailMapper.insert(pd);
+                DeclarationPublicFacility upd = new DeclarationPublicFacility();
+                upd.setId(pf.getId());
+                upd.setAuditStatus("established");
+                upd.setAuditBy(userId);
+                upd.setAuditTime(now);
+                upd.setAuditRemark("已立项（审批单：" + approval.getApprovalCode() + "）");
+                facilityMapper.updateById(upd);
+                detailCount++;
+            }
+            for (Long detailId : selectedIds) {
+                if (!detailMap.containsKey(detailId)) {
+                    throw new BizException("所选公共基础设施明细不属于该申报单或已被删除，请刷新后重试");
                 }
             }
         }
@@ -736,6 +856,25 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         pd.setAmount(pf.getAmount() != null ? pf.getAmount() : BigDecimal.ZERO);
         pd.setCreateTime(LocalDateTime.now());
         return pd;
+    }
+
+    /** 是否命中本次立项选中的明细；未指定明细时默认全选（兼容手动输入申报单 ID） */
+    private boolean isDetailPicked(Set<Long> selectedIds, Long detailId) {
+        return selectedIds.isEmpty() || selectedIds.contains(detailId);
+    }
+
+    /** 明细审核状态中文描述，用于立项冲突提示 */
+    private String auditStatusLabel(String status) {
+        if (status == null || status.isBlank() || "pending".equals(status)) {
+            return "待审核";
+        }
+        return switch (status) {
+            case "approved" -> "已通过";
+            case "rejected" -> "已驳回";
+            case "established" -> "已立项";
+            case "unsubmitted" -> "未提交";
+            default -> status;
+        };
     }
 
     private String currentUser() {

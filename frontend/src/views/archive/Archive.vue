@@ -81,7 +81,7 @@
               <el-button
                 v-if="canExport"
                 link
-                type="primary"
+                type="success"
                 :loading="exportingId === row.id"
                 @click="handleExport(row)"
               >导出</el-button>
