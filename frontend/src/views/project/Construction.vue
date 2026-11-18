@@ -139,12 +139,22 @@
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button v-if="canView" link type="primary" @click="openView(row)">查看</el-button>
-              <el-button
-                v-if="canEdit && (row.nodeType === 'project' || row.nodeType === 'detail')"
-                link
-                :type="row.nodeType === 'detail' ? 'success' : 'primary'"
-                @click="openEdit(row)"
-              >{{ row.nodeType === 'detail' ? '巡检' : '编辑' }}</el-button>
+              <!-- 三级明细已完工后不可再巡检：按钮置灰，悬停提示（与验收管理验收按钮一致） -->
+              <el-tooltip
+                :disabled="!(row.nodeType === 'detail' && row.status === CONSTRUCTION_STATUS_COMPLETED)"
+                content="该明细已完工，不可再巡检"
+                placement="top"
+              >
+                <span>
+                  <el-button
+                    v-if="canEdit && (row.nodeType === 'project' || row.nodeType === 'detail')"
+                    link
+                    :type="row.nodeType === 'detail' ? 'success' : 'primary'"
+                    :disabled="row.nodeType === 'detail' && row.status === CONSTRUCTION_STATUS_COMPLETED"
+                    @click="openEdit(row)"
+                  >{{ row.nodeType === 'detail' ? '巡检' : '编辑' }}</el-button>
+                </span>
+              </el-tooltip>
               <el-button
                 v-if="row.nodeType === 'project' && row.canAccept"
                 link
