@@ -127,6 +127,15 @@ public final class Constants {
     /** 验收节点类型：明细（三级） */
     public static final String ACCEPTANCE_NODE_DETAIL = "detail";
 
+    /** 数据大屏明细统计-类别：农户明细（单位：户） */
+    public static final String DETAIL_CATEGORY_HOUSEHOLD = "household";
+    /** 数据大屏明细统计-类别：公建设施明细（单位：处） */
+    public static final String DETAIL_CATEGORY_FACILITY = "facility";
+    /** 数据大屏明细统计-类别中文名：农户明细 */
+    public static final String DETAIL_LABEL_HOUSEHOLD = "农户";
+    /** 数据大屏明细统计-类别中文名：公建设施明细 */
+    public static final String DETAIL_LABEL_FACILITY = "公建";
+
     /** 验收状态：待验收 */
     public static final String ACCEPTANCE_STATUS_PENDING = "PENDING";
     /** 验收状态：已验收 */

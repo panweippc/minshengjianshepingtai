@@ -162,8 +162,22 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: 'Archive',
         component: () => import('@/views/archive/Archive.vue'),
         meta: { title: '档案管理', icon: 'Files' }
+      },
+      {
+        // 数据大屏在管理后台布局内展示
+        path: 'screen',
+        name: 'DataScreen',
+        component: () => import('@/views/screen/DataScreen.vue'),
+        meta: { title: '数据大屏', icon: 'DataBoard' }
       }
     ]
+  },
+  {
+    // 投屏页面：独立全屏展示，不挂载在管理后台布局内
+    path: '/screen/cast',
+    name: 'DataScreenCast',
+    component: () => import('@/views/screen/DataScreen.vue'),
+    meta: { title: '数据大屏投屏', icon: 'Monitor', standalone: true }
   }
 ]
 

@@ -36,11 +36,31 @@ public class SchemaMigrationRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         normalizeApprovalStatusCase();
-        migrateSnapshotHouseholdNo();
-        fixApprovalDetailTargetCode();
+        if (tableExists("t_declaration_household") && tableExists("t_base_household")) {
+            migrateSnapshotHouseholdNo();
+        } else {
+            log.info("[Migration] t_declaration_household 或 t_base_household 不存在，跳过申报明细迁移");
+        }
+        if (tableExists("t_declaration_household") && tableExists("t_project_approval_detail")) {
+            fixApprovalDetailTargetCode();
+        } else {
+            log.info("[Migration] 依赖表不存在，跳过立项明细 target_code 修正");
+        }
         migrateApprovalProjectType();
         ensureHomeMenu();
         dropSysFileSha256Unique();
+    }
+
+    /** 判断指定表是否存在于当前数据库 */
+    private boolean tableExists(String tableName) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES " +
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", Integer.class, tableName);
+            return count != null && count > 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

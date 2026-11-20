@@ -655,25 +655,25 @@
                 <template #default="{ row }">{{ formatMoney(row.allocatedAmount) }}</template>
               </el-table-column>
               <el-table-column prop="fundRemark" label="拨付说明" min-width="140" show-overflow-tooltip />
-              <el-table-column label="申报材料附件" min-width="190">
+              <el-table-column label="申报材料附件" width="130" align="center">
                 <template #default="{ row }">
-                  <template v-if="row.materialAttachments?.length">
-                    <div v-for="file in row.materialAttachments" :key="file.id" class="record-attachment">
-                      <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                      <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                    </div>
-                  </template>
+                  <el-button
+                    v-if="row.materialAttachments?.length"
+                    link
+                    type="primary"
+                    @click="openDeclareDetailAttachList(row, 'material')"
+                  >附件 ({{ row.materialAttachments.length }})</el-button>
                   <span v-else class="declare-no-attachment-text">-</span>
                 </template>
               </el-table-column>
-              <el-table-column label="资金凭证附件" min-width="190">
+              <el-table-column label="资金凭证附件" width="130" align="center">
                 <template #default="{ row }">
-                  <template v-if="row.fundAttachments?.length">
-                    <div v-for="file in row.fundAttachments" :key="file.id" class="record-attachment">
-                      <span class="attachment-file-name" :title="file.fileName" @click="openFile(file)">{{ file.fileName }}</span>
-                      <el-icon class="upload-file-download" @click="openFile(file, true)"><Download /></el-icon>
-                    </div>
-                  </template>
+                  <el-button
+                    v-if="row.fundAttachments?.length"
+                    link
+                    type="primary"
+                    @click="openDeclareDetailAttachList(row, 'fund')"
+                  >附件 ({{ row.fundAttachments.length }})</el-button>
                   <span v-else class="declare-no-attachment-text">-</span>
                 </template>
               </el-table-column>
@@ -1762,7 +1762,7 @@ const viewDeclareTree = computed<DeclareTreeRow[]>(() => {
       amount: detail.budget,
       allocated: detail.allocatedAmount,
       village: detail.type || '',
-      attachments: [],
+      attachments: detail.materialAttachments || [],
       fundAttachments: detail.fundAttachments || []
     }))
   }))
@@ -1824,7 +1824,12 @@ const attachListData = ref<AttachListItem[]>([])
 const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
   const files = type === 'material' ? row.attachments : row.fundAttachments
   attachListData.value = files || []
-  attachDictType.value = type === 'material' ? 'li_xiang_fu_jian_lei_xing' : 'zi_jin_fu_jian_lei_xing'
+  // 申报节点材料用 li_xiang_fu_jian_lei_xing，明细节点材料用 fu_jian_lei_xing（与立项管理一致）
+  if (type === 'material') {
+    attachDictType.value = row.nodeType === 'detail' ? 'fu_jian_lei_xing' : 'li_xiang_fu_jian_lei_xing'
+  } else {
+    attachDictType.value = 'zi_jin_fu_jian_lei_xing'
+  }
   attachListTitle.value = `${type === 'material' ? '申报材料附件' : '资金凭证附件'} — ${[row.code, row.title].filter(Boolean).join(' ')}`
   attachListShowTime.value = true
   attachListVisible.value = true
@@ -1848,6 +1853,16 @@ const openDetailAttachList = () => {
   attachListData.value = row.raw.materialAttachments || []
   attachDictType.value = 'fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
+  attachListShowTime.value = true
+  attachListVisible.value = true
+}
+
+/** 二级查看-申报明细页签：明细行附件按钮，弹出附件列表（明细材料用 fu_jian_lei_xing，资金凭证用 zi_jin_fu_jian_lei_xing） */
+const openDeclareDetailAttachList = (row: FundNodeVO, type: 'material' | 'fund') => {
+  const files = type === 'material' ? row.materialAttachments : row.fundAttachments
+  attachListData.value = files || []
+  attachDictType.value = type === 'material' ? 'fu_jian_lei_xing' : 'zi_jin_fu_jian_lei_xing'
+  attachListTitle.value = `${type === 'material' ? '申报材料附件' : '资金凭证附件'} — ${[row.code, row.name].filter(Boolean).join(' ')}`
   attachListShowTime.value = true
   attachListVisible.value = true
 }

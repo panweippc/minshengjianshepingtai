@@ -433,6 +433,7 @@ const handleCommand = (cmd: string) => {
 /* ========== 主内容区（关键修复） ========== */
 /* 之前缺 flex:1 / min-height:0 / overflow:auto，导致内容超过视口时被截断 */
 .main {
+  position: relative;
   flex: 1;
   min-height: 0;
   background-color: #f5f7fa;
