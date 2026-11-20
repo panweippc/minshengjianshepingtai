@@ -21,11 +21,12 @@ public class SysOperLogServiceImpl implements SysOperLogService {
     private final SysOperLogMapper operLogMapper;
 
     @Override
-    public PageVO<SysOperLog> page(long pageNum, long pageSize, String username, String module) {
+    public PageVO<SysOperLog> page(long pageNum, long pageSize, String username, String module, String method) {
         Page<SysOperLog> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<SysOperLog> wrapper = new LambdaQueryWrapper<SysOperLog>()
                 .like(username != null && !username.isBlank(), SysOperLog::getUsername, username)
                 .like(module != null && !module.isBlank(), SysOperLog::getModule, module)
+                .eq(method != null && !method.isBlank(), SysOperLog::getMethod, method == null ? null : method.toUpperCase())
                 .orderByDesc(SysOperLog::getOperTime);
         return PageVO.of(operLogMapper.selectPage(page, wrapper));
     }

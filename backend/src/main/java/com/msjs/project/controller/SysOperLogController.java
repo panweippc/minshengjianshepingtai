@@ -37,8 +37,9 @@ public class SysOperLogController {
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") long pageNum,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long pageSize,
             @Parameter(description = "操作人账号") @RequestParam(required = false) String username,
-            @Parameter(description = "所属模块") @RequestParam(required = false) String module) {
-        return Result.ok(operLogService.page(pageNum, pageSize, username, module));
+            @Parameter(description = "所属模块") @RequestParam(required = false) String module,
+            @Parameter(description = "HTTP请求方式（GET查询/POST新增/PUT修改/DELETE删除）") @RequestParam(required = false) String method) {
+        return Result.ok(operLogService.page(pageNum, pageSize, username, module, method));
     }
 
     @Operation(summary = "批量删除日志")

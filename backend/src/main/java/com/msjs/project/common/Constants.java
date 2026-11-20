@@ -154,4 +154,17 @@ public final class Constants {
     public static final String APPROVAL_ACCEPT_APPLYING = "APPLYING";
     /** 立项验收状态：已归档 */
     public static final String APPROVAL_ACCEPT_ARCHIVED = "ARCHIVED";
+
+    /** 登录验证码 Redis 键前缀 */
+    public static final String CAPTCHA_KEY_PREFIX = "msjs:captcha:";
+    /** 登录验证码有效期（分钟） */
+    public static final long CAPTCHA_EXPIRE_MINUTES = 5;
+    /** 登录验证码字符长度 */
+    public static final int CAPTCHA_CODE_LENGTH = 4;
+    /** 登录验证码图片宽度（像素） */
+    public static final int CAPTCHA_IMAGE_WIDTH = 120;
+    /** 登录验证码图片高度（像素） */
+    public static final int CAPTCHA_IMAGE_HEIGHT = 40;
+    /** 登录验证码字符集：剔除 0/O/1/I 等易混淆字符 */
+    public static final String CAPTCHA_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 }

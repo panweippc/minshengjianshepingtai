@@ -296,7 +296,7 @@
             <el-divider content-position="left">立项资料附件</el-divider>
             <el-empty v-if="!viewRow.raw.attachments?.length" description="暂无附件" :image-size="60" />
             <el-table v-else :data="viewRow.raw.attachments" size="small" border>
-              <el-table-column label="附件类型" width="150">
+              <el-table-column label="附件类型" width="120" align="center">
                 <template #default="{ row }">
                   {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
                 </template>
@@ -312,7 +312,6 @@
                 </template>
               </el-table-column>
               <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-              <el-table-column prop="createTime" label="上传时间" width="170" />
             </el-table>
           </el-tab-pane>
 
@@ -401,12 +400,12 @@
               <el-divider content-position="left">施工资料附件</el-divider>
               <el-empty v-if="!constructionView?.attachments?.length" description="暂无施工资料" :image-size="60" />
               <el-table v-else :data="constructionView.attachments" size="small" border>
-                <el-table-column label="附件类型" width="180">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || row.attachmentType || '-' }}
                   </template>
                 </el-table-column>
-                <el-table-column label="文件名" min-width="240">
+                <el-table-column label="文件名" min-width="260">
                   <template #default="{ row }">
                     <div class="record-attachment">
                       <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">{{ row.fileName || '-' }}</span>
@@ -698,7 +697,7 @@
               :image-size="60"
             />
             <el-table v-else :data="viewRow.raw.attachments" size="small" border>
-              <el-table-column label="附件类型" width="150">
+              <el-table-column label="附件类型" width="120" align="center">
                 <template #default="{ row }">
                   {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
                 </template>
@@ -712,7 +711,6 @@
                 </template>
               </el-table-column>
               <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-              <el-table-column prop="createTime" label="上传时间" width="170" />
             </el-table>
           </el-tab-pane>
 
@@ -978,7 +976,7 @@
               :image-size="60"
             />
             <el-table v-else :data="viewRow.raw.approvalAttachments" size="small" border>
-              <el-table-column label="附件类型" width="150">
+              <el-table-column label="附件类型" width="120" align="center">
                 <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}</template>
               </el-table-column>
               <el-table-column label="文件名称" min-width="220">
@@ -992,7 +990,6 @@
                 </template>
               </el-table-column>
               <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-              <el-table-column prop="createTime" label="上传时间" width="170" />
             </el-table>
           </el-tab-pane>
 
@@ -1024,7 +1021,7 @@
               <el-divider content-position="left">附件</el-divider>
               <el-empty v-if="!constructionLog?.attachments?.length" description="暂无附件" :image-size="60" />
               <el-table v-else :data="constructionLog.attachments" size="small" border>
-                <el-table-column label="附件类型" width="180">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('shi_gong_fu_jian_lei_xing', row.attachmentType) || '-' }}
                   </template>
@@ -1116,12 +1113,12 @@
       destroy-on-close
     >
       <el-table :data="attachListData" size="small" border>
-        <el-table-column label="附件类型" width="150">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row }">
             {{ dictLabel(attachDictType, row.attachmentType) || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="附件名称" min-width="240">
+        <el-table-column label="文件名" min-width="260">
           <template #default="{ row }">
             <div class="record-attachment">
               <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">{{ row.fileName }}</span>
@@ -1130,7 +1127,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column v-if="attachListShowTime" prop="createTime" label="上传时间" width="170" />
       </el-table>
       <template #footer>
         <el-button @click="attachListVisible = false">关闭</el-button>
@@ -1817,8 +1813,6 @@ const attachListVisible = ref(false)
 const attachListTitle = ref('')
 /** 附件类型字典：一级/二级申报材料 li_xiang_fu_jian_lei_xing，三级明细材料 fu_jian_lei_xing，资金凭证 zi_jin_fu_jian_lei_xing */
 const attachDictType = ref('li_xiang_fu_jian_lei_xing')
-/** 是否展示上传时间列：施工附件与施工管理保持一致，不展示 */
-const attachListShowTime = ref(true)
 const attachListData = ref<AttachListItem[]>([])
 
 const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
@@ -1826,7 +1820,6 @@ const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
   attachListData.value = files || []
   attachDictType.value = type === 'material' ? 'li_xiang_fu_jian_lei_xing' : 'zi_jin_fu_jian_lei_xing'
   attachListTitle.value = `${type === 'material' ? '申报材料附件' : '资金凭证附件'} — ${[row.code, row.title].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1837,7 +1830,6 @@ const openDeclareAttachList = () => {
   attachListData.value = row.raw.attachments || []
   attachDictType.value = 'li_xiang_fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1848,7 +1840,6 @@ const openDetailAttachList = () => {
   attachListData.value = row.raw.materialAttachments || []
   attachDictType.value = 'fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1857,7 +1848,6 @@ const openRecordAttachList = (record: FundRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'zi_jin_fu_jian_lei_xing'
   attachListTitle.value = `资金凭证附件 — ${[record.createBy, record.createTime].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1866,7 +1856,6 @@ const openAcceptanceAttachList = (record: AcceptanceRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'yan_shou_fu_jian_lei_xing'
   attachListTitle.value = `验收资料附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
@@ -1874,7 +1863,6 @@ const openAcceptanceAttachList = (record: AcceptanceRecordVO) => {
 const openConstructionDetailAttachList = (snapshot?: ConstructionLogVO | null) => {
   attachListData.value = snapshot?.attachments || []
   attachDictType.value = 'shi_gong_fu_jian_lei_xing'
-  attachListShowTime.value = false
   attachListTitle.value = '附件'
   attachListVisible.value = true
 }

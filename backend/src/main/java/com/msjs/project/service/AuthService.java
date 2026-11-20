@@ -4,6 +4,7 @@ import com.msjs.project.common.LoginUser;
 import com.msjs.project.dto.ChangePasswordDTO;
 import com.msjs.project.dto.LoginDTO;
 import com.msjs.project.dto.ProfileUpdateDTO;
+import com.msjs.project.vo.CaptchaVO;
 import com.msjs.project.vo.LoginVO;
 import com.msjs.project.vo.UserInfoVO;
 
@@ -11,6 +12,9 @@ import com.msjs.project.vo.UserInfoVO;
  * 登录鉴权服务
  */
 public interface AuthService {
+
+    /** 生成登录验证码（图片 Base64，验证码存入 Redis） */
+    CaptchaVO generateCaptcha();
 
     /** 账号密码登录，成功签发令牌 */
     LoginVO login(LoginDTO dto, String ip);

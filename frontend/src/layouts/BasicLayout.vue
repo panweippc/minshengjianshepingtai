@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout-container">
-    <el-aside width="220px" class="aside">
+    <el-aside :width="sidebarCollapsed ? '0px' : '220px'" class="aside">
       <div class="logo">
         <el-icon><Platform /></el-icon>
         <span>民生建设项目管理平台</span>
@@ -39,12 +39,51 @@
     </el-aside>
     <el-container>
       <el-header class="header">
-        <div class="breadcrumb">
-          <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/home' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
-          </el-breadcrumb>
+        <!-- 侧边栏收起/展开按钮：无边框图标按钮，图标方向随状态切换 -->
+        <el-button
+          text
+          class="sidebar-toggle"
+          :title="sidebarCollapsed ? '展开菜单栏' : '收起菜单栏'"
+          @click="toggleSidebar"
+        >
+          <el-icon>
+            <Fold v-if="!sidebarCollapsed" />
+            <Expand v-else />
+          </el-icon>
+        </el-button>
+        <!-- 页签左箭头：页签溢出时显示 -->
+        <el-icon
+          class="tabs-arrow"
+          :class="{ 'is-hidden': !tabsOverflow }"
+          title="向左滚动页签"
+          @click="scrollTabs(-1)"
+        >
+          <ArrowLeft />
+        </el-icon>
+        <!-- 多页签导航：记录已打开的菜单页面，页签过多可左右滑动切换 -->
+        <div ref="tabsScrollRef" class="tabs-scroll" @wheel="handleTabsWheel" @scroll="updateScrollState">
+          <div
+            v-for="tab in tabs"
+            :key="tab.path"
+            class="tab-item"
+            :class="{ 'is-active': activeTab === tab.path }"
+            @click="handleTabClick(tab)"
+          >
+            <span class="tab-title">{{ tab.title }}</span>
+            <el-icon class="tab-close" title="关闭页签" @click.stop="handleTabClose(tab)">
+              <Close />
+            </el-icon>
+          </div>
         </div>
+        <!-- 页签右箭头：页签溢出时显示 -->
+        <el-icon
+          class="tabs-arrow"
+          :class="{ 'is-hidden': !tabsOverflow }"
+          title="向右滚动页签"
+          @click="scrollTabs(1)"
+        >
+          <ArrowRight />
+        </el-icon>
         <div class="user-info">
           <el-dropdown
             trigger="click"
@@ -52,8 +91,11 @@
             popper-class="user-dropdown-popper"
             @command="handleCommand"
           >
-            <span class="user-name">
-              {{ userInfo?.realName || userInfo?.username || '系统管理员' }}
+            <span class="user-trigger">
+              <span class="user-avatar">
+                <el-icon><UserFilled /></el-icon>
+              </span>
+              <span class="user-name">{{ userInfo?.realName || userInfo?.username || '系统管理员' }}</span>
               <el-icon class="user-arrow"><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
@@ -161,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
@@ -169,10 +211,138 @@ import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import { updateProfile, changePassword } from '@/api/auth'
 
+/** 页签项 */
+interface TabItem {
+  path: string
+  title: string
+}
+
 const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
 const { userInfo, routeMenus } = storeToRefs(store)
+
+/** 已打开的页签，首页同样作为可关闭页签 */
+const tabs = ref<TabItem[]>([{ path: '/home', title: '首页' }])
+/** 当前激活页签路径 */
+const activeTab = ref('')
+/** 页签容器 ref，用于滚动定位与横向滑动 */
+const tabsScrollRef = ref<HTMLElement>()
+/** 左侧菜单栏是否收起 */
+const sidebarCollapsed = ref(false)
+/** 页签区是否发生横向溢出：溢出时左右箭头同时显示 */
+const tabsOverflow = ref(false)
+
+/** 更新页签区横向溢出状态 */
+const updateScrollState = () => {
+  const container = tabsScrollRef.value
+  if (!container) return
+  tabsOverflow.value = container.scrollWidth > container.clientWidth + 1
+}
+
+/** 点击左右箭头：按可视宽度的 60% 平滑滚动页签区 */
+const scrollTabs = (direction: 1 | -1) => {
+  const container = tabsScrollRef.value
+  if (!container || !tabsOverflow.value) return
+  container.scrollBy({ left: direction * Math.max(160, container.clientWidth * 0.6), behavior: 'smooth' })
+}
+
+/** 切换左侧菜单栏收起/展开 */
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+/** 打开页签：已存在则更新标题，否则追加到末尾 */
+const addTab = (path: string, title: string) => {
+  const hit = tabs.value.find((tab) => tab.path === path)
+  if (hit) {
+    hit.title = title
+  } else {
+    tabs.value.push({ path, title })
+  }
+  activeTab.value = path
+}
+
+/** 切换页签 */
+const handleTabClick = (tab: TabItem) => {
+  if (activeTab.value === tab.path) return
+  router.push(tab.path)
+}
+
+/** 关闭页签：关闭激活页签时优先跳转右侧页签，其次左侧；全部关闭后回到首页 */
+const handleTabClose = (tab: TabItem) => {
+  const index = tabs.value.findIndex((item) => item.path === tab.path)
+  if (index === -1) return
+  const isActive = activeTab.value === tab.path
+  tabs.value.splice(index, 1)
+  if (!isActive) {
+    nextTick(updateScrollState)
+    return
+  }
+  const nextTab = tabs.value[index] ?? tabs.value[index - 1] ?? tabs.value[0]
+  if (nextTab) {
+    router.push(nextTab.path)
+    return
+  }
+  // 关闭最后一个页签：重新登记首页页签并跳转首页
+  addTab('/home', '首页')
+  router.push('/home')
+}
+
+/** 路由变化时登记页签 */
+watch(
+  () => route.path,
+  (path) => {
+    addTab(path, (route.meta.title as string) || path)
+  },
+  { immediate: true }
+)
+
+/** 页签超出可视宽度时，鼠标滚轮横向滚动实现左右滑动 */
+const handleTabsWheel = (event: WheelEvent) => {
+  const container = tabsScrollRef.value
+  if (!container || container.scrollWidth <= container.clientWidth) return
+  // 已带横向位移（触控板左/右滑）时交给浏览器默认处理
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+  container.scrollLeft += event.deltaY
+  event.preventDefault()
+}
+
+/** 激活页签自动滚入可视区域，避免切换后页签被遮挡 */
+watch(activeTab, async (path) => {
+  await nextTick()
+  const container = tabsScrollRef.value
+  const index = tabs.value.findIndex((tab) => tab.path === path)
+  const tabEl = container?.children[index] as HTMLElement | undefined
+  if (!container || !tabEl) {
+    updateScrollState()
+    return
+  }
+  const left = tabEl.offsetLeft
+  const right = left + tabEl.offsetWidth
+  if (left < container.scrollLeft) {
+    container.scrollTo({ left: left - 8, behavior: 'smooth' })
+  } else if (right > container.scrollLeft + container.clientWidth) {
+    container.scrollTo({ left: right - container.clientWidth + 8, behavior: 'smooth' })
+  }
+  updateScrollState()
+})
+
+/** 页签容器尺寸观察器：窗口缩放、菜单栏收起时重新判断是否需要箭头 */
+let tabsResizeObserver: ResizeObserver | undefined
+
+/** 首次挂载后同步箭头显隐状态，并监听页签区宽度变化 */
+onMounted(() => {
+  nextTick(updateScrollState)
+  if (tabsScrollRef.value) {
+    tabsResizeObserver = new ResizeObserver(updateScrollState)
+    tabsResizeObserver.observe(tabsScrollRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  tabsResizeObserver?.disconnect()
+})
 
 /** 个人中心弹窗开关 */
 const profileVisible = ref(false)
@@ -331,6 +501,7 @@ const handleCommand = (cmd: string) => {
   flex-direction: column;
   flex-shrink: 0;
   height: 100%;
+  transition: width 0.25s ease;
 }
 /* 右侧 el-container（Element Plus 自带 flex-direction: row→column 覆盖） */
 .layout-container > :deep(.el-container) {
@@ -343,7 +514,7 @@ const handleCommand = (cmd: string) => {
 
 /* ========== 侧边栏 ========== */
 .logo {
-  height: 60px;
+  height: 56px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -377,28 +548,181 @@ const handleCommand = (cmd: string) => {
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #e4e7ed;
+  height: 56px;
+  border-bottom: 1px solid #ebeef5;
   background-color: #fff;
-  padding: 0 20px;
+  padding: 0 16px;
   flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.05);
+  position: relative;
+  z-index: 1;
 }
-.user-name {
-  cursor: pointer;
+/* 用户信息：头像 + 姓名 + 下拉箭头，左侧用细分割线与页签区分隔 */
+.user-info {
+  flex-shrink: 0;
+  padding-left: 14px;
+  margin-left: 4px;
+  border-left: 1px solid #f0f2f5;
+}
+.user-trigger {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 0.2s ease;
+}
+.user-trigger:hover {
+  background-color: #f5f7fa;
+}
+.user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #ecf5ff;
   color: #409eff;
   font-size: 15px;
-  outline: none;
+}
+.user-name {
+  color: #303133;
+  font-size: 14px;
+  white-space: nowrap;
   transition: color 0.2s ease;
 }
-.user-name:hover {
-  color: #66b1ff;
+.user-trigger:hover .user-name {
+  color: #409eff;
 }
 .user-arrow {
   font-size: 12px;
+  color: #909399;
   transition: transform 0.2s ease;
+}
+
+/* ========== 侧边栏收起按钮 ========== */
+/* 轻量无边框图标按钮，避免顶栏出现多余线框 */
+.sidebar-toggle {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin-right: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  color: #606266;
+}
+.sidebar-toggle:hover {
+  background-color: #f2f3f5;
+  color: #303133;
+}
+.sidebar-toggle .el-icon {
+  font-size: 18px;
+}
+
+/* ========== 页签左右滚动箭头 ========== */
+.tabs-arrow {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #909399;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.tabs-arrow:not(.is-hidden):hover {
+  background-color: #f5f7fa;
+  color: #409eff;
+}
+/* 无被遮挡页签时隐藏箭头（保留占位，避免页签区宽度抖动） */
+.tabs-arrow.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ========== 多页签导航（嵌入顶栏） ========== */
+/* 参考样式：未激活页签为纯文字，激活页签为蓝色圆角胶囊 + 白色关闭图标 */
+.tabs-scroll {
+  flex: 1;
+  min-width: 0;
+  margin: 0 12px;
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.tabs-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.tab-item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #606266;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.tab-item:hover {
+  border-color: #c6e2ff;
+  background-color: #f5f7fa;
+  color: #409eff;
+}
+.tab-item.is-active {
+  padding: 0 14px;
+  border-color: #409eff;
+  background-color: #409eff;
+  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.25);
+  color: #fff;
+  font-weight: 500;
+}
+.tab-title {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 关闭图标：激活页签常显，其余页签仅在鼠标悬停时显示 */
+.tab-close {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #c0c4cc;
+  border-radius: 50%;
+  visibility: hidden;
+}
+.tab-item:hover .tab-close,
+.tab-item.is-active .tab-close {
+  visibility: visible;
+}
+.tab-close:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: #909399;
+}
+.tab-item.is-active .tab-close {
+  color: #fff;
+}
+.tab-item.is-active .tab-close:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 /* ========== 个人中心弹窗 ========== */

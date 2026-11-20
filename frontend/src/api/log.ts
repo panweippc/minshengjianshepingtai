@@ -3,7 +3,7 @@ import type { PageQuery, PageVO, Result } from '@/types/common'
 import type { OperLogVO } from '@/types/system'
 
 /** 操作日志分页查询 */
-export function getLogPage(params: PageQuery & { username?: string; module?: string }) {
+export function getLogPage(params: PageQuery & { username?: string; module?: string; method?: string }) {
   return get<Result<PageVO<OperLogVO>>>('/api/system/log/page', { params })
 }
 

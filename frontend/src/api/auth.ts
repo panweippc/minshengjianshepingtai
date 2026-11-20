@@ -1,6 +1,11 @@
 import { get, post, put } from './request'
-import type { ChangePasswordDTO, LoginDTO, LoginVO, ProfileUpdateDTO, UserInfoVO } from '@/types/system'
+import type { CaptchaVO, ChangePasswordDTO, LoginDTO, LoginVO, ProfileUpdateDTO, UserInfoVO } from '@/types/system'
 import type { Result } from '@/types/common'
+
+/** 获取登录验证码 */
+export function getCaptcha() {
+  return get<Result<CaptchaVO>>('/api/auth/captcha')
+}
 
 /** 登录 */
 export function login(data: LoginDTO) {

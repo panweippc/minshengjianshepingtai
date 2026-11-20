@@ -388,7 +388,7 @@
               <el-divider content-position="left">立项资料附件</el-divider>
               <el-empty v-if="!viewApprovalAttachments.length" description="暂无附件" :image-size="60" />
               <el-table v-else :data="viewApprovalAttachments" size="small" border>
-                <el-table-column label="附件类型" width="150">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
                   </template>
@@ -404,7 +404,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-                <el-table-column prop="createTime" label="上传时间" width="170" />
               </el-table>
             </el-tab-pane>
 
@@ -536,7 +535,7 @@
               <el-divider content-position="left">施工资料附件</el-divider>
               <el-empty v-if="!constructionView?.attachments?.length" description="暂无施工资料" :image-size="60" />
               <el-table v-else :data="constructionView.attachments" size="small" border>
-                <el-table-column label="附件类型" width="180">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || row.attachmentType || '-' }}
                   </template>
@@ -681,7 +680,7 @@
               <el-divider content-position="left">申报材料附件</el-divider>
               <el-empty v-if="!viewApprovalDeclare?.attachments?.length" description="暂无申报材料附件" :image-size="60" />
               <el-table v-else :data="viewApprovalDeclare.attachments" size="small" border>
-                <el-table-column label="附件类型" width="150">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
                   </template>
@@ -697,7 +696,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-                <el-table-column prop="createTime" label="上传时间" width="170" />
               </el-table>
             </el-tab-pane>
 
@@ -912,7 +910,7 @@
                 :image-size="60"
               />
               <el-table v-else :data="viewApprovalDetail.attachments" size="small" border>
-                <el-table-column label="附件类型" width="150">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('fu_jian_lei_xing', row.attachmentType) || '-' }}
                   </template>
@@ -928,7 +926,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-                <el-table-column prop="createTime" label="上传时间" width="170" />
               </el-table>
             </el-tab-pane>
 
@@ -1061,7 +1058,7 @@
       destroy-on-close
     >
       <el-table :data="recordAttachList" size="small" border>
-        <el-table-column label="附件类型" width="150">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row }">
             {{ dictLabel('yan_shou_fu_jian_lei_xing', row.attachmentType) || '-' }}
           </template>
@@ -1077,7 +1074,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="上传时间" width="170" />
       </el-table>
       <template #footer>
         <el-button @click="recordAttachVisible = false">关闭</el-button>
@@ -1087,7 +1083,7 @@
     <!-- 立项申报材料 / 资金凭证 附件列表弹窗 -->
     <el-dialog v-model="extraAttachVisible" :title="extraAttachTitle" width="760px" destroy-on-close>
       <el-table :data="extraAttachList" size="small" border>
-        <el-table-column label="附件类型" width="150">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row }">
             {{ dictLabel(extraAttachDictType, row.attachmentType) || '-' }}
           </template>
@@ -1103,7 +1099,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="上传时间" width="170" />
       </el-table>
       <template #footer>
         <el-button @click="extraAttachVisible = false">关闭</el-button>
@@ -1113,12 +1108,12 @@
     <!-- 施工页签：明细进度附件列表弹窗（与施工管理保持一致） -->
     <el-dialog v-model="constructionAttachVisible" title="附件" width="1000px" destroy-on-close append-to-body>
       <el-table :data="constructionAttachRow?.attachments || []" size="small" border>
-        <el-table-column label="附件类型" width="180">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row }">
             {{ dictLabel('shi_gong_fu_jian_lei_xing', row.attachmentType) || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="附件" min-width="240">
+        <el-table-column label="文件名" min-width="260">
           <template #default="{ row }">
             <template v-if="row.fileKey">
               <el-link type="primary" :underline="false" @click="openFile(row)">{{ row.fileName || '查看附件' }}</el-link>

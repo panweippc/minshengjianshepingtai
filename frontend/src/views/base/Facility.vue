@@ -1,16 +1,17 @@
 <template>
   <div class="facility-page">
     <!-- 左侧：区划树（乡镇/村/组） -->
-    <el-card shadow="never" class="tree-card">
-      <div class="tree-search">
+    <el-card shadow="never" class="tree-card" :class="{ 'is-collapsed': treeCollapsed }">
+      <div v-show="!treeCollapsed" class="tree-search">
         <el-input
           v-model="treeKeyword"
           placeholder="搜索区划名称"
           prefix-icon="Search"
           clearable
         />
+        <el-button text class="tree-toggle-btn" icon="Fold" title="收起区划树" @click="treeCollapsed = true" />
       </div>
-      <div class="tree-body">
+      <div v-show="!treeCollapsed" class="tree-body">
         <el-tree
           ref="treeRef"
           :data="treeData"
@@ -37,9 +38,13 @@
         </el-tree>
         <el-empty v-if="!treeData.length" description="暂无区划数据" :image-size="80" />
       </div>
-      <div class="tree-footer">
+      <div v-show="!treeCollapsed" class="tree-footer">
         <span>共 {{ totalFacilityCount }} 项设施 · {{ groupCount }} 个村民组</span>
         <el-button link type="primary" class="tree-all-btn" @click="handleTreeAll">全部</el-button>
+      </div>
+      <!-- 收起状态：显示折叠图标，点击展开区划树 -->
+      <div v-show="treeCollapsed" class="tree-collapsed" title="展开区划树" @click="treeCollapsed = false">
+        <el-icon class="tree-collapsed-icon"><Fold /></el-icon>
       </div>
     </el-card>
 
@@ -451,6 +456,10 @@ const selectedTreeNode = ref<VillageTreeVO | null>(null)
 
 /** 区划树搜索关键字 */
 const treeKeyword = ref('')
+
+/** 左侧区划树是否收起 */
+const treeCollapsed = ref(false)
+
 const filterTree = (value: string, data: VillageTreeVO) => {
   if (!value) return true
   return data.name.includes(value)
@@ -940,7 +949,45 @@ onMounted(() => {
   min-height: calc(100vh - 170px);
 }
 .tree-search {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin-bottom: 8px;
+}
+.tree-search :deep(.el-input) {
+  flex: 1;
+  min-width: 0;
+}
+.tree-toggle-btn {
+  flex: 0 0 auto;
+  padding: 4px;
+  color: #909399;
+}
+.tree-toggle-btn:hover {
+  color: #409eff;
+}
+/* 收起状态：卡片缩为窄条，右侧列表区自动占满剩余宽度 */
+.tree-card.is-collapsed {
+  flex: 0 0 40px;
+  width: 40px;
+}
+.tree-card.is-collapsed :deep(.el-card__body) {
+  padding: 10px 4px;
+  align-items: center;
+}
+.tree-collapsed {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding-top: 6px;
+  cursor: pointer;
+}
+.tree-collapsed-icon {
+  font-size: 18px;
+  color: #606266;
+}
+.tree-collapsed:hover .tree-collapsed-icon {
+  color: #409eff;
 }
 .tree-body {
   flex: 1;

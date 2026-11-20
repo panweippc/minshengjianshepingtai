@@ -8,6 +8,14 @@
         <el-form-item label="模块">
           <el-input v-model="query.module" placeholder="模块名称" clearable style="width: 160px" />
         </el-form-item>
+        <el-form-item label="操作类型">
+          <el-select v-model="query.method" placeholder="全部" clearable style="width: 140px">
+            <el-option label="查询" value="GET" />
+            <el-option label="新增" value="POST" />
+            <el-option label="修改" value="PUT" />
+            <el-option label="删除" value="DELETE" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -48,8 +56,8 @@
         :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 16px; justify-content: flex-end"
-        @size-change="handleQuery"
-        @current-change="handleQuery"
+        @size-change="handleSizeChange"
+        @current-change="loadData"
       />
     </el-card>
   </div>
@@ -65,7 +73,7 @@ import type { PageQuery } from '@/types/common'
 
 const store = useUserStore()
 
-const query = reactive<PageQuery & { username?: string; module?: string }>({ pageNum: 1, pageSize: 10 })
+const query = reactive<PageQuery & { username?: string; module?: string; method?: string }>({ pageNum: 1, pageSize: 10 })
 const total = ref(0)
 const tableData = ref<OperLogVO[]>([])
 const loading = ref(false)
@@ -99,9 +107,16 @@ const handleQuery = () => {
   loadData()
 }
 
+/** 每页条数变化：回到第一页重新加载 */
+const handleSizeChange = () => {
+  query.pageNum = 1
+  loadData()
+}
+
 const resetQuery = () => {
   query.username = ''
   query.module = ''
+  query.method = ''
   handleQuery()
 }
 

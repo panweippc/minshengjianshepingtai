@@ -33,6 +33,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     /** 白名单路径 */
     private static final String[] WHITELIST = {
             "/api/auth/login",
+            "/api/auth/captcha",
             "/api/test/health",
             "/doc.html", "/v3/api-docs", "/swagger-ui", "/webjars", "/favicon.ico", "/error"
     };

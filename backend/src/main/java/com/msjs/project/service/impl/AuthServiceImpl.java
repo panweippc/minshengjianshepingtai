@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.Constants;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.ChangePasswordDTO;
@@ -18,6 +19,7 @@ import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.mapper.SysRoleMapper;
 import com.msjs.project.mapper.SysUserMapper;
 import com.msjs.project.service.AuthService;
+import com.msjs.project.vo.CaptchaVO;
 import com.msjs.project.vo.LoginVO;
 import com.msjs.project.vo.UserInfoVO;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +28,17 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +61,8 @@ public class AuthServiceImpl implements AuthService {
     private static final String TOKEN_KEY_PREFIX = "msjs:token:";
     /** 令牌有效期（分钟），滑动续期 */
     private static final long TOKEN_EXPIRE_MINUTES = 30;
+    /** 验证码随机源（线程安全） */
+    private static final SecureRandom CAPTCHA_RANDOM = new SecureRandom();
 
     private final SysUserMapper userMapper;
     private final SysRoleMapper roleMapper;
@@ -59,7 +73,21 @@ public class AuthServiceImpl implements AuthService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
+    public CaptchaVO generateCaptcha() {
+        String code = randomCaptchaCode();
+        String captchaId = UUID.randomUUID().toString().replace("-", "");
+        // 验证码仅存 Redis 并设置有效期，不返回明文，防止前端直接读取
+        redisTemplate.opsForValue().set(Constants.CAPTCHA_KEY_PREFIX + captchaId, code,
+                Constants.CAPTCHA_EXPIRE_MINUTES, TimeUnit.MINUTES);
+        CaptchaVO vo = new CaptchaVO();
+        vo.setCaptchaId(captchaId);
+        vo.setCaptchaImage(renderCaptchaImage(code));
+        return vo;
+    }
+
+    @Override
     public LoginVO login(LoginDTO dto, String ip) {
+        verifyCaptcha(dto.getCaptchaId(), dto.getCaptchaCode());
         SysUser user = userMapper.selectOne(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getUsername, dto.getUsername()));
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
@@ -175,6 +203,71 @@ public class AuthServiceImpl implements AuthService {
         }
         exist.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userMapper.updateById(exist);
+    }
+
+    /** 校验验证码：一次性使用，校验后立即删除，防止暴力枚举与重放 */
+    private void verifyCaptcha(String captchaId, String captchaCode) {
+        String key = Constants.CAPTCHA_KEY_PREFIX + captchaId;
+        String expected = redisTemplate.opsForValue().get(key);
+        redisTemplate.delete(key);
+        if (expected == null || !expected.equalsIgnoreCase(captchaCode)) {
+            throw new BizException("验证码错误或已失效");
+        }
+    }
+
+    /** 生成随机验证码字符 */
+    private String randomCaptchaCode() {
+        StringBuilder sb = new StringBuilder(Constants.CAPTCHA_CODE_LENGTH);
+        for (int i = 0; i < Constants.CAPTCHA_CODE_LENGTH; i++) {
+            sb.append(Constants.CAPTCHA_CHARS.charAt(CAPTCHA_RANDOM.nextInt(Constants.CAPTCHA_CHARS.length())));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 绘制验证码图片
+     * 安全要求：加入干扰线与噪点，避免被简单 OCR 直接识别；仅返回 Base64 图片，不携带明文
+     */
+    private String renderCaptchaImage(String code) {
+        int width = Constants.CAPTCHA_IMAGE_WIDTH;
+        int height = Constants.CAPTCHA_IMAGE_HEIGHT;
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(245, 247, 250));
+            g.fillRect(0, 0, width, height);
+
+            // 干扰线
+            for (int i = 0; i < Constants.CAPTCHA_CODE_LENGTH; i++) {
+                g.setColor(new Color(150 + CAPTCHA_RANDOM.nextInt(80),
+                        160 + CAPTCHA_RANDOM.nextInt(70),
+                        180 + CAPTCHA_RANDOM.nextInt(60)));
+                g.drawLine(CAPTCHA_RANDOM.nextInt(width), CAPTCHA_RANDOM.nextInt(height),
+                        CAPTCHA_RANDOM.nextInt(width), CAPTCHA_RANDOM.nextInt(height));
+            }
+
+            int fontSize = height * 3 / 5;
+            int step = width / (Constants.CAPTCHA_CODE_LENGTH + 1);
+            int baseY = height * 3 / 4;
+            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, fontSize));
+            for (int i = 0; i < code.length(); i++) {
+                g.setColor(new Color(30 + CAPTCHA_RANDOM.nextInt(60),
+                        70 + CAPTCHA_RANDOM.nextInt(50),
+                        150 + CAPTCHA_RANDOM.nextInt(50)));
+                int x = (i + 1) * step - step / 3 + CAPTCHA_RANDOM.nextInt(step / 3);
+                int y = baseY + CAPTCHA_RANDOM.nextInt(Constants.CAPTCHA_CODE_LENGTH);
+                g.drawString(String.valueOf(code.charAt(i)), x, y);
+            }
+        } finally {
+            g.dispose();
+        }
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "png", out);
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(out.toByteArray());
+        } catch (IOException e) {
+            throw new BizException("验证码图片生成失败");
+        }
     }
 
     /** 获取当前登录用户，未登录抛出业务异常 */

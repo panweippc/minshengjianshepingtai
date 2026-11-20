@@ -7,6 +7,7 @@ import com.msjs.project.dto.ChangePasswordDTO;
 import com.msjs.project.dto.LoginDTO;
 import com.msjs.project.dto.ProfileUpdateDTO;
 import com.msjs.project.service.AuthService;
+import com.msjs.project.vo.CaptchaVO;
 import com.msjs.project.vo.LoginVO;
 import com.msjs.project.vo.UserInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +32,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+
+    @Operation(summary = "获取登录验证码")
+    @GetMapping("/captcha")
+    public Result<CaptchaVO> captcha() {
+        return Result.ok(authService.generateCaptcha());
+    }
 
     @Operation(summary = "账号密码登录")
     @OperLog(module = "登录鉴权", operation = "用户登录")

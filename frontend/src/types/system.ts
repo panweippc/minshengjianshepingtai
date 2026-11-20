@@ -2,6 +2,16 @@
 export interface LoginDTO {
   username: string
   password: string
+  /** 验证码标识 */
+  captchaId: string
+  /** 验证码 */
+  captchaCode: string
+}
+
+/** 登录验证码 */
+export interface CaptchaVO {
+  captchaId: string
+  captchaImage: string
 }
 
 /** 登录返回 */

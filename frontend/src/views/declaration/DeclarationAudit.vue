@@ -322,10 +322,10 @@
     <!-- ========== 申报单级附件查看弹窗 ========== -->
     <el-dialog v-model="attachmentDialogVisible" title="📎 申报单级附件" width="720px" append-to-body :close-on-click-modal="true">
       <el-table :data="detailData.attachments || []" border size="small" empty-text="暂无附件">
-        <el-table-column label="附件类型" width="140">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row: a }">{{ dictLabel('fu_jian_lei_xing', a.attachmentType) }}</template>
         </el-table-column>
-        <el-table-column label="文件名" min-width="200">
+        <el-table-column label="文件名" min-width="260">
           <template #default="{ row: a }">
             <el-link v-if="a.fileKey" type="primary" @click="openAttachmentFile(a, true)">{{ a.fileName }}</el-link>
             <span v-else>{{ a.fileName }}</span>
@@ -340,10 +340,10 @@
     <!-- ========== 农户/公建设施行的附件查看弹窗 ========== -->
     <el-dialog v-model="detailAttachmentDialogVisible" :title="detailAttachmentDialogTitle" width="720px" append-to-body :close-on-click-modal="true">
       <el-table :data="currentDetailAttachments" border size="small" empty-text="暂无附件">
-        <el-table-column label="附件类型" width="140">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row: a }">{{ dictLabel('fu_jian_lei_xing', a.attachmentType) }}</template>
         </el-table-column>
-        <el-table-column label="文件名" min-width="200">
+        <el-table-column label="文件名" min-width="260">
           <template #default="{ row: a }">
             <el-link v-if="a.fileKey" type="primary" @click="openAttachmentFile(a, true)">{{ a.fileName }}</el-link>
             <span v-else>{{ a.fileName }}</span>
@@ -374,7 +374,7 @@
         <div style="margin-top: 16px">
           <div class="detail-attach-header">农户级附件（{{ householdViewDialog.data.attachments?.length || 0 }}）</div>
           <el-table v-if="householdViewDialog.data.attachments?.length" :data="householdViewDialog.data.attachments" size="small" border>
-            <el-table-column label="附件类型" width="120">
+            <el-table-column label="附件类型" width="120" align="center">
               <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) }}</template>
             </el-table-column>
             <el-table-column label="文件名" show-overflow-tooltip>
@@ -411,7 +411,7 @@
         <div style="margin-top: 16px">
           <div class="detail-attach-header">公建设施级附件（{{ facilityViewDialog.data.attachments?.length || 0 }}）</div>
           <el-table v-if="facilityViewDialog.data.attachments?.length" :data="facilityViewDialog.data.attachments" size="small" border>
-            <el-table-column label="附件类型" width="120">
+            <el-table-column label="附件类型" width="120" align="center">
               <template #default="{ row }">{{ dictLabel('fu_jian_lei_xing', row.attachmentType) }}</template>
             </el-table-column>
             <el-table-column label="文件名" show-overflow-tooltip>

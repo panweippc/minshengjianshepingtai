@@ -231,7 +231,7 @@
 
               <el-divider content-position="left">立项资料附件</el-divider>
               <el-table :data="detail.approvalAttachments || []" border size="small">
-                <el-table-column label="附件类型" width="160">
+                <el-table-column label="附件类型" width="120" align="center">
                   <template #default="{ row }">
                     {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
                   </template>
@@ -248,10 +248,7 @@
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-                <el-table-column prop="createTime" label="上传时间" width="170">
-                  <template #default="{ row }">{{ row.createTime || '-' }}</template>
-                </el-table-column>
+                <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
               </el-table>
             </template>
             <el-empty v-else description="暂无立项信息" :image-size="80" />
@@ -579,7 +576,7 @@
     <el-dialog v-model="attachVisible" :title="attachTitle" width="760px" append-to-body destroy-on-close>
       <el-empty v-if="!attachList.length" description="暂无附件" :image-size="70" />
       <el-table v-else :data="attachList" border size="small">
-        <el-table-column label="附件类型" width="160">
+        <el-table-column label="附件类型" width="120" align="center">
           <template #default="{ row }">
             {{ attachDictType ? (dictLabel(attachDictType, row.attachmentType) || row.attachmentType || '-') : (row.attachmentType || '-') }}
           </template>
@@ -596,11 +593,8 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.remark || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="上传时间" width="170">
-          <template #default="{ row }">{{ row.createTime || '-' }}</template>
         </el-table-column>
       </el-table>
     </el-dialog>

@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +39,14 @@ public class OperLogAspect {
 
     /** 参数最大留存长度 */
     private static final int PARAM_MAX_LEN = 2000;
+
+    /**
+     * 免记录接口：前端定时轮询的心跳型接口，非人工操作，
+     * 若落审计会高频刷屏，掩盖真实的新增/修改/删除操作
+     */
+    private static final Set<String> IGNORE_URIS = Set.of(
+            "/api/dashboard/screen"
+    );
 
     /** HTTP请求方式 → 中文操作语义（RESTful规范：GET查询 POST新增 PUT修改 DELETE删除） */
     private static final Map<String, String> METHOD_OPERATION_MAP = Map.of(
@@ -77,6 +86,10 @@ public class OperLogAspect {
             return;
         }
         HttpServletRequest request = attrs.getRequest();
+        // 心跳轮询接口不落审计，避免日志被查询流水刷屏
+        if (IGNORE_URIS.contains(request.getRequestURI())) {
+            return;
+        }
 
         SysOperLog operLog = new SysOperLog();
         LoginUser user = UserContext.get();
