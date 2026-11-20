@@ -13,11 +13,13 @@ public interface ProjectFundQueryService {
     /** 主接口：返回全局汇总 + 主统计表格（按 groupType 分组聚合）；groupValue 传了则 statList 只留该行 */
     FundStatVO stat(String year, String regionCode, String groupType, String groupValue);
 
-    /** 分组明细流水（弹窗内展示） */
+    /** 分组明细流水（弹窗内展示），villageName 选填：精确过滤到村组 */
     List<FundDetailRowVO> detailList(String year, String regionCode,
-                                      String groupType, String groupValue);
+                                      String groupType, String groupValue,
+                                      String villageName);
 
-    /** 导出 CSV（UTF-8 BOM），上限 Constants.MAX_EXPORT_ROWS */
+    /** 导出 CSV（UTF-8 BOM），上限 Constants.MAX_EXPORT_ROWS；villageName 选填 */
     byte[] exportCsv(String year, String regionCode,
-                     String groupType, String groupValue);
+                     String groupType, String groupValue,
+                     String villageName);
 }

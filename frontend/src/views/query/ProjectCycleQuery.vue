@@ -209,15 +209,30 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="villageName" label="村组" min-width="100">
-            <template #default="{ row }">
-              <span :class="{ 'grand-total': row.grandTotal }">{{ row.villageName }}</span>
-            </template>
-          </el-table-column>
+          <!-- 村组列已去掉：后端不再输出村组明细行，所有方案都只展示大分组汇总 -->
 
-          <!-- 方案3（立项状态）和方案4（项目状态）专用表头 -->
-          <template v-if="query.queryType === 'establish' || query.queryType === 'status'">
-            <el-table-column prop="householdCount" label="涉及户数（个）" min-width="110" align="right">
+          <!-- 方案3（按立项状态）：项目数量 + 涉及户数 + 公建设施数 -->
+          <template v-if="query.queryType === 'establish'">
+            <el-table-column prop="projectCount" label="项目数量（个）" min-width="110" align="right">
+              <template #default="{ row }">
+                <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.projectCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="householdCount" label="涉及户数（户）" min-width="110" align="right">
+              <template #default="{ row }">
+                <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.householdCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="facilityCount" label="公建设施数（个）" min-width="120" align="right">
+              <template #default="{ row }">
+                <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.facilityCount }}</span>
+              </template>
+            </el-table-column>
+          </template>
+
+          <!-- 方案4（按项目状态）：仅涉及户数 + 公建设施数 -->
+          <template v-else-if="query.queryType === 'status'">
+            <el-table-column prop="householdCount" label="涉及户数（户）" min-width="110" align="right">
               <template #default="{ row }">
                 <span class="num-text" :class="{ 'grand-total': row.grandTotal }">{{ row.householdCount }}</span>
               </template>
@@ -262,11 +277,9 @@
         <div class="caliber-note">
           <el-icon><InfoFilled /></el-icon>
           <div class="caliber-text">
-            <div>统计口径：各类显示小计，村组行显示该分类在对应村组的汇总结果；</div>
-            <div v-if="query.queryType === 'village'">按所属村组统计时，项目数量为该村组关联项目ID去重后的数量；其余方案项目数量为项目记录条数；</div>
-            <div v-else-if="query.queryType === 'establish'">按立项状态统计：待立项/已立项按立项日期筛选、已归档按归档时间筛选；仅统计涉及户数、公建设施数；</div>
+            <div>统计口径：各分类显示大分组汇总，总计行按当前筛选条件重新计算；</div>
+            <div v-if="query.queryType === 'establish'">按立项状态统计：待立项/已立项按立项日期筛选、已归档按归档时间筛选；仅统计涉及户数、公建设施数；</div>
             <div v-else-if="query.queryType === 'status'">按项目状态统计仅统计涉及户数、公建设施数；总计按当前筛选条件重新计算；</div>
-            <div v-else>覆盖村组数量不做去重，同一村组在多个项目/多次申报中重复计入；</div>
           </div>
         </div>
       </el-card>
@@ -299,7 +312,6 @@
         <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="categoryLabel" label="项目类别" min-width="100" />
         <el-table-column prop="typeLabel" label="项目类型" min-width="110" />
-        <el-table-column prop="villageName" label="村组" min-width="110" />
         <el-table-column label="项目预算（元）" min-width="140" align="right">
           <template #default="{ row }">{{ formatMoney(row.budget) }}</template>
         </el-table-column>

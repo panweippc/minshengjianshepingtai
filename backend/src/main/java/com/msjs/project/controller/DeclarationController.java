@@ -242,8 +242,10 @@ public class DeclarationController {
             @Parameter(description = "左侧筛选：审批状态（draft/submitted/approved/rejected/established）")
             @RequestParam(required = false) String status,
             @Parameter(description = "左侧筛选：所属村组区划编码")
-            @RequestParam(required = false) String villageGroupCode) {
+            @RequestParam(required = false) String villageGroupCode,
+            @Parameter(description = "顶部状态筛选：按申报单明细审批状态过滤（pending/approved/rejected/established）")
+            @RequestParam(required = false) String detailStatus) {
         return Result.ok(declarationService.statistics(year, regionCode, groupBy,
-                declarationCategory, status, villageGroupCode));
+                declarationCategory, status, villageGroupCode, detailStatus));
     }
 }

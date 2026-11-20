@@ -3,6 +3,7 @@ package com.msjs.project.controller;
 import com.msjs.project.common.Result;
 import com.msjs.project.service.DashboardService;
 import com.msjs.project.vo.DashboardOverviewVO;
+import com.msjs.project.vo.ScreenOverviewVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,5 +26,11 @@ public class DashboardController {
     @GetMapping("/overview")
     public Result<DashboardOverviewVO> overview() {
         return Result.ok(dashboardService.overview());
+    }
+
+    @Operation(summary = "数据大屏聚合统计（核心指标、资金趋势、项目状态、村域态势、物资与实时事件）")
+    @GetMapping("/screen")
+    public Result<ScreenOverviewVO> screen() {
+        return Result.ok(dashboardService.screen());
     }
 }

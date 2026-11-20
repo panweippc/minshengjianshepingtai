@@ -76,9 +76,13 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
         ProjectCycleQueryMapper.QueryParams p = buildQueryParams(query.getRegionCode(), query.getYear());
         String queryType = blankToDefault(query.getQueryType(), "category");
 
-        // 方案3（按立项状态）需要包含所有状态的立项单（不仅仅是 approved）
+        // 方案4（按项目状态）走 detail 粒度专用 SQL：每条三级农户/设施明细独立一行，
+        // 自带 buildStatus + acceptStatusDetail，Service 直接用行内值打标签，不用 approval 粒度聚合 Map
         List<ProjectCycleRawVO> rawList;
-        if ("establish".equals(queryType)) {
+        if ("status".equals(queryType)) {
+            rawList = cycleMapper.selectStatusDetailRaw();
+        } else if ("establish".equals(queryType)) {
+            // 方案3（按立项状态）需要包含所有状态的立项单（不仅仅是 approved）
             rawList = cycleMapper.selectRawListAllStatus(p);
             // 方案3 动态年度筛选：不同分组用不同日期字段
             // PENDING/APPROVED 用 submit_time，ARCHIVED 用 archive.create_time
@@ -458,47 +462,96 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
 
     /**
      * 计算项目综合阶段（方案4使用，输出值对齐字典 xiang_mu_zhuang_tai 的 dict_value）：
+     *
+     * <p>核心原则：**先看施工进度，再看验收进度**。一个项目只要还有任何一条三级明细在 IN_PROGRESS
+     * 或 COMPLETED（施工已展开），就优先用施工状态决定阶段，避免出现"一条明细已验收但另一条
+     * 还在施工"时被错误归为"已验收"。</p>
+     *
      * <pre>
-     *   1 未开工    → 施工模块无记录或全部 NOT_STARTED
-     *   2 施工中    → 存在 IN_PROGRESS（含部分完工+无施工中的情况）
-     *   3 已完工    → 全部施工明细 COMPLETED
-     *   4 待验收    → 已发起验收(accept_status=APPLYING) 但未全部验收，或验收模块有 APPLYING 明细
-     *   5 已验收    → 全部验收明细 ACCEPTED（整改后验收通过也视为已验收）
-     *   6 未通过    → 验收 REJECTED
+     *   先看施工：
+     *     存在 IN_PROGRESS  → 2 施工中
+     *     全部 COMPLETED    → 3 已完工（再看验收）
+     *     无施工记录         → 回到验收判定
+     *   施工已全部完工（COMPLETED）或无施工记录时看验收：
+     *     全部明细 ACCEPTED → 5 已验收
+     *     存在 REJECTED     → 6 未通过
+     *     部分 PENDING      → 4 待验收
+     *     accept_status=APPLYING 但验收模块暂无明细 → 4 待验收
+     *   兜底 → 1 未开工
      * </pre>
-     * Service 只输出 value（'1'~'6'），label 统一从字典 xiang_mu_zhuang_tai 查——
-     * 用户在字典里加新条目会自动出现在统计方案里。
      */
     private String computeProjectStatus(Long approvalId, String approvalStatus, String acceptStatus,
                                         Map<Long, String> constructionMap, Map<Long, String> acceptanceMap) {
         // 立项未通过 → 不算（小写/大写都兼容）
         if (!"APPROVED".equalsIgnoreCase(approvalStatus)) {
-            return null; // 不纳入方案4分组，让上游过滤
+            return null;
         }
 
-        // 验收管理模块已有明细 → 优先取验收结果
-        String acceptance = acceptanceMap.get(approvalId);
-        if ("PASS".equals(acceptance)) {
-            return "5"; // 已验收（含整改后通过）
-        } else if ("FAIL".equals(acceptance)) {
-            return "6"; // 未通过
-        } else if ("APPLYING".equals(acceptance)) {
-            return "4"; // 待验收
-        }
-
-        // 立项单已进入验收流程（accept_status=APPLYING）但验收模块暂无明细 → 待验收
-        if ("APPLYING".equalsIgnoreCase(acceptStatus)) {
-            return "4";
-        }
-
-        // 无验收记录 → 取施工管理模块明细状态
         String construction = constructionMap.getOrDefault(approvalId, "NOT_STARTED");
+        String acceptance = acceptanceMap.get(approvalId);
+
+        // ① 施工中 → 优先归为施工中（不管其他明细是否已验收，说明还有活没干完）
+        if ("IN_PROGRESS".equals(construction)) {
+            return "2";
+        }
+
+        // ② 已完工（全部明细 COMPLETED）→ 再看验收状态
         if ("COMPLETED".equals(construction)) {
-            return "3"; // 已完工
-        } else if ("IN_PROGRESS".equals(construction)) {
+            if ("PASS".equals(acceptance)) return "5"; // 全部验收通过
+            if ("FAIL".equals(acceptance)) return "6"; // 有未通过
+            // 有验收明细但未全部通过 → 待验收；或 accept_status 显示已发起验收但验收表暂无明细
+            if ("APPLYING".equals(acceptance) || "APPLYING".equalsIgnoreCase(acceptStatus)) return "4";
+            // 已完工但完全没发起验收 → 已完工
+            return "3";
+        }
+
+        // ③ 无施工记录 / 全部 NOT_STARTED → 兜底用验收状态（理论很少发生）
+        if ("PASS".equals(acceptance)) return "5";
+        if ("FAIL".equals(acceptance)) return "6";
+        if ("APPLYING".equals(acceptance)) return "4";
+        if ("APPLYING".equalsIgnoreCase(acceptStatus)) return "4";
+
+        return "1"; // 未开工
+    }
+
+    /**
+     * 按明细（detail）粒度计算项目状态（方案4专用，直接从 row 行内值推导）。
+     *
+     * <p>每条三级农户/设施明细（build_status + accept_status_detail）独立决定状态：</p>
+     *
+     * <pre>
+     *   buildStatus NOT_STARTED / null     → 1 未开工
+     *   buildStatus IN_PROGRESS            → 2 施工中（明细还在施工，优先级最高）
+     *   buildStatus COMPLETED + ACCEPTED   → 5 已验收
+     *   buildStatus COMPLETED + REJECTED   → 6 未通过
+     *   buildStatus COMPLETED + PENDING     → 4 待验收（已完工但未验收）
+     *   buildStatus COMPLETED + null        → 3 已完工（完全没发起验收）
+     * </pre>
+     */
+    private String computeProjectStatusForDetail(ProjectCycleRawVO row) {
+        String approvalStatus = row.getApprovalStatus();
+        if (!"APPROVED".equalsIgnoreCase(approvalStatus)) {
+            return null;
+        }
+
+        String build = row.getBuildStatus();
+        String accept = row.getAcceptStatusDetail();
+        if (accept == null) accept = "PENDING"; // 没有验收记录默认 PENDING
+
+        if ("IN_PROGRESS".equals(build)) {
             return "2"; // 施工中
         }
-        return "1"; // 未开工
+
+        if ("COMPLETED".equals(build)) {
+            if ("ACCEPTED".equals(accept))  return "5"; // 已验收
+            if ("REJECTED".equals(accept))  return "6"; // 未通过
+            if ("PENDING".equals(accept))   return "4"; // 待验收（已完工但未验收）
+            // COMPLETED + 空 → 已完工（没发起验收）
+            return "3";
+        }
+
+        // 兜底：NOT_STARTED 或 buildStatus 为 null
+        return "1";
     }
 
     /**
@@ -612,29 +665,17 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             sortGroups(sortedGroups, queryType);
         }
 
-        // 4) 构建输出：每个大分组先输出 groupSummary 行，再输出 village 明细行
+        // 4) 构建输出：只输出大分组 groupSummary 行（不再嵌套村组明细），
+        //    + 末尾总计行。所有方案统一口径——侧边栏和主表格的"按类别/来源/立项状态/项目状态"
+        //    展示的都是大分组汇总，村组维度只在 queryType=village 时单独查询。
         List<ProjectCycleStatVO.Row> out = new ArrayList<>();
         for (Map.Entry<String, List<LabeledRow>> e : sortedGroups) {
             String gk = e.getKey();
             String gl = labels.getOrDefault(gk, gk);
             List<LabeledRow> bucket = e.getValue();
 
-            // 4a) groupSummary 行
+            // 大分组汇总行（groupSummary=true），villageName="全部村组"
             out.add(buildRow(gk, gl, "全部村组", bucket, queryType, true, false));
-
-            // 4b) 村组明细行：按字典全量输出（无数据也出一行 0 值）
-            // village query 本身最细粒度就是村组，不再嵌套二级
-            if (!isVillageQuery) {
-                Map<String, List<LabeledRow>> villageBucket = new HashMap<>();
-                for (LabeledRow lr : bucket) {
-                    String vn = blankToNull(lr.row.getVillageName()) == null ? "(未填)" : lr.row.getVillageName();
-                    villageBucket.computeIfAbsent(vn, k -> new ArrayList<>()).add(lr);
-                }
-                for (String vName : allVillageNames) {
-                    List<LabeledRow> vRows = villageBucket.getOrDefault(vName, Collections.emptyList());
-                    out.add(buildRow(gk, gl, vName, vRows, queryType, false, false));
-                }
-            }
         }
 
         // 5) grandTotal 行
@@ -688,8 +729,9 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
             }
             case "status": {
                 dictType = "xiang_mu_zhuang_tai";
-                groupKey = computeProjectStatus(row.getApprovalId(), row.getApprovalStatus(),
-                        row.getAcceptStatus(), constructionMap, acceptanceMap);
+                // 方案4 走 detail 粒度：row 自带 buildStatus + acceptStatusDetail，
+                // 用 computeProjectStatusForDetail 直接从行内值推导（不用 approval 粒度聚合 Map）
+                groupKey = computeProjectStatusForDetail(row);
                 if (groupKey == null) return null;
                 groupLabel = dictLabel(dictType, groupKey);
                 break;
@@ -824,16 +866,27 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
                 }
             }
         } else {
-            // 按 approvalId 去重计数
-            Set<Long> approvalIds = new HashSet<>();
-            for (LabeledRow lr : rows) {
-                Long aid = lr.row.getApprovalId();
-                if (aid != null) {
-                    approvalIds.add(aid);
-                    approvalFirstRow.putIfAbsent(aid, lr.row);
+            boolean isStatusQuery = "status".equals(queryType);
+            if (isStatusQuery) {
+                // 方案4 按项目状态：detail 粒度计数，每条农户/设施明细算一个
+                // 不走 approval 去重（同一个 approval 下的多个明细是独立的状态统计项）
+                projectCount = rows.size();
+                for (LabeledRow lr : rows) {
+                    Long aid = lr.row.getApprovalId();
+                    if (aid != null) approvalFirstRow.putIfAbsent(aid, lr.row);
                 }
+            } else {
+                // 按 approvalId 去重计数
+                Set<Long> approvalIds = new HashSet<>();
+                for (LabeledRow lr : rows) {
+                    Long aid = lr.row.getApprovalId();
+                    if (aid != null) {
+                        approvalIds.add(aid);
+                        approvalFirstRow.putIfAbsent(aid, lr.row);
+                    }
+                }
+                projectCount = approvalIds.size();
             }
-            projectCount = approvalIds.size();
         }
 
         int villageCoverage = rows.size();
