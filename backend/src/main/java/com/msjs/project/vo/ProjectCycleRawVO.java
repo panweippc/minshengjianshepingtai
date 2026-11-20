@@ -51,4 +51,12 @@ public class ProjectCycleRawVO implements Serializable {
     // ==== 日期（方案3 按立项状态的年度筛选用） ====
     private LocalDateTime submitTime;       // a.submit_time 立项日期
     private LocalDateTime archiveCreateTime; // archive.create_time 归档时间（LEFT JOIN 来）
+
+    // ==== detail 级字段（方案4 按项目状态专用，三级农户/设施明细粒度） ====
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long detailId;               // approval_detail 主键
+    private String detailTargetName;     // 明细目标名称（农户姓名 / 设施名称）
+    private String detailType;           // 明细类型（HOUSEHOLD / FACILITY）
+    private String buildStatus;          // 三级施工状态（NOT_STARTED / IN_PROGRESS / COMPLETED）
+    private String acceptStatusDetail;    // 明细级验收状态（PENDING / ACCEPTED / REJECTED）
 }

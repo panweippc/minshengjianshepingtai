@@ -73,7 +73,8 @@ export function getFundStat(params: {
 /** 分组内明细流水（弹窗里一行一条的扁平列表） */
 export function getFundDetailList(params: {
   year?: string; regionCode?: string;
-  groupType?: string; groupValue?: string
+  groupType?: string; groupValue?: string;
+  villageName?: string
 }) {
   return get<Result<FundDetailRow[]>>('/api/project/fund/query/detailList', { params })
 }
@@ -81,7 +82,8 @@ export function getFundDetailList(params: {
 /** 导出当前分组明细到 CSV（后端直接写流） */
 export function downloadFundDetailCsv(params: {
   year?: string; regionCode?: string;
-  groupType?: string; groupValue?: string
+  groupType?: string; groupValue?: string;
+  villageName?: string
 }) {
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') q.append(k, String(v)) })

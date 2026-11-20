@@ -141,7 +141,9 @@ public interface DeclarationService {
      * @param declarationCategory 左侧选中的申报类别（可空）
      * @param status              左侧选中的审批状态（可空）
      * @param villageGroupCode    左侧选中的所属村组（可空）
+     * @param detailStatus        顶部选中的明细审批状态（可空，对申报单明细做全局筛选）
      */
     DeclarationStatisticsVO statistics(String year, String regionCode, String groupBy,
-                                      String declarationCategory, String status, String villageGroupCode);
+                                      String declarationCategory, String status, String villageGroupCode,
+                                      String detailStatus);
 }

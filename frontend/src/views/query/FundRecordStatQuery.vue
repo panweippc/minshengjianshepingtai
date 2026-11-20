@@ -10,18 +10,6 @@
               <el-option v-for="y in yearOptions" :key="y" :label="y + '年'" :value="String(y)" />
             </el-select>
           </div>
-          <div class="filter-item">
-            <span class="filter-label">区划选择</span>
-            <el-cascader
-              v-model="query.regionCodePath"
-              :options="regionTree"
-              :props="{ value: 'code', label: 'name', children: 'children', checkStrictly: true }"
-              placeholder="全部区划"
-              clearable
-              filterable
-              style="width: 240px"
-            />
-          </div>
         </div>
         <div class="filter-right">
           <el-button type="primary" icon="Search" :loading="loading" @click="handleQuery">查询</el-button>
@@ -67,11 +55,11 @@
         <div class="filter-section">
           <div class="section-header">
             <el-radio :model-value="query.groupType" label="fundSource" @change="switchGroupTypeOnly('fundSource')">
-              <span class="section-title-inline">按资金来源统计</span>
+              <span class="section-title-inline">按拨付资金来源统计</span>
             </el-radio>
           </div>
           <div class="section-sub">
-            <span>资金来源（{{ sidebar.byFundSource.length }}）</span>
+            <span>拨付资金来源（{{ sidebar.byFundSource.length }}）</span>
           </div>
           <div
             v-for="item in sidebar.byFundSource"
@@ -116,34 +104,6 @@
           <div v-if="sidebar.byNodeLevel.length === 0" class="empty-hint">暂无数据</div>
         </div>
 
-        <div class="filter-section">
-          <div class="section-header">
-            <el-radio :model-value="query.groupType" label="village" @change="switchGroupTypeOnly('village')">
-              <span class="section-title-inline">按所属村组统计</span>
-            </el-radio>
-          </div>
-          <div class="section-sub">
-            <span>所属村组（{{ sidebar.byVillage.length }}）</span>
-          </div>
-          <div class="stat-scroll">
-            <div
-              v-for="item in sidebar.byVillage"
-              :key="item.value"
-              class="stat-item"
-              :class="{
-                active: query.groupType === 'village' && query.groupValue && String(item.value) === String(query.groupValue),
-                disabled: query.groupType !== 'village'
-              }"
-              @click="onSidebarItemClick('village', item.value)"
-            >
-              <span class="stat-check" />
-              <span class="stat-label">{{ item.label }}</span>
-              <span class="stat-count">{{ item.count }}</span>
-            </div>
-          </div>
-          <div v-if="sidebar.byVillage.length === 0" class="empty-hint">暂无数据</div>
-        </div>
-
         <div v-if="query.groupValue" class="sidebar-actions">
           <el-button size="small" @click="clearSidebarFilter">清除筛选</el-button>
         </div>
@@ -164,6 +124,8 @@
           :data="rows"
           v-loading="loading"
           :row-class-name="rowClassName"
+          @row-contextmenu="onRowContextMenu"
+          @row-click="onRowClickClearMenu"
         >
           <el-table-column :label="groupHeader" min-width="120">
             <template #default="{ row }">
@@ -175,7 +137,7 @@
             </template>
           </el-table-column>
           <el-table-column
-            v-if="query.groupType !== 'village'"
+            v-if="query.groupType !== 'village' && query.groupType !== 'fundType' && query.groupType !== 'fundSource' && query.groupType !== 'nodeLevel'"
             prop="villageName"
             label="村组"
             min-width="100"
@@ -208,6 +170,30 @@
           </el-table-column>
         </el-table>
 
+        <!-- 右键菜单（用 Teleport 到 body，避免被 overflow:hidden 父容器裁掉） -->
+        <Teleport to="body">
+          <div
+            v-if="contextMenu.visible"
+            class="ctx-menu"
+            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+            @click.stop
+          >
+            <div class="ctx-title">
+              <el-icon><InfoFilled /></el-icon>
+              <span>{{ contextMenu.row?.groupLabel }}{{ contextMenu.row?.groupSummary ? '（全部村组）' : '' }}{{ contextMenu.row?.villageName && contextMenu.row?.villageName !== '全部村组' && contextMenu.row?.villageName !== '全部区划' ? ' · ' + contextMenu.row.villageName : '' }}</span>
+            </div>
+            <el-divider style="margin: 4px 0" />
+            <div class="ctx-item" @click="openDetailFromCtx">
+              <el-icon><Search /></el-icon>
+              <span>查询明细流水</span>
+            </div>
+            <div class="ctx-item" @click="exportFromCtx">
+              <el-icon><Download /></el-icon>
+              <span>导出当前明细</span>
+            </div>
+          </div>
+        </Teleport>
+
         <div class="caliber-note">
           <el-icon><InfoFilled /></el-icon>
           <span>
@@ -216,15 +202,35 @@
         </div>
       </el-card>
     </div>
+
+    <!-- 明细弹窗 -->
+    <el-dialog
+      v-model="detailDialog.visible"
+      :title="detailDialog.title"
+      width="90%"
+      top="5vh"
+      destroy-on-close
+    >
+      <FundRecordDetailDialog
+        v-if="detailDialog.visible"
+        :group-type="detailDialog.groupType"
+        :group-value="detailDialog.groupValue"
+        :village-name="detailDialog.villageName"
+        :label="detailDialog.title"
+        :year="query.year || undefined"
+        :region-code="query.regionCode || undefined"
+      />
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { InfoFilled } from '@element-plus/icons-vue'
+import { InfoFilled, Search, Download } from '@element-plus/icons-vue'
 import { getRegionList } from '@/api/region'
-import { getFundStat, type Row } from '@/api/fundQuery'
+import { getFundStat, downloadFundDetailCsv, type Row } from '@/api/fundQuery'
+import FundRecordDetailDialog from './FundRecordDetailDialog.vue'
 
 // ===================== 区划树 =====================
 interface RegionNode { value: string; label: string; children?: RegionNode[] }
@@ -288,7 +294,7 @@ const sidebar = ref<{
 /** 动态表头第一列（跟着 groupType 变） */
 const groupHeader = computed(() => {
   switch (query.groupType) {
-    case 'fundSource': return '资金来源'
+    case 'fundSource': return '拨付资金来源'
     case 'nodeLevel':  return '下拨类型'
     case 'village':    return '所属村组'
     default:           return '资金类型'
@@ -317,9 +323,8 @@ const resultSubtitle = computed(() => {
   return `${year} · ${regionLabel.value} · 统计结果`
 })
 
-/** 根据 row 标记加 class（grandTotal 最底总计、groupSummary 大分组汇总） */
+/** 根据 row 标记加 class（groupSummary 大分组汇总） */
 function rowClassName({ row }: { row: Row }) {
-  if (row.grandTotal) return 'row-grand-total'
   if (row.groupSummary) return 'row-group-summary'
   return ''
 }
@@ -391,10 +396,9 @@ async function buildSidebarFromStat() {
     if (dim === 'fundType')   sidebar.value.byFundType   = list
     if (dim === 'fundSource') sidebar.value.byFundSource = list
     if (dim === 'nodeLevel')  sidebar.value.byNodeLevel  = list
-    if (dim === 'village')    sidebar.value.byVillage    = list
   }
-  // 四个维度全量拉（都不带 groupValue）
-  const allDims: typeof query.groupType[] = ['fundType', 'fundSource', 'nodeLevel', 'village']
+  // 只拉三个维度（village 已移除）
+  const allDims: typeof query.groupType[] = ['fundType', 'fundSource', 'nodeLevel']
   for (const dim of allDims) {
     try {
       const r = await getFundStat({
@@ -418,6 +422,103 @@ function resetQuery() {
   query.groupType = 'fundType'
   query.groupValue = ''
   handleQuery()
+}
+
+// ===================== 右键菜单 =====================
+const contextMenu = reactive<{
+  visible: boolean
+  x: number
+  y: number
+  row: Row | null
+}>({ visible: false, x: 0, y: 0, row: null })
+
+/** 表格行右键 → 弹出菜单；grandTotal 行也能右键 */
+function onRowContextMenu(row: Row, column: any, event: MouseEvent) {
+  // 手动阻止浏览器默认右键菜单（组件事件上 Vue .prevent 修饰符无效）
+  if (event && typeof event.preventDefault === 'function') event.preventDefault()
+  // 计算可视区域内的坐标，避免菜单超出视口
+  const menuW = 220, menuH = 160
+  let x = event.clientX + 6
+  let y = event.clientY + 6
+  if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 6
+  if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 6
+  contextMenu.visible = true
+  contextMenu.x = x
+  contextMenu.y = y
+  contextMenu.row = row
+}
+
+function onRowClickClearMenu() {
+  contextMenu.visible = false
+}
+
+function closeContextMenu() {
+  contextMenu.visible = false
+}
+
+/** 点击空白处关闭右键菜单 */
+function onDocClick() {
+  if (contextMenu.visible) contextMenu.visible = false
+}
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+
+// ===================== 明细弹窗 =====================
+const detailDialog = reactive({
+  visible: false,
+  title: '',
+  groupType: '' as string,
+  groupValue: '' as string,
+  villageName: undefined as string | undefined
+})
+
+/** 从右键菜单打开明细弹窗 */
+function openDetailFromCtx() {
+  const row = contextMenu.row
+  contextMenu.visible = false
+  if (!row) return
+  // grandTotal 行没有 groupValue，查明细无意义
+  if (row.grandTotal) {
+    ElMessage.info('总计行为汇总，无对应明细流水')
+    return
+  }
+  // 确定弹窗标题 + 参数
+  const gt = query.groupType
+  const gv = row.groupValue || ''
+  const vn = (!row.groupSummary && row.villageName && row.villageName !== '全部村组' && row.villageName !== '全部区划')
+    ? row.villageName
+    : undefined
+  const title = row.groupSummary
+    ? `${row.groupLabel}（全部村组）- 明细流水`
+    : `${row.groupLabel} · ${row.villageName} - 明细流水`
+  detailDialog.title = title
+  detailDialog.groupType = gt
+  detailDialog.groupValue = gv
+  detailDialog.villageName = vn
+  detailDialog.visible = true
+}
+
+/** 从右键菜单导出当前行明细 */
+function exportFromCtx() {
+  const row = contextMenu.row
+  contextMenu.visible = false
+  if (!row) return
+  if (row.grandTotal) {
+    ElMessage.info('总计行为汇总，无对应明细流水')
+    return
+  }
+  const gt = query.groupType
+  const gv = row.groupValue || ''
+  const vn = (!row.groupSummary && row.villageName && row.villageName !== '全部村组' && row.villageName !== '全部区划')
+    ? row.villageName
+    : undefined
+  downloadFundDetailCsv({
+    year: query.year || undefined,
+    regionCode: query.regionCode || undefined,
+    groupType: gt,
+    groupValue: gv,
+    villageName: vn
+  })
 }
 
 // ===================== 工具 =====================
@@ -767,5 +868,51 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   line-height: 1.6;
+}
+
+/* 右键菜单 */
+.ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(31, 45, 61, 0.16);
+  padding: 8px 0;
+  overflow: hidden;
+  animation: ctx-menu-in 0.08s ease-out;
+}
+@keyframes ctx-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ctx-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #6b7a90;
+  background: #f5f8fd;
+  margin: 0 8px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #3a4557;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ctx-item:hover {
+  background: #eef4ff;
+  color: #2f6bff;
+}
+.ctx-item :deep(.el-icon) {
+  font-size: 15px;
 }
 </style>

@@ -455,6 +455,8 @@ export function getDeclarationStatistics(params: {
   declarationCategory?: string
   status?: string
   villageGroupCode?: string
+  /** 顶部状态筛选：按申报单明细审批状态过滤（pending/approved/rejected/established） */
+  detailStatus?: string
 }) {
   return get<Result<DeclarationStatisticsVO>>('/api/declaration/statistics', { params })
 }
