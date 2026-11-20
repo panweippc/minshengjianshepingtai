@@ -21,6 +21,22 @@
               style="width: 240px"
             />
           </div>
+          <div class="filter-item">
+            <span class="filter-label">状态筛选</span>
+            <el-select
+              v-model="query.detailStatus"
+              placeholder="全部状态"
+              clearable
+              style="width: 140px"
+            >
+              <el-option
+                v-for="s in detailStatusOptions"
+                :key="s.value"
+                :label="s.label"
+                :value="s.value"
+              />
+            </el-select>
+          </div>
         </div>
         <div class="filter-right">
           <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -266,8 +282,18 @@ const query = reactive({
   groupBy: 'category' as 'category' | 'status' | 'village',
   declarationCategory: '' as string,
   status: '' as string,
-  villageGroupCode: '' as string | null
+  villageGroupCode: '' as string | null,
+  /** 顶部状态筛选：按申报单明细审批状态过滤统计 */
+  detailStatus: '' as string
 })
+
+/** 顶部状态筛选可选项（与审批状态固定口径一致） */
+const detailStatusOptions = [
+  { label: '待审核', value: 'pending' },
+  { label: '已通过', value: 'approved' },
+  { label: '已驳回', value: 'rejected' },
+  { label: '已立项', value: 'established' }
+]
 
 /** 年度选项：从 2020 到下一年 */
 const currentYear = new Date().getFullYear()
@@ -420,7 +446,8 @@ async function handleQuery() {
       groupBy: query.groupBy,
       declarationCategory: query.declarationCategory || undefined,
       status: query.status || undefined,
-      villageGroupCode: query.villageGroupCode || undefined
+      villageGroupCode: query.villageGroupCode || undefined,
+      detailStatus: query.detailStatus || undefined
     })
     rows.value = res.data.rows
     sidebar.value = res.data.sidebar
@@ -437,6 +464,7 @@ function resetQuery() {
   query.declarationCategory = ''
   query.status = ''
   query.villageGroupCode = null
+  query.detailStatus = ''
   handleQuery()
 }
 

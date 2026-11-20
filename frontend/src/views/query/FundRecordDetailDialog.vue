@@ -58,6 +58,7 @@ import { getFundDetailList, type FundDetailRow } from '@/api/fundQuery'
 const props = defineProps<{
   groupType: string
   groupValue: string
+  villageName?: string
   label: string
   year?: string
   regionCode?: string
@@ -80,7 +81,8 @@ async function load() {
       year: props.year,
       regionCode: props.regionCode,
       groupType: props.groupType,
-      groupValue: props.groupValue
+      groupValue: props.groupValue,
+      villageName: props.villageName
     })
     const data = res?.data ?? (res as any)
     const all: FundDetailRow[] = data ?? []
@@ -108,7 +110,7 @@ function formatMoney(v: any): string {
 }
 
 onMounted(load)
-watch([() => props.groupType, () => props.groupValue], () => { pageNum.value = 1; load() })
+watch([() => props.groupType, () => props.groupValue, () => props.villageName], () => { pageNum.value = 1; load() })
 watch([pageNum, pageSize], load)
 </script>
 

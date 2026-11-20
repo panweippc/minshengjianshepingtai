@@ -100,7 +100,11 @@
         <el-table-column prop="category" label="项目类别" width="140" show-overflow-tooltip />
         <el-table-column prop="type" label="项目类型" width="120" show-overflow-tooltip />
         <el-table-column label="项目预算（元）" width="140" align="right">
-          <template #default="{ row }">{{ formatMoney(row.budget) }}</template>
+          <template #default="{ row }">
+            <!-- 项目预算仅一级项目节点展示，二级申报、三级明细不取值 -->
+            <template v-if="row.nodeType === 'approval'">{{ formatMoney(row.budget) }}</template>
+            <template v-else>-</template>
+          </template>
         </el-table-column>
         <el-table-column label="资金来源" width="140">
           <template #default="{ row }">{{ dictLabel('zi_jin_lai_yuan', row.fundSource) || '-' }}</template>

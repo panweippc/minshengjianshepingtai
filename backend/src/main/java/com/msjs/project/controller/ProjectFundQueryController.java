@@ -59,8 +59,10 @@ public class ProjectFundQueryController {
             @RequestParam(required = false) String year,
             @RequestParam(required = false) String regionCode,
             @RequestParam(required = false) String groupType,
-            @RequestParam(required = false) String groupValue) {
-        return Result.ok(fundQueryService.detailList(year, regionCode, groupType, groupValue));
+            @RequestParam(required = false) String groupValue,
+            @Parameter(description = "村组名（选填：精确过滤到某村流水）")
+            @RequestParam(required = false) String villageName) {
+        return Result.ok(fundQueryService.detailList(year, regionCode, groupType, groupValue, villageName));
     }
 
     @Operation(summary = "导出当前筛选 + 当前分组下的全部明细到 CSV")
@@ -71,8 +73,9 @@ public class ProjectFundQueryController {
             @RequestParam(required = false) String regionCode,
             @RequestParam(required = false) String groupType,
             @RequestParam(required = false) String groupValue,
+            @RequestParam(required = false) String villageName,
             HttpServletResponse response) throws Exception {
-        byte[] data = fundQueryService.exportCsv(year, regionCode, groupType, groupValue);
+        byte[] data = fundQueryService.exportCsv(year, regionCode, groupType, groupValue, villageName);
         String fn = "资金记录查询_" + System.currentTimeMillis() + ".csv";
         response.setContentType("text/csv; charset=UTF-8");
         response.setHeader("Content-Disposition",

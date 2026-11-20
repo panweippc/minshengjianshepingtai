@@ -1723,6 +1723,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         Long householdId;             // 非 null 表示农户明细
         Long facilityId;              // 非 null 表示公建设施明细
         java.math.BigDecimal amount;  // 明细金额
+        java.math.BigDecimal declarationAmount; // 申报单申报金额（主表 amount，按类别/按村组口径使用）
         String businessCode;          // 申报编号（明细核对用）
         String title;                 // 申报标题
         String categoryLabel;         // 申报类别名称
@@ -1732,7 +1733,8 @@ public class DeclarationServiceImpl implements DeclarationService {
 
     @Override
     public DeclarationStatisticsVO statistics(String year, String regionCode, String groupBy,
-                                              String declarationCategory, String status, String villageGroupCode) {
+                                              String declarationCategory, String status, String villageGroupCode,
+                                              String detailStatus) {
         DeclarationStatisticsVO vo = new DeclarationStatisticsVO();
         vo.setGroupBy(groupBy == null || groupBy.isBlank() ? "category" : groupBy);
 
@@ -1816,6 +1818,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             f.householdId = hh.getHouseholdId();
             f.facilityId = null;
             f.amount = hh.getAmount() != null ? hh.getAmount() : java.math.BigDecimal.ZERO;
+            f.declarationAmount = d.getAmount() != null ? d.getAmount() : java.math.BigDecimal.ZERO;
             f.businessCode = d.getBusinessCode();
             f.title = d.getTitle();
             f.categoryLabel = mapCategoryLabel(d.getDeclarationCategory(), catDict);
@@ -1835,6 +1838,7 @@ public class DeclarationServiceImpl implements DeclarationService {
             f.householdId = null;
             f.facilityId = pf.getFacilityId();
             f.amount = pf.getAmount() != null ? pf.getAmount() : java.math.BigDecimal.ZERO;
+            f.declarationAmount = d.getAmount() != null ? d.getAmount() : java.math.BigDecimal.ZERO;
             f.businessCode = d.getBusinessCode();
             f.title = d.getTitle();
             f.categoryLabel = mapCategoryLabel(d.getDeclarationCategory(), catDict);
@@ -1850,8 +1854,20 @@ public class DeclarationServiceImpl implements DeclarationService {
                     .collect(Collectors.toList());
         }
 
+        // 顶部状态筛选：按申报单明细审批状态全局过滤（与分组维度无关，作用于所有统计视图）
+        if (detailStatus != null && !detailStatus.isBlank()) {
+            String ds = detailStatus.trim();
+            flatItems = flatItems.stream()
+                    .filter(f -> ds.equals(f.auditStatus))
+                    .collect(Collectors.toList());
+        }
+
         // 3) 按 groupBy 分组 → 再按村组拆二级 → 构建 rows
         List<DeclarationStatisticsVO.Row> rows = new ArrayList<>();
+
+        // 金额口径：按申报类别 / 按所属村组统计时取申报单申报金额（distinct 申报单累加）；
+        // 按审批状态统计仍按明细金额累加（不同明细可处于不同审批状态，整单金额无法拆分）
+        boolean declAmountMode = "category".equals(groupBy) || "village".equals(groupBy);
 
         // 主分组：从 FlatItem 提取 key
         Map<String, List<FlatItem>> mainGroup = new HashMap<>();
@@ -1887,12 +1903,13 @@ public class DeclarationServiceImpl implements DeclarationService {
         Set<Long> grandDeclIds = new HashSet<>();
         int grandHouseholdCount = 0;
         int grandFacilityCount = 0;
-        java.math.BigDecimal grandAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandAmount = declAmountMode
+                ? sumDeclarationAmount(flatItems) : java.math.BigDecimal.ZERO;
         for (FlatItem f : flatItems) {
             if (f.declarationId != null) grandDeclIds.add(f.declarationId);
             if (f.householdId != null) grandHouseholdCount++;
             if (f.facilityId != null) grandFacilityCount++;
-            if (f.amount != null) grandAmount = grandAmount.add(f.amount);
+            if (!declAmountMode && f.amount != null) grandAmount = grandAmount.add(f.amount);
         }
 
         for (String mainKey : orderedMainKeys) {
@@ -1907,11 +1924,11 @@ public class DeclarationServiceImpl implements DeclarationService {
 
             if ("village".equals(groupBy)) {
                 // village 分组已经是最细粒度，直接输出扁平普通行（不嵌套 summary + 二级）
-                DeclarationStatisticsVO.Row flatRow = buildRow(groupItems, mainLbl, mainLbl, mainKey, false, false);
+                DeclarationStatisticsVO.Row flatRow = buildRow(groupItems, mainLbl, mainLbl, mainKey, false, false, declAmountMode);
                 rows.add(flatRow);
             } else {
                 // 分组汇总行（一级）
-                DeclarationStatisticsVO.Row summaryRow = buildRow(groupItems, mainLbl, "全部村组", null, true, false);
+                DeclarationStatisticsVO.Row summaryRow = buildRow(groupItems, mainLbl, "全部村组", null, true, false, declAmountMode);
                 rows.add(summaryRow);
 
                 // 二级：按字典全量村组顺序输出明细行
@@ -1924,7 +1941,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                     List<FlatItem> vgItems = byVillage.getOrDefault(vgKey, Collections.emptyList());
                     DeclarationStatisticsVO.Row detailRow = buildRow(vgItems, "",
                             villageCode2Name.getOrDefault(vgKey, vgKey),
-                            vgKey, false, false);
+                            vgKey, false, false, declAmountMode);
                     rows.add(detailRow);
                 }
             }
@@ -2015,10 +2032,16 @@ public class DeclarationServiceImpl implements DeclarationService {
         return vo;
     }
 
-    /** 把一组 FlatItem 聚合成一条 Row（用于分组汇总行 / 村组明细行） */
+    /**
+     * 把一组 FlatItem 聚合成一条 Row（用于分组汇总行 / 村组明细行）
+     *
+     * @param useDeclAmount true=按 distinct 申报单累加申报单申报金额（按类别/按村组口径）；
+     *                      false=按明细金额累加（按审批状态口径）
+     */
     private DeclarationStatisticsVO.Row buildRow(List<FlatItem> items, String groupLabel,
                                                   String villageName, String villageGroupCode,
-                                                  boolean groupSummary, boolean grandTotal) {
+                                                  boolean groupSummary, boolean grandTotal,
+                                                  boolean useDeclAmount) {
         DeclarationStatisticsVO.Row row = new DeclarationStatisticsVO.Row();
         row.setGroupSummary(groupSummary);
         row.setGrandTotal(grandTotal);
@@ -2028,19 +2051,42 @@ public class DeclarationServiceImpl implements DeclarationService {
         Set<Long> declIds = new HashSet<>();
         int hhCount = 0;
         int pfCount = 0;
-        java.math.BigDecimal amt = java.math.BigDecimal.ZERO;
         for (FlatItem f : items) {
             if (f.declarationId != null) declIds.add(f.declarationId);
             if (f.householdId != null) hhCount++;
             if (f.facilityId != null) pfCount++;
-            if (f.amount != null) amt = amt.add(f.amount);
         }
+        java.math.BigDecimal amt = useDeclAmount
+                ? sumDeclarationAmount(items)
+                : sumDetailAmount(items);
         row.setDeclarationCount(declIds.size());
         row.setHouseholdCount(hhCount);
         row.setFacilityCount(pfCount);
         row.setAmount(amt);
         row.setDetails(buildDetails(items));
         return row;
+    }
+
+    /** 按 distinct 申报单累加申报单申报金额（同一申报单多条明细只计一次） */
+    private java.math.BigDecimal sumDeclarationAmount(List<FlatItem> items) {
+        Map<Long, java.math.BigDecimal> declAmount = new HashMap<>();
+        for (FlatItem f : items) {
+            if (f.declarationId == null || declAmount.containsKey(f.declarationId)) continue;
+            declAmount.put(f.declarationId,
+                    f.declarationAmount == null ? java.math.BigDecimal.ZERO : f.declarationAmount);
+        }
+        java.math.BigDecimal sum = java.math.BigDecimal.ZERO;
+        for (java.math.BigDecimal v : declAmount.values()) sum = sum.add(v);
+        return sum;
+    }
+
+    /** 按明细条数累加明细金额 */
+    private java.math.BigDecimal sumDetailAmount(List<FlatItem> items) {
+        java.math.BigDecimal sum = java.math.BigDecimal.ZERO;
+        for (FlatItem f : items) {
+            if (f.amount != null) sum = sum.add(f.amount);
+        }
+        return sum;
     }
 
     /** 把一组 FlatItem 转成明细核对列表 */
