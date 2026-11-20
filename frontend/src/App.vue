@@ -17,7 +17,8 @@ body,
 /* ========== 列表页全局布局优化 ========== */
 /* 仅对"纯纵向列表页"（只有查询卡+表格卡，没有左右分栏）生效 */
 /* 左右布局页面（.tree-card + .right-area）不受影响 */
-.main > div:not(:has(> .tree-card)):not(:has(> .right-area)) {
+/* 数据大屏为全屏画布，不参与列表页 flex 布局规则 */
+.main > div:not(.screen-root):not(:has(> .tree-card)):not(:has(> .right-area)) {
   display: flex;
   flex-direction: column;
   height: 100%;
