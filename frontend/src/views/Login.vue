@@ -10,14 +10,14 @@
 
     <!-- 登录卡片 -->
     <div class="login-card">
-      <div class="card-brand">
-        <span class="logo-badge">
-          <el-icon :size="22"><Platform /></el-icon>
-        </span>
-        <div class="brand-text">
-          <strong>民生建设项目管理平台</strong>
+        <div class="card-brand">
+          <span class="logo-badge">
+            <el-icon :size="22"><Platform /></el-icon>
+          </span>
+          <div class="brand-text">
+            <strong>民生建设项目管理平台</strong>
+          </div>
         </div>
-      </div>
 
       <div class="card-title">
         <h1>欢迎回来</h1>
@@ -92,7 +92,7 @@
       </el-form>
     </div>
 
-    <p class="page-foot">© 2026 民生建设项目管理平台 · 建议使用 Chrome / Edge 浏览器访问</p>
+    <p class="page-foot">© 2026 民生建设项目管理平台</p>
   </div>
 </template>
 
