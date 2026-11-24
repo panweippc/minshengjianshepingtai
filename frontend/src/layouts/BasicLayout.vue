@@ -516,7 +516,7 @@ const handleCommand = (cmd: string) => {
 
 /* ========== 侧边栏 ========== */
 .logo {
-  height: 56px;
+  height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -574,7 +574,7 @@ const handleCommand = (cmd: string) => {
 .header {
   display: flex;
   align-items: center;
-  height: 56px;
+  height: 44px;
   border-bottom: 1px solid #e6eef7;
   background-color: #fff;
   padding: 0 16px;
@@ -633,8 +633,8 @@ const handleCommand = (cmd: string) => {
 /* 轻量无边框图标按钮，避免顶栏出现多余线框 */
 .sidebar-toggle {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   margin-right: 6px;
   padding: 0;
   border: none;
@@ -653,8 +653,8 @@ const handleCommand = (cmd: string) => {
 /* ========== 页签左右滚动箭头 ========== */
 .tabs-arrow {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   font-size: 14px;
   color: #909399;
@@ -695,13 +695,13 @@ const handleCommand = (cmd: string) => {
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
-  height: 30px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 10px;
   border: 1px solid #dcdfe6;
-  border-radius: 6px;
+  border-radius: 4px;
   background-color: #fff;
   color: #606266;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   user-select: none;
@@ -714,7 +714,7 @@ const handleCommand = (cmd: string) => {
   color: #17518c;
 }
 .tab-item.is-active {
-  padding: 0 14px;
+  padding: 0 12px;
   border-color: #bcd6ee;
   background-color: #e8f1fb;
   box-shadow: 0 2px 6px rgba(23, 81, 140, 0.08);
