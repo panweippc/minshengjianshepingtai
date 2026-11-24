@@ -199,6 +199,60 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 登录首页右下角气泡提醒卡片 -->
+    <Teleport to="body">
+      <div
+        v-if="reminderVisible"
+        class="reminder-bubble"
+      >
+        <div class="reminder-bubble-header">
+          <span class="reminder-bubble-icon">🔔</span>
+          <span class="reminder-bubble-title">{{ reminderTitle }}</span>
+          <span class="reminder-bubble-close" @click="closeReminder">✕</span>
+        </div>
+        <div class="reminder-bubble-body">
+          <div
+            v-for="item in reminderList"
+            :key="item.declarationId"
+            class="reminder-item"
+          >
+            <div class="reminder-item-head">
+              <span class="reminder-code">{{ item.businessCode }}</span>
+              <span
+                class="reminder-status"
+                :class="{
+                  'is-submitted': item.status === 'submitted',
+                  'is-pending': item.status === 'pending',
+                  'is-approved': item.status === 'approved',
+                  'is-rejected': item.status === 'rejected',
+                  'is-draft': item.status === 'draft',
+                }"
+              >{{ item.statusName }}</span>
+            </div>
+            <div class="reminder-title" :title="item.title">{{ item.title }}</div>
+            <div class="reminder-meta">
+              <span v-if="item.villageGroupName">📍 {{ item.villageGroupName }}</span>
+              <span v-if="item.amount != null">💰 ¥{{ item.amount.toFixed(2) }}</span>
+            </div>
+            <!-- 村级账号：展示审核意见 -->
+            <div v-if="reminderRoleType === 'VILLAGE'" class="reminder-audit">
+              <span
+                :class="{ 'is-reject': item.status === 'rejected', 'is-pass': item.status === 'approved' }"
+              >
+                {{ item.auditRemark ? ('审核意见：' + item.auditRemark) : '审核通过' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="reminder-bubble-footer">
+          <el-button link size="small" @click="closeReminder">稍后处理</el-button>
+          <el-button type="primary" size="small" @click="handleReminderGo">
+            {{ reminderRoleType === 'TOWN' ? '前往审核' : '查看结果' }}
+          </el-button>
+        </div>
+      </div>
+    </Teleport>
   </el-container>
 </template>
 
@@ -210,6 +264,8 @@ import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import { updateProfile, changePassword } from '@/api/auth'
+import { getLoginReminders } from '@/api/declaration'
+import type { DeclarationLoginReminderItem } from '@/api/declaration'
 
 /** 页签项 */
 interface TabItem {
@@ -337,6 +393,10 @@ onMounted(() => {
   if (tabsScrollRef.value) {
     tabsResizeObserver = new ResizeObserver(updateScrollState)
     tabsResizeObserver.observe(tabsScrollRef.value)
+  }
+  // 登录后拉取弹窗提醒（仅当已登录时触发）
+  if (store.isLogin) {
+    fetchLoginReminders()
   }
 })
 
@@ -482,6 +542,82 @@ const handleCommand = (cmd: string) => {
       router.push('/login')
     })
   }
+}
+
+// ============ 登录后弹窗提醒 ============
+
+const reminderVisible = ref(false)
+const reminderRoleType = ref<'TOWN' | 'VILLAGE' | 'UNKNOWN'>('UNKNOWN')
+const reminderList = ref<DeclarationLoginReminderItem[]>([])
+
+/** localStorage 里存一个用户看过的提醒 ID 集合（按用户隔离） */
+const SEEN_KEY_PREFIX = 'msjs:reminderSeen:'
+const getSeenKey = () => `${SEEN_KEY_PREFIX}${userInfo.value?.username || 'anonymous'}`
+const loadSeenIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(getSeenKey())
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw)
+    return new Set(Array.isArray(arr) ? arr : [])
+  } catch {
+    return new Set()
+  }
+}
+const saveSeenIds = (ids: Set<string>) => {
+  try {
+    localStorage.setItem(getSeenKey(), JSON.stringify(Array.from(ids)))
+  } catch {
+    // 忽略存储异常
+  }
+}
+
+/** 登录后拉取弹窗提醒，剔除用户已确认过的条目，剩余非空则自动弹出 */
+const fetchLoginReminders = async () => {
+  try {
+    const res = await getLoginReminders()
+    const data = res.data
+    if (!data) return
+    reminderRoleType.value = data.roleType
+    const seen = loadSeenIds()
+    const fresh = (data.reminders || []).filter((item) => !seen.has(item.declarationId))
+    reminderList.value = fresh
+    if (fresh.length > 0) {
+      reminderVisible.value = true
+    }
+  } catch {
+    // 提醒接口失败不阻塞主流程，静默忽略
+  }
+}
+
+/** 弹窗标题：根据账号层级区分 */
+const reminderTitle = computed(() => {
+  if (reminderRoleType.value === 'TOWN') return `您有 ${reminderList.value.length} 条待审核的申报单`
+  if (reminderRoleType.value === 'VILLAGE') return `您提交的 ${reminderList.value.length} 条申报已出审核结果`
+  return '系统提醒'
+})
+
+/** 把当前所有已展示的提醒标记为"已看过"，下次登录不再弹 */
+const markCurrentSeen = () => {
+  const seen = loadSeenIds()
+  reminderList.value.forEach((item) => seen.add(item.declarationId))
+  saveSeenIds(seen)
+}
+
+/** 前往处理：镇级跳申报审核页，村级跳申报提交页 */
+const handleReminderGo = () => {
+  reminderVisible.value = false
+  markCurrentSeen()
+  if (reminderRoleType.value === 'TOWN') {
+    router.push('/declaration/received')
+  } else if (reminderRoleType.value === 'VILLAGE') {
+    router.push('/declaration/submit')
+  }
+}
+
+/** 关闭弹窗（点稍后处理 / ✕）：也标记为已看过，下次登录不再弹 */
+const closeReminder = () => {
+  reminderVisible.value = false
+  markCurrentSeen()
 }
 </script>
 
@@ -829,4 +965,117 @@ const handleCommand = (cmd: string) => {
   max-height: 62vh;
   overflow-y: auto;
 }
+
+/* ========== 登录提醒右下角气泡卡片 ========== */
+.reminder-bubble {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 360px;
+  max-height: 70vh;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.08);
+  z-index: 2147483600;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: reminder-bubble-in 0.25s ease-out;
+}
+@keyframes reminder-bubble-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.reminder-bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.reminder-bubble-icon { font-size: 15px; }
+.reminder-bubble-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reminder-bubble-close {
+  cursor: pointer;
+  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+.reminder-bubble-close:hover { background-color: rgba(255, 255, 255, 0.2); }
+.reminder-bubble-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+.reminder-bubble-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  border-top: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+.reminder-item {
+  padding: 10px 12px;
+  border: 1px solid #f0f2f5;
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 8px;
+}
+.reminder-item:last-child { margin-bottom: 0; }
+.reminder-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.reminder-code {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 12px;
+  color: #909399;
+}
+.reminder-status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.reminder-status.is-submitted,
+.reminder-status.is-pending { background: #ecf5ff; color: #409eff; }
+.reminder-status.is-approved { background: #f0f9eb; color: #67c23a; }
+.reminder-status.is-rejected { background: #fef0f0; color: #f56c6c; }
+.reminder-status.is-draft { background: #f4f4f5; color: #909399; }
+.reminder-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reminder-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.reminder-audit {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #fafbfc;
+  color: #606266;
+}
+.reminder-audit .is-pass { color: #67c23a; font-weight: 500; }
+.reminder-audit .is-reject { color: #f56c6c; font-weight: 500; }
 </style>

@@ -13,6 +13,7 @@ import com.msjs.project.dto.DeclarationSubmitDTO;
 import com.msjs.project.service.DeclarationService;
 import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
+import com.msjs.project.vo.DeclarationLoginReminderVO;
 import com.msjs.project.vo.UserRegionVO;
 import com.msjs.project.vo.DeclarationStatisticsVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -247,5 +248,13 @@ public class DeclarationController {
             @RequestParam(required = false) String detailStatus) {
         return Result.ok(declarationService.statistics(year, regionCode, groupBy,
                 declarationCategory, status, villageGroupCode, detailStatus));
+    }
+
+    // ============ 登录后弹窗提醒 ============
+
+    @Operation(summary = "登录首页弹窗提醒（根据账号区划层级返回）")
+    @GetMapping("/login-reminders")
+    public Result<DeclarationLoginReminderVO> loginReminders() {
+        return Result.ok(declarationService.loginReminders());
     }
 }

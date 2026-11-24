@@ -613,12 +613,12 @@
           <div class="approval-section">
             <div class="section-head">
               <span class="section-title">— 关联申报单 —</span>
-              <el-button link type="primary" size="small" @click="addApprovalDecl">
-                + 新增申报单{{ approvalDialog.declarationRows.length > 0 ? '' : '（手动输入 ID）' }}
+              <el-button link type="primary" size="small" @click="openApprovalDeclPicker">
+                + 新增申报单
               </el-button>
             </div>
             <div v-if="approvalDialog.declarationRows.length === 0" class="section-empty">
-              <el-input v-model="approvalDialog.newDeclId" placeholder="手动输入申报单 ID 后点击新增" style="width:280px" />
+              暂无关联申报单，点击右上角"+ 新增申报单"从已通过的申报单中选择
             </div>
             <div v-for="(item, idx) in approvalDialog.declarationRows" :key="idx" class="decl-card">
               <el-input :model-value="`#${idx + 1}`" disabled class="decl-no" />
@@ -688,6 +688,79 @@
         <el-button type="primary" :loading="approvalDialog.submitting" @click="doSubmitApproval">提交立项申请</el-button>
       </template>
     </el-dialog>
+
+    <!-- ========== 选已通过申报单弹窗（给"新增申报单"按钮用） ========== -->
+    <el-dialog
+      v-model="pickDialog.visible"
+      title="选择已通过的申报单"
+      width="860px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      append-to-body
+    >
+      <div class="pick-query-bar">
+        <el-input
+          v-model="pickDialog.query.title"
+          placeholder="按申报标题搜索"
+          clearable
+          style="width:240px"
+          @keyup.enter="loadPickDeclarations()"
+        />
+        <el-select
+          v-model="pickDialog.query.townCode"
+          placeholder="按所属乡镇筛选"
+          clearable
+          style="width:200px"
+        >
+          <el-option v-for="t in townOptions" :key="t.code" :label="t.name" :value="t.code" />
+        </el-select>
+        <el-button type="primary" :loading="pickDialog.loading" @click="loadPickDeclarations">查询</el-button>
+        <el-button @click="resetPickQuery">重置</el-button>
+      </div>
+
+      <el-table
+        ref="pickTableRef"
+        :data="pickDialog.data"
+        :loading="pickDialog.loading"
+        row-key="id"
+        height="380"
+        @selection-change="onPickSelectionChange"
+      >
+        <el-table-column type="selection" width="45" :selectable="(row: any) => !isDeclInApprovalRows(row.id)" />
+        <el-table-column label="申报编号" prop="businessCode" width="150" />
+        <el-table-column label="申报标题" prop="title" min-width="200" show-overflow-tooltip />
+        <el-table-column label="所属乡镇" prop="townName" width="120" />
+        <el-table-column label="金额(元)" width="130" align="right">
+          <template #default="{ row }">¥ {{ formatAmount(row.amount) }}</template>
+        </el-table-column>
+        <el-table-column label="申报日期" prop="declarationDate" width="120" />
+      </el-table>
+
+      <div class="pick-pagination">
+        <span class="pick-selected-hint" v-if="pickDialog.selected.length">
+          已选 {{ pickDialog.selected.length }} 条（灰色为已在关联列表中的）
+        </span>
+        <el-pagination
+          background
+          :current-page="pickDialog.query.pageNum"
+          :page-size="pickDialog.query.pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="pickDialog.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="(s: number) => { pickDialog.query.pageSize = s; loadPickDeclarations() }"
+          @current-change="(p: number) => { pickDialog.query.pageNum = p; loadPickDeclarations() }"
+        />
+      </div>
+
+      <template #footer>
+        <el-button @click="pickDialog.visible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="pickDialog.selected.length === 0"
+          @click="confirmAddPickedDecls"
+        >确认添加（{{ pickDialog.selected.length }}）</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -698,6 +771,7 @@ import { UploadFilled, Loading, Paperclip, Delete } from '@element-plus/icons-vu
 import type { FormInstance, FormRules } from 'element-plus'
 import { getDictByType } from '@/api/dict'
 import { getPresignUrl } from '@/api/file'
+import { getRegionList } from '@/api/region'
 import {
   getReceivedDeclarationPage,
   auditDeclarationDetail,
@@ -1164,7 +1238,6 @@ const approvalDialog = reactive({
   visible: false,
   submitting: false,
   declarationRows: [] as ApprovalRowRef[],
-  newDeclId: '',
   form: {
     approvalCode: '',
     projectName: '',
@@ -1227,7 +1300,6 @@ function openApprovalDialog() {
   approvalDialog.form.remark = ''
   approvalDialog.form.establishDate = ''
   approvalDialog.form.attachments = []
-  approvalDialog.newDeclId = ''
 
   approvalDialog.visible = true
   nextTick(() => approvalFormRef.value?.clearValidate())
@@ -1237,16 +1309,108 @@ function removeApprovalDecl(idx: number) {
   approvalDialog.declarationRows.splice(idx, 1)
 }
 
-function addApprovalDecl() {
-  // 手动追加：给一个空行让用户输入 ID（后端不校验数量，只要在已选范围外且归属同用户即可）
-  if (approvalDialog.newDeclId && approvalDialog.newDeclId.trim()) {
-    approvalDialog.declarationRows.push({
-      id: approvalDialog.newDeclId.trim(),
-      businessCode: '(手动追加)',
-      title: '待后端补全',
-      amount: null
+// ========== 选单弹窗（从已通过的申报单里选关联申报单） ==========
+const pickTableRef = ref<any>(null)
+/** 乡镇下拉选项（懒加载） */
+const townOptions = ref<Array<{ code: string; name: string }>>([])
+const pickDialog = reactive({
+  visible: false,
+  loading: false,
+  data: [] as DeclarationVO[],
+  total: 0,
+  selected: [] as DeclarationVO[],
+  query: { pageNum: 1, pageSize: 10, title: '', townCode: '' }
+})
+
+/** 判断某申报单是否已在立项关联列表里（用于选单弹窗的禁用态） */
+function isDeclInApprovalRows(declId: string) {
+  return approvalDialog.declarationRows.some((r) => String(r.id) === String(declId))
+}
+
+/** 打开选单弹窗：拉乡镇 + 拉第一页已通过申报单 */
+function openApprovalDeclPicker() {
+  pickDialog.visible = true
+  // 重置筛选 & 选择
+  pickDialog.query.pageNum = 1
+  pickDialog.query.pageSize = 10
+  pickDialog.query.title = ''
+  pickDialog.query.townCode = ''
+  pickDialog.selected = []
+  // 乡镇懒加载
+  if (townOptions.value.length === 0) {
+    getRegionList().then((r: any) => {
+      townOptions.value = (r?.data || []).map((v: any) => ({ code: v.code || v.regionCode, name: v.name || v.regionName }))
+    }).catch(() => { /* 不阻塞主流程 */ })
+  }
+  loadPickDeclarations()
+}
+
+function resetPickQuery() {
+  pickDialog.query.title = ''
+  pickDialog.query.townCode = ''
+  pickDialog.query.pageNum = 1
+  loadPickDeclarations()
+}
+
+async function loadPickDeclarations() {
+  pickDialog.loading = true
+  try {
+    const params: any = {
+      pageNum: pickDialog.query.pageNum,
+      pageSize: pickDialog.query.pageSize,
+      status: 'approved'
+    }
+    if (pickDialog.query.title?.trim()) params.title = pickDialog.query.title.trim()
+    if (pickDialog.query.townCode) params.townCode = pickDialog.query.townCode
+    const res: any = await getReceivedDeclarationPage(params)
+    pickDialog.data = (res.data?.records as any) || []
+    pickDialog.total = res.data?.total || 0
+    // 翻页后把已禁用的行（已在关联列表中的）的选中状态清掉，避免跨页累着
+    pickDialog.selected = pickDialog.selected.filter((s) => !isDeclInApprovalRows(s.id))
+    nextTick(() => {
+      const table = pickTableRef.value
+      if (table) {
+        table.clearSelection()
+        pickDialog.selected.forEach((s) => {
+          const row = pickDialog.data.find((d) => d.id === s.id)
+          if (row) table.toggleRowSelection(row, true)
+        })
+      }
     })
-    approvalDialog.newDeclId = ''
+  } finally {
+    pickDialog.loading = false
+  }
+}
+
+function onPickSelectionChange(rows: DeclarationVO[]) {
+  pickDialog.selected = rows
+}
+
+/** 确认添加：把选单弹窗里勾选的行（再次过滤已存在）塞进关联列表 */
+function confirmAddPickedDecls() {
+  const existedIds = new Set(approvalDialog.declarationRows.map((r) => String(r.id)))
+  const toAdd = pickDialog.selected.filter((s) => !existedIds.has(String(s.id)))
+  if (toAdd.length === 0) {
+    ElMessage.warning('所选申报单都已在关联列表中，无新增')
+    return
+  }
+  toAdd.forEach((s) => {
+    approvalDialog.declarationRows.push({
+      id: String(s.id),
+      businessCode: s.businessCode || '',
+      title: s.title || '',
+      amount: typeof s.amount === 'number' ? s.amount : null
+    })
+  })
+  ElMessage.success(`已添加 ${toAdd.length} 条关联申报单`)
+  pickDialog.visible = false
+  // 自动带出所属乡镇（仅当当前未设置、或只有一条时；多条且冲突不强行覆盖）
+  const existingTown = approvalDialog.form.townCode
+  const newTowns = new Set(toAdd.map((s) => s.townCode).filter(Boolean))
+  if (!existingTown && newTowns.size === 1) {
+    const first = toAdd[0]
+    approvalDialog.form.townCode = first.townCode
+    approvalDialog.form.townName = first.townName
   }
 }
 
@@ -1477,5 +1641,18 @@ watch(() => query.pageNum, (val, oldVal) => {
 .att-card-body .att-field { margin-bottom: 10px; }
 .att-card-body :deep(.el-form-item__label) { font-size: 13px; }
 .att-fname { margin-left: 8px; font-size: 12px; color: #67c23a; }
+
+/* ============ 选已通过申报单弹窗 ============ */
+.pick-query-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px; flex-wrap: wrap;
+}
+.pick-pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px;
+}
+.pick-selected-hint {
+  font-size: 12px; color: #409eff;
+}
 </style>
 

@@ -37,6 +37,7 @@ import com.msjs.project.service.DeclarationService;
 import com.msjs.project.service.SysDictService;
 import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
+import com.msjs.project.vo.DeclarationLoginReminderVO;
 import com.msjs.project.vo.UserRegionVO;
 import com.msjs.project.vo.DeclarationStatisticsVO;
 import lombok.RequiredArgsConstructor;
@@ -2129,6 +2130,118 @@ public class DeclarationServiceImpl implements DeclarationService {
             current = next;
         }
         return result;
+    }
+
+    // ============ 登录首页弹窗提醒 ============
+
+    @Override
+    public DeclarationLoginReminderVO loginReminders() {
+        DeclarationLoginReminderVO vo = new DeclarationLoginReminderVO();
+        LoginUser me = UserContext.get();
+        if (me == null || me.getUserId() == null || me.getRegionCode() == null) {
+            vo.setRoleType("UNKNOWN");
+            vo.setReminders(Collections.emptyList());
+            return vo;
+        }
+        // 区划层级：通过 regionCode 查 t_sys_region.level
+        SysRegion region = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getCode, me.getRegionCode()));
+        Integer level = region == null ? null : region.getLevel();
+
+        if (Constants.REGION_LEVEL_TOWN == level) {
+            // 镇级账号：返回指派给我的、待审核的申报单
+            vo.setRoleType("TOWN");
+            List<Declaration> list = declarationMapper.selectList(new LambdaQueryWrapper<Declaration>()
+                    .eq(Declaration::getRecipientUserId, me.getUserId())
+                    .eq(Declaration::getStatus, "submitted")
+                    .orderByDesc(Declaration::getCreateTime));
+            vo.setReminders(buildRemindersFromDeclarations(list, false));
+        } else if (Constants.REGION_LEVEL_VILLAGE == level) {
+            // 村级账号：返回我提交的、审核已有结论（通过或驳回）的申报单
+            vo.setRoleType("VILLAGE");
+            List<Declaration> list = declarationMapper.selectList(new LambdaQueryWrapper<Declaration>()
+                    .eq(Declaration::getCreateBy, me.getUsername())
+                    .in(Declaration::getStatus, "approved", "rejected")
+                    .orderByDesc(Declaration::getAuditTime));
+            vo.setReminders(buildRemindersFromDeclarations(list, true));
+        } else {
+            vo.setRoleType("UNKNOWN");
+            vo.setReminders(Collections.emptyList());
+        }
+        return vo;
+    }
+
+    /**
+     * 把 Declaration 主表记录映射为提醒条目
+     *
+     * @param list        申报主表记录
+     * @param includeAudit true 村级账号：展示审核人/审核时间/审核意见；false 镇级待审核：不需要审核痕迹
+     */
+    private List<DeclarationLoginReminderVO.ReminderItem> buildRemindersFromDeclarations(
+            List<Declaration> list, boolean includeAudit) {
+        if (list == null || list.isEmpty()) return Collections.emptyList();
+
+        // 批量查字典（申报类别），避免循环内重复查询
+        List<SysDict> catDict = sysDictService.listByType("shen_bao_lei_bie");
+        // 批量查用户（审核人姓名），避免循环内查库
+        Set<Long> auditUserIds = list.stream()
+                .map(Declaration::getAuditBy)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> userNameMap = new HashMap<>();
+        if (!auditUserIds.isEmpty()) {
+            List<SysUser> users = userMapper.selectBatchIds(auditUserIds);
+            for (SysUser u : users) {
+                String name = u.getRealName() != null && !u.getRealName().isBlank()
+                        ? u.getRealName() : u.getUsername();
+                userNameMap.put(u.getId(), name);
+            }
+        }
+
+        List<DeclarationLoginReminderVO.ReminderItem> result = new ArrayList<>(list.size());
+        for (Declaration d : list) {
+            DeclarationLoginReminderVO.ReminderItem item = new DeclarationLoginReminderVO.ReminderItem();
+            item.setDeclarationId(d.getId());
+            item.setBusinessCode(d.getBusinessCode());
+            item.setTitle(d.getTitle());
+            item.setTownName(d.getTownName());
+            item.setVillageGroupName(d.getVillageGroupName());
+            item.setDeclarationDate(d.getDeclarationDate());
+            item.setAmount(d.getAmount());
+            item.setStatus(d.getStatus());
+            item.setStatusName(declarationStatusName(d.getStatus()));
+            // 申报类别中文名
+            if (d.getDeclarationCategory() != null && catDict != null) {
+                for (SysDict dict : catDict) {
+                    if (d.getDeclarationCategory().equals(dict.getDictValue())) {
+                        item.setDeclarationCategoryName(dict.getDictLabel());
+                        break;
+                    }
+                }
+            }
+            if (includeAudit) {
+                item.setAuditByName(userNameMap.get(d.getAuditBy()));
+                item.setAuditTime(d.getAuditTime());
+                item.setAuditRemark(d.getAuditRemark());
+                item.setCreateTime(d.getAuditTime() != null ? d.getAuditTime() : d.getCreateTime());
+            } else {
+                item.setCreateTime(d.getCreateTime());
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
+    /** 申报主表状态中文映射（draft/submitted/approved/rejected） */
+    private static String declarationStatusName(String status) {
+        if (status == null) return "";
+        switch (status) {
+            case "draft": return "草稿";
+            case "submitted": return "待审核";
+            case "approved": return "已通过";
+            case "rejected": return "已驳回";
+            default: return status;
+        }
     }
 }
 

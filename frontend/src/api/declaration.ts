@@ -460,3 +460,33 @@ export function getDeclarationStatistics(params: {
 }) {
   return get<Result<DeclarationStatisticsVO>>('/api/declaration/statistics', { params })
 }
+
+// ================== 登录首页弹窗提醒 ==================
+
+export interface DeclarationLoginReminderItem {
+  declarationId: string
+  businessCode: string
+  title: string
+  townName?: string
+  villageGroupName?: string
+  declarationCategoryName?: string
+  amount?: number
+  declarationDate?: string
+  status: string
+  statusName: string
+  auditByName?: string
+  auditTime?: string
+  auditRemark?: string
+  createTime?: string
+}
+
+export interface DeclarationLoginReminderVO {
+  /** TOWN 镇级 / VILLAGE 村级 / UNKNOWN 其它 */
+  roleType: 'TOWN' | 'VILLAGE' | 'UNKNOWN'
+  reminders: DeclarationLoginReminderItem[]
+}
+
+/** 登录首页弹窗提醒（镇级待审核 / 村级审核结果） */
+export function getLoginReminders() {
+  return get<Result<DeclarationLoginReminderVO>>('/api/declaration/login-reminders')
+}
