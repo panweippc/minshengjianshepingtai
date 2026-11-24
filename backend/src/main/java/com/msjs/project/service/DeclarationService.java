@@ -9,6 +9,7 @@ import com.msjs.project.dto.DeclarationSaveDTO;
 import com.msjs.project.dto.DeclarationSubmitDTO;
 import com.msjs.project.vo.DeclarationDetailAuditLogVO;
 import com.msjs.project.vo.DeclarationDetailVO;
+import com.msjs.project.vo.DeclarationLoginReminderVO;
 import com.msjs.project.vo.DeclarationStatisticsVO;
 import com.msjs.project.vo.UserRegionVO;
 
@@ -146,4 +147,13 @@ public interface DeclarationService {
     DeclarationStatisticsVO statistics(String year, String regionCode, String groupBy,
                                       String declarationCategory, String status, String villageGroupCode,
                                       String detailStatus);
+
+    /**
+     * 登录后弹窗提醒数据：根据当前登录用户区划层级返回不同内容
+     *   - 镇级账号（level=4）：返回指派给我的、待审核的申报单列表（status=submitted）
+     *   - 村级账号（level=5）：返回我提交的、审核已有结论的申报单列表（status in approved/rejected）
+     *   - 其它层级 / 超管 / 未绑定区划：roleType=UNKNOWN，列表为空
+     * 前端据此渲染登录首页弹窗提醒。
+     */
+    DeclarationLoginReminderVO loginReminders();
 }
