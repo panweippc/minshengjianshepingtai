@@ -19,7 +19,9 @@
           </span>
         </div>
         <div class="header-center">
-          <h1 class="header-title">民生建设项目管理平台</h1>
+          <div class="header-plate">
+            <h1 class="header-title">民生建设项目管理平台</h1>
+          </div>
         </div>
         <div class="header-side header-right">
           <div class="clock">
@@ -75,11 +77,32 @@
           </ScreenPanel>
 
           <ScreenPanel title="资金完成率">
-            <div class="gauge-wrap">
-              <div ref="fundGaugeRef" class="chart"></div>
-              <div class="gauge-center">
-                <b>{{ kpi.payRate.toFixed(1) }}%</b>
-                <span>拨付完成率</span>
+            <div class="fund-gauge">
+              <div class="fund-gauge__orb">
+                <div class="fund-gauge__well">
+                  <div class="fund-gauge__liquid" :style="{ height: `${fundLevel}%` }">
+                    <!-- 液面波纹：浅绿浪层 + 绿色浪体 + 白色浪尖，三层错峰缓慢流动 -->
+                    <svg
+                      class="fund-gauge__wave fund-gauge__wave--mint"
+                      viewBox="0 0 600 40"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <path :d="FUND_WAVE_PATH" />
+                    </svg>
+                    <svg
+                      class="fund-gauge__wave fund-gauge__wave--body"
+                      viewBox="0 0 600 40"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <path :d="FUND_WAVE_PATH" />
+                    </svg>
+                  </div>
+                  <div class="fund-gauge__value">
+                    <b>{{ kpi.payRate.toFixed(1) }}<em>%</em></b>
+                  </div>
+                </div>
               </div>
             </div>
           </ScreenPanel>
@@ -206,16 +229,135 @@
         <section class="col col-right">
           <ScreenPanel title="核心指标">
             <div class="metric-grid">
-              <div v-for="item in metricItems" :key="item.label" class="metric-item">
-                <el-icon class="metric-icon" :style="{ color: item.color }">
-                  <component :is="item.icon" />
-                </el-icon>
-                <div class="metric-text">
-                  <span class="metric-label">{{ item.label }}</span>
-                  <span class="metric-value" :style="{ color: item.color }">
-                    {{ formatNumber(item.value) }}<em>{{ item.unit }}</em>
+              <div v-for="(item, index) in metricItems" :key="item.label" class="metric-item">
+                <!-- ★ 指标值 + 标签：独立定位在光束中间，z-index 最高 -->
+                <div
+                  class="metric-readout"
+                  :style="{
+                    '--metric-accent': METRIC_ACCENT_COLORS[index % METRIC_ACCENT_COLORS.length]
+                  }"
+                >
+                  <span class="metric-value">
+                    {{ formatNumber(metricDisplay[index] ?? 0) }}<em>{{ item.unit }}</em>
                   </span>
+                  <span class="metric-label">{{ item.label }}</span>
                 </div>
+
+                <!-- ★ 菱形底座 + 发散光束 = 同一张 SVG（viewBox 100×80：光束短 + 菱形占比大） -->
+                <span class="metric-stage" aria-hidden="true">
+                  <svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <!-- 菱形渐变 -->
+                      <linearGradient id="dp-top" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#b4e6ff" />
+                        <stop offset="50%" stop-color="#4aa8ea" />
+                        <stop offset="100%" stop-color="#1e6ac0" />
+                      </linearGradient>
+                      <linearGradient id="dp-bottom" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#3ba3e6" />
+                        <stop offset="100%" stop-color="#0d3d80" />
+                      </linearGradient>
+                      <linearGradient id="dp-edge" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#e8f8ff" />
+                        <stop offset="100%" stop-color="#8ad3f5" />
+                      </linearGradient>
+
+                      <!-- 光束渐变：整体压低亮度，避免形成白雾遮挡文字 -->
+                      <linearGradient id="mb-halo" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(130,230,255,0.16)" />
+                        <stop offset="100%" stop-color="rgba(130,230,255,0)" />
+                      </linearGradient>
+                      <linearGradient id="mb-beam" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(160,245,255,0.26)" />
+                        <stop offset="30%" stop-color="rgba(120,220,255,0.11)" />
+                        <stop offset="100%" stop-color="rgba(80,170,255,0)" />
+                      </linearGradient>
+                      <linearGradient id="mb-core" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(220,250,255,0.22)" />
+                        <stop offset="100%" stop-color="rgba(130,210,255,0)" />
+                      </linearGradient>
+
+                      <filter id="mb-blur-halo" x="-40%" y="0" width="180%" height="100%">
+                        <feGaussianBlur stdDeviation="3.5" />
+                      </filter>
+                      <filter id="mb-blur-beam" x="-20%" y="0" width="140%" height="100%">
+                        <feGaussianBlur stdDeviation="2.5" />
+                      </filter>
+                      <filter id="mb-blur-core" x="-10%" y="0" width="120%" height="100%">
+                        <feGaussianBlur stdDeviation="1" />
+                      </filter>
+                    </defs>
+
+                    <!-- ====== 发散光束层：底边全部从菱形顶面 V 形边缘开始（不是从外边溢出） ====== -->
+
+                    <!-- 第1层：外扩柔光，底边 V 形 = 菱形顶面（从边缘开始，不是从外面） -->
+                    <g filter="url(#mb-blur-halo)">
+                      <path
+                        d="M 20,55
+                           L 50,49
+                           L 80,55
+                           Q 98,22 100,0
+                           Q 50,0 0,0
+                           Q 2,22 20,55 Z"
+                        fill="url(#mb-halo)"
+                      />
+                    </g>
+
+                    <!-- 第2层：主光束，底边 V 形 = 菱形顶面 -->
+                    <g filter="url(#mb-blur-beam)">
+                      <path
+                        d="M 20,55
+                           L 50,49
+                           L 80,55
+                           Q 97,25 100,0
+                           Q 50,0 0,0
+                           Q 3,25 20,55 Z"
+                        fill="url(#mb-beam)"
+                      />
+                    </g>
+
+                    <!-- 第3层：中心亮柱（向外发散版！底边窄 34~66=32 → 顶部宽 28~72=44，发散率 1.38x） -->
+                    <g filter="url(#mb-blur-core)">
+                      <path
+                        d="M 34,53
+                           L 50,49
+                           L 66,53
+                           Q 72,25 72,0
+                           Q 50,0 28,0
+                           Q 28,25 34,53 Z"
+                        fill="url(#mb-core)"
+                      />
+                    </g>
+
+                    <!-- ====== 菱形底座层：下层大一圈（台基）、上层小（顶面），两层贴近 ====== -->
+
+                    <!-- 下层台基菱形：比上层大一圈（宽差 12 单位），Y 轴错开 5 单位 = 贴合承托 -->
+                    <polygon
+                      points="50,54 88,60 50,72 12,60"
+                      fill="url(#dp-bottom)"
+                      style="filter: drop-shadow(0 0 4px rgba(80,180,255,0.5));"
+                    />
+                    <polygon
+                      points="50,54 88,60 50,72 12,60 50,54"
+                      fill="none"
+                      stroke="rgba(150,220,255,0.55)"
+                      stroke-width="0.9"
+                    />
+
+                    <!-- 上层顶面菱形：比下层小一圈（宽差 12 单位），紧贴台基 -->
+                    <polygon
+                      points="50,49 82,55 50,61 18,55"
+                      fill="url(#dp-top)"
+                      style="filter: drop-shadow(0 0 4px rgba(140,230,255,0.8)) drop-shadow(0 0 9px rgba(60,160,255,0.4));"
+                    />
+                    <polygon
+                      points="50,49 82,55 50,61 18,55 50,49"
+                      fill="none"
+                      stroke="url(#dp-edge)"
+                      stroke-width="1.2"
+                    />
+                  </svg>
+                </span>
               </div>
             </div>
           </ScreenPanel>
@@ -227,35 +369,92 @@
                 <defs>
                   <!-- 中心径向蓝光光晕 -->
                   <radialGradient id="dn-halo-grad" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#35d8ff" stop-opacity="0.5" />
-                    <stop offset="42%" stop-color="#35d8ff" stop-opacity="0.16" />
+                    <stop offset="0%" stop-color="#35d8ff" stop-opacity="0.07" />
+                    <stop offset="45%" stop-color="#35d8ff" stop-opacity="0.02" />
                     <stop offset="100%" stop-color="#35d8ff" stop-opacity="0" />
                   </radialGradient>
-                  <!-- 内环渐变描边：上暗下亮再回亮，形成流光底色 -->
+                  <!-- 台面边缘渐变描边：上暗下亮再回亮，形成流光底色 -->
                   <linearGradient id="dn-inner-grad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stop-color="#a8f0ff" stop-opacity="0.95" />
                     <stop offset="48%" stop-color="#35a8ff" stop-opacity="0.6" />
                     <stop offset="100%" stop-color="#a8f0ff" stop-opacity="0.95" />
                   </linearGradient>
-                  <!-- 中环渐变描边：透明度降低 -->
+                  <!-- 中环渐变描边：整体提亮，避免与流光弧明暗差过大 -->
                   <linearGradient id="dn-mid-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#5ec8ff" stop-opacity="0.5" />
-                    <stop offset="50%" stop-color="#2f86d8" stop-opacity="0.24" />
-                    <stop offset="100%" stop-color="#5ec8ff" stop-opacity="0.5" />
+                    <stop offset="0%" stop-color="#6fd2ff" stop-opacity="0.78" />
+                    <stop offset="50%" stop-color="#4aaef0" stop-opacity="0.58" />
+                    <stop offset="100%" stop-color="#6fd2ff" stop-opacity="0.78" />
                   </linearGradient>
+                  <!-- 玻璃顶面：参考柱状玻璃管，低填充高透光，靠边缘亮青描边和辉光成形 -->
+                  <radialGradient id="dn-platform-top-grad" cx="40%" cy="26%" r="82%">
+                    <stop offset="0%" stop-color="#7fe0ff" stop-opacity="0.14" />
+                    <stop offset="40%" stop-color="#45b8f0" stop-opacity="0.18" />
+                    <stop offset="78%" stop-color="#3fb0f5" stop-opacity="0.3" />
+                    <stop offset="100%" stop-color="#8feaff" stop-opacity="0.42" />
+                  </radialGradient>
+                  <!-- 镜面高光：细窄反光条，模拟玻璃管壁的反光 -->
+                  <linearGradient id="dn-platform-gloss-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32" />
+                    <stop offset="16%" stop-color="#dff8ff" stop-opacity="0.05" />
+                    <stop offset="100%" stop-color="#bcefff" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="dn-platform-side-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#8feaff" stop-opacity="0.42" />
+                    <stop offset="45%" stop-color="#3f9fd8" stop-opacity="0.2" />
+                    <stop offset="100%" stop-color="#8feaff" stop-opacity="0.48" />
+                  </linearGradient>
+                  <radialGradient id="dn-platform-shadow-grad" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#010913" stop-opacity="0.82" />
+                    <stop offset="64%" stop-color="#010913" stop-opacity="0.44" />
+                    <stop offset="100%" stop-color="#010913" stop-opacity="0" />
+                  </radialGradient>
+                  <filter id="dn-platform-shadow-blur" x="-30%" y="-50%" width="160%" height="200%">
+                    <feGaussianBlur stdDeviation="5" />
+                  </filter>
                 </defs>
 
                 <!-- 中心光晕（向上浮起，作为视觉最高点底层） -->
                 <ellipse class="dn-halo" cx="220" cy="140" rx="92" ry="54" fill="url(#dn-halo-grad)" />
 
                 <!-- 外层：最淡、虚线弱化 -->
-                <ellipse class="dn-orbit dn-orbit-outer" cx="220" cy="145" rx="146" ry="82" />
-                <!-- 中层：淡光轨道 -->
-                <ellipse class="dn-orbit dn-orbit-mid" cx="220" cy="145" rx="110" ry="62" />
-                <!-- 内层：主发光轨道（最亮） -->
-                <ellipse class="dn-orbit dn-orbit-inner" cx="220" cy="145" rx="74" ry="42" />
-                <!-- 内层流动高光光带 -->
-                <ellipse class="dn-flow" cx="220" cy="145" rx="74" ry="42" />
+                <ellipse class="dn-orbit dn-orbit-outer" cx="220" cy="151" rx="146" ry="82" />
+                <!-- 中层：淡蓝色高亮轨道 -->
+                <ellipse class="dn-orbit dn-orbit-mid" cx="220" cy="151" rx="110" ry="62" />
+                <!-- 中圈流动亮弧：拖尾层先绘制，头部亮弧叠加其上 -->
+                <ellipse class="dn-orbit-flow-trail" cx="220" cy="151" rx="110" ry="62" />
+                <ellipse class="dn-orbit-flow" cx="220" cy="151" rx="110" ry="62" />
+
+                <!-- 中心实心圆台：完整椭圆顶面下移 22 单位形成侧壁，项目数字置于顶面 -->
+                <g class="dn-platform">
+                  <ellipse
+                    class="dn-platform-shadow"
+                    cx="220"
+                    cy="170"
+                    rx="72"
+                    ry="38"
+                    fill="url(#dn-platform-shadow-grad)"
+                    filter="url(#dn-platform-shadow-blur)"
+                  />
+                  <!-- 前侧外壁：仅绘制朝向观察者的下半圈，避免遮挡顶面 -->
+                  <path
+                    class="dn-platform-outer-wall"
+                    d="M160 140 C160 158.225 186.863 173 220 173 C253.137 173 280 158.225 280 140 L280 162 C280 180.225 253.137 195 220 195 C186.863 195 160 180.225 160 162 Z"
+                  />
+                  <path
+                    class="dn-platform-bottom-rim"
+                    d="M160 162 C160 180.225 186.863 195 220 195 C253.137 195 280 180.225 280 162"
+                  />
+                  <!-- 顶面：完整椭圆低透明填充，上方叠加边缘清晰的玻璃反射高光 -->
+                  <path
+                    class="dn-platform-top"
+                    d="M160 140 C160 121.775 186.863 107 220 107 C253.137 107 280 121.775 280 140 C280 158.225 253.137 173 220 173 C186.863 173 160 158.225 160 140 Z"
+                  />
+                  <path
+                    class="dn-platform-gloss"
+                    d="M174 129 C184 115 200 109 219 108 C237 107 253 112 264 120 C246 115 229 116 212 119 C196 122 184 126 174 129 Z"
+                  />
+                  <ellipse class="dn-platform-edge dn-platform-edge-outer" cx="220" cy="140" rx="60" ry="33" />
+                </g>
 
                 <!-- 状态节点光点：有数据亮 + 外发光，数值 0 弱化 -->
                 <g v-for="item in donutNodes" :key="item.name">
@@ -307,7 +506,6 @@
                     <i class="event-dot" :style="{ background: eventDotColor(item.category), boxShadow: `0 0 8px ${eventDotColor(item.category)}` }"></i>
                     <div class="event-main">
                       <span class="event-text" :title="item.summary || item.operation">{{ item.summary || item.operation }}</span>
-                      <span class="event-meta">{{ item.username || '系统' }}{{ item.module ? ` · ${item.module}` : '' }}</span>
                     </div>
                     <span class="event-time">{{ formatRelativeTime(item.operTime) }}</span>
                   </li>
@@ -339,7 +537,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import ScreenPanel from '@/components/ScreenPanel.vue'
@@ -409,11 +607,9 @@ const timeText = ref('')
 /** 大屏容器：内嵌模式下按内容区尺寸等比缩放 */
 const rootRef = ref<HTMLDivElement>()
 
-const fundGaugeRef = ref<HTMLDivElement>()
 const detailRef = ref<HTMLDivElement>()
 const barRef = ref<HTMLDivElement>()
 
-let fundGaugeChart: ReturnType<typeof echarts.init> | null = null
 let detailChart: ReturnType<typeof echarts.init> | null = null
 let barChart: ReturnType<typeof echarts.init> | null = null
 let clockTimer: number | undefined
@@ -506,14 +702,29 @@ const EVENT_DOT_COLORS: Record<string, string> = {
   system: '#94a3b8'
 }
 const EVENT_DOT_DEFAULT = '#60b8f4'
+/** 不展示的模块类别：基础信息管理 / 物资管理 / 系统管理 / 附件管理（后端已过滤，此处兜底清理历史缓存） */
+const EVENT_HIDDEN_CATEGORIES = new Set(['base', 'material', 'system', 'file'])
 /** 事件流：跨轮询去重合并，新事件前置 */
 const eventStream = ref<ScreenEventVO[]>([])
-/** 合并新拉取的事件：按 id 去重，新事件前置，按时间倒序，截断到上限 */
+/** 事件流去重键：摘要相同视为同一条事件，只保留最新 */
+function eventStreamKey(event: ScreenEventVO): string {
+  return event.summary?.trim() || event.id
+}
+/** 合并新拉取的事件：按摘要去重（最新覆盖），新事件前置，按时间倒序，截断到上限 */
 function mergeEvents(incoming: ScreenEventVO[]) {
-  if (!incoming?.length) return
-  const seen = new Set(eventStream.value.map((e) => e.id))
-  const fresh = incoming.filter((e) => e.id && !seen.has(e.id))
-  const merged = [...fresh, ...eventStream.value]
+  const map = new Map<string, ScreenEventVO>()
+  // 先放缓存，再用最新数据覆盖同摘要条目
+  for (const event of eventStream.value) {
+    map.set(eventStreamKey(event), event)
+  }
+  for (const event of incoming ?? []) {
+    if (EVENT_HIDDEN_CATEGORIES.has(event.category)) continue
+    map.set(eventStreamKey(event), event)
+  }
+  // 每轮都按类别剪枝，确保已排除模块的历史缓存能立即消失
+  const merged = Array.from(map.values()).filter(
+    (e) => !EVENT_HIDDEN_CATEGORIES.has(e.category)
+  )
   merged.sort((a, b) => (a.operTime < b.operTime ? 1 : -1))
   eventStream.value = merged.slice(0, EVENT_STREAM_MAX)
 }
@@ -594,11 +805,34 @@ const kpiCards = computed(() => {
 
 /** 右栏核心指标 */
 const metricItems = computed(() => [
-  { label: '农户档案', value: kpi.value.householdCount, unit: '户', icon: 'House', color: '#35d8ff' },
-  { label: '在管项目', value: kpi.value.buildingCount, unit: '个', icon: 'SetUp', color: '#23e6a0' },
-  { label: '物资预警', value: kpi.value.materialWarnCount, unit: '项', icon: 'Warning', color: '#ff6b81' },
-  { label: '申报受理', value: kpi.value.declarationCount, unit: '件', icon: 'Document', color: '#ffc857' }
+  { label: '农户档案', value: kpi.value.householdCount, unit: '户' },
+  { label: '在管项目', value: kpi.value.buildingCount, unit: '个' },
+  { label: '物资预警', value: kpi.value.materialWarnCount, unit: '项' },
+  { label: '申报受理', value: kpi.value.declarationCount, unit: '件' }
 ])
+
+/** 核心指标展示值：数据加载/刷新时递增滚动，避免数字硬切换 */
+const metricDisplay = ref<number[]>([0, 0, 0, 0])
+let metricRaf = 0
+/** 数字滚动动画：900ms 缓出递增到目标值 */
+function animateMetricNumbers() {
+  const targets = metricItems.value.map((item) => item.value ?? 0)
+  const from = metricDisplay.value.slice()
+  const startTime = performance.now()
+  const DURATION = 900
+  window.cancelAnimationFrame(metricRaf)
+  const step = (now: number) => {
+    const progress = Math.min(1, (now - startTime) / DURATION)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    metricDisplay.value = targets.map((target, i) => {
+      const begin = from[i] ?? 0
+      return Math.round(begin + (target - begin) * eased)
+    })
+    if (progress < 1) metricRaf = window.requestAnimationFrame(step)
+  }
+  metricRaf = window.requestAnimationFrame(step)
+}
+watch(metricItems, animateMetricNumbers, { immediate: true })
 
 /** 底部实时数据流 */
 const tickerItems = computed(() => {
@@ -661,7 +895,7 @@ async function resizeCanvas() {
 
 /** 重算图表尺寸 */
 function resizeCharts() {
-  ;[fundGaugeChart, detailChart, barChart].forEach((chart) => chart?.resize())
+  ;[detailChart, barChart].forEach((chart) => chart?.resize())
 }
 
 /** 顶部时钟 */
@@ -672,135 +906,29 @@ function updateClock() {
   timeText.value = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 }
 
-/** 仪表盘配置：双层发光弧 + 立体刻度 + 动态光晕 */
-function buildGaugeOption(value: number) {
-  const pct = Math.max(0, Math.min(100, value)) / 100
-  return {
-    backgroundColor: 'transparent',
-    series: [
-      // 外层装饰环（旋转刻度感）
-      {
-        type: 'gauge' as const,
-        startAngle: 210,
-        endAngle: -30,
-        radius: '100%',
-        center: ['50%', '58%'],
-        min: 0,
-        max: 100,
-        axisLine: { show: false },
-        progress: { show: false },
-        pointer: { show: false },
-        axisTick: {
-          show: true,
-          distance: 8,
-          splitNumber: 10,
-          length: 5,
-          lineStyle: { color: 'rgba(100, 200, 255, 0.55)', width: 1 }
-        },
-        splitLine: { show: false },
-        axisLabel: { show: false },
-        anchor: { show: false },
-        title: { show: false },
-        detail: { show: false },
-        data: [{ value: pct * 100 }]
-      },
-      // 主进度仪表盘（高亮 + 发光）
-      {
-        type: 'gauge' as const,
-        startAngle: 210,
-        endAngle: -30,
-        radius: '88%',
-        center: ['50%', '58%'],
-        min: 0,
-        max: 100,
-        axisLine: {
-          lineStyle: {
-            width: 14,
-            color: [[1, 'rgba(38, 224, 164, 0.08)'] as [number, string]]
-          }
-        },
-        progress: {
-          show: true,
-          width: 14,
-          roundCap: true,
-          itemStyle: {
-            shadowBlur: 28,
-            shadowColor: 'rgba(38, 224, 164, 0.75)',
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 1,
-              y2: 0,
-              colorStops: [
-                { offset: 0, color: '#0a6b4c' },
-                { offset: 0.5, color: '#23e6a0' },
-                { offset: 1, color: '#7dffd0' }
-              ]
-            }
-          }
-        },
-        pointer: { show: false },
-        axisTick: {
-          show: true,
-          distance: -20,
-          length: 6,
-          splitNumber: 5,
-          lineStyle: { color: 'rgba(120, 200, 255, 0.6)', width: 1.2 }
-        },
-        splitLine: {
-          show: true,
-          distance: -24,
-          length: 12,
-          splitNumber: 5,
-          lineStyle: { color: 'rgba(120, 200, 255, 0.85)', width: 1.8 }
-        },
-        axisLabel: { show: false },
-        anchor: { show: false },
-        title: { show: false },
-        detail: { show: false },
-        data: [{ value: pct * 100 }]
-      },
-      // 内层发光底弧（增强层次）
-      {
-        type: 'gauge' as const,
-        startAngle: 210,
-        endAngle: -30,
-        radius: '76%',
-        center: ['50%', '58%'],
-        min: 0,
-        max: 100,
-        axisLine: {
-          lineStyle: {
-            width: 4,
-            color: [[1, 'rgba(53, 216, 255, 0.18)'] as [number, string]]
-          }
-        },
-        progress: {
-          show: true,
-          width: 4,
-          roundCap: true,
-          itemStyle: {
-            shadowBlur: 18,
-            shadowColor: 'rgba(53, 216, 255, 0.7)',
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: 'rgba(28, 134, 255, 0.9)' },
-              { offset: 1, color: '#35d8ff' }
-            ])
-          }
-        },
-        pointer: { show: false },
-        axisTick: { show: false },
-        splitLine: { show: false },
-        axisLabel: { show: false },
-        anchor: { show: false },
-        title: { show: false },
-        detail: { show: false },
-        data: [{ value: pct * 100 }]
-      }
-    ]
+/** 生成液面波纹路径：等高、等距的规则波峰，可视区约 2 个波峰（间距 200 单位，更疏朗）；
+ *  波形每 200 个单位重复，动画平移 200 单位即一个完整周期，循环无缝不跳动 */
+function buildWavePath() {
+  const halfWidth = 100
+  const viewWidth = 600
+  const viewHeight = 40
+  const baseline = 20
+  const amplitude = 15
+  const halfCount = viewWidth / halfWidth
+  let d = `M0 ${baseline}`
+  for (let i = 0; i < halfCount; i++) {
+    const start = i * halfWidth
+    const end = start + halfWidth
+    const y = i % 2 === 0 ? baseline - amplitude : baseline + amplitude
+    d += ` C${start + halfWidth / 3} ${y} ${end - halfWidth / 3} ${y} ${end} ${baseline}`
   }
+  return `${d} L${viewWidth} ${viewHeight} L0 ${viewHeight} Z`
 }
+
+const FUND_WAVE_PATH = buildWavePath()
+
+/** 资金水位：拨付完成率（0~100，决定液面高度） */
+const fundLevel = computed(() => Math.max(0, Math.min(100, kpi.value.payRate ?? 0)))
 
 /**
  * 各村项目类型明细统计：每个项目类型拆为「农户(户)」与「公建(处)」两条折线，共 6 条。
@@ -913,6 +1041,9 @@ function buildDetailOption() {
 
 /** 各村项目类型分布：类型配色（右侧 HTML 图例与柱体分段共用） */
 const TYPE_LEGEND_COLORS = ['#00fff7', '#ffc857', '#b07bff']
+
+/** 核心指标：四项指标各自的强调色（数字与标签同色） */
+const METRIC_ACCENT_COLORS = ['#4fd8ff', '#ffc857', '#6ef2a8', '#ff9ec4']
 
 /** 各村项目类型分布：类型系列列表（用于渲染右侧颜色标注） */
 const typeSeriesNames = computed(() => overview.value?.typeStats?.series ?? [])
@@ -1277,7 +1408,7 @@ const DONUT_NODE_ANGLES = [60, 120, 0, 180, 240, 300]
 const DONUT_VIEW_W = 440
 const DONUT_VIEW_H = 290
 const DONUT_CX = 220
-const DONUT_CY = 145
+const DONUT_CY = 151
 /** 节点所在椭圆半径：X 轴拉伸、Y 轴压缩，形成俯视透视 */
 const DONUT_NODE_RX = 116
 const DONUT_NODE_RY = 66
@@ -1326,10 +1457,6 @@ function initChart(el: HTMLDivElement) {
 
 /** 渲染全部图表（首次初始化，刷新时仅更新配置） */
 function renderCharts() {
-  if (fundGaugeRef.value) {
-    fundGaugeChart = fundGaugeChart ?? initChart(fundGaugeRef.value)
-    fundGaugeChart.setOption(buildGaugeOption(kpi.value.payRate), true)
-  }
   if (detailRef.value) {
     detailChart = detailChart ?? initChart(detailRef.value)
     detailChart.setOption(buildDetailOption(), true)
@@ -1382,8 +1509,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeCanvas)
   if (clockTimer) window.clearInterval(clockTimer)
   if (refreshTimer) window.clearInterval(refreshTimer)
-  ;[fundGaugeChart, detailChart, barChart].forEach((chart) => chart?.dispose())
-  fundGaugeChart = null
+  window.cancelAnimationFrame(metricRaf)
+  ;[detailChart, barChart].forEach((chart) => chart?.dispose())
   detailChart = null
   barChart = null
 })
@@ -1466,19 +1593,39 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 96px;
+  height: 104px;
   padding: 0 26px;
   flex-shrink: 0;
 }
 
+/* 顶部横幅底板：两端斜切的深蓝条带，参考综合校情大屏版式 */
+.screen-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse 46% 130% at 50% 0%, rgba(56, 156, 245, 0.42) 0%, rgba(3, 10, 20, 0) 70%),
+    linear-gradient(180deg, rgba(23, 74, 130, 0.82) 0%, rgba(9, 32, 60, 0.55) 58%, rgba(3, 10, 20, 0) 100%);
+  clip-path: polygon(0 0, 100% 0, 97.5% 100%, 2.5% 100%);
+  pointer-events: none;
+}
+
+/* 标题正下方的 V 形光带 */
 .screen-header::after {
   content: '';
   position: absolute;
-  left: 26px;
-  right: 26px;
+  left: 50%;
   bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(38, 224, 164, 0.5), transparent);
+  width: 560px;
+  height: 12px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(64, 172, 255, 0.85), rgba(20, 80, 145, 0));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .header-side {
@@ -1514,23 +1661,50 @@ onBeforeUnmount(() => {
   animation: chip-pulse 1.8s ease-in-out infinite;
 }
 
+/* 标题居中容器：柔光衬底 */
 .header-center {
-  text-align: center;
-  padding: 0 32px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 标题区：柔光衬底 */
+.header-plate {
+  position: relative;
+  padding: 0 40px;
+}
+
+/* 标题背后的光晕：四边自然淡出 */
+.header-plate::before {
+  content: '';
+  position: absolute;
+  inset: -20px -48px;
+  background: radial-gradient(
+    ellipse 52% 64% at 50% 52%,
+    rgba(56, 150, 228, 0.32) 0%,
+    rgba(24, 88, 152, 0.12) 52%,
+    rgba(3, 10, 20, 0) 78%
+  );
+  pointer-events: none;
 }
 
 .header-title {
+  position: relative;
+  z-index: 1;
   margin: 0;
   font-size: 38px;
   font-weight: 700;
   letter-spacing: 8px;
   line-height: 1.15;
+  padding-left: 8px;
   background: linear-gradient(180deg, #ffffff 8%, #a8e9ff 52%, #35b8ff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   text-shadow: 0 0 26px rgba(53, 216, 255, 0.35);
 }
+
 
 .clock {
   display: flex;
@@ -1604,7 +1778,7 @@ onBeforeUnmount(() => {
 }
 
 .col-right {
-  grid-template-rows: 166px 1fr 1fr;
+  grid-template-rows: 250px 1fr 1fr;
 }
 
 /* ========== 中栏 KPI：悬浮玻璃胶囊标签 ========== */
@@ -1950,36 +2124,145 @@ onBeforeUnmount(() => {
   font-style: normal;
 }
 
-/* 仪表盘中心数值覆盖层：保证数字始终在弧线之上 */
-.gauge-wrap {
-  position: relative;
+/* ========== 资金完成率：发光圆环 + 液态水位 ========== */
+/* 整体纵向布局：圆环自适应撑满，说明文案固定底部 */
+.fund-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   height: 100%;
+  min-height: 0;
 }
 
-.gauge-center {
+/* 外环容器：只负责尺寸与外发光，内部不做填充，保证玻璃内胆通透 */
+.fund-gauge__orb {
+  position: relative;
+  flex: 1 1 0;
+  aspect-ratio: 1;
+  max-width: 100%;
+  min-height: 0;
+  padding: 4px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 7px rgba(35, 230, 160, 0.5),
+    0 0 18px rgba(35, 230, 160, 0.2);
+}
+
+/* 光环本体：用遮罩只保留 4px 描边，渐变色不会透进玻璃内胆 */
+.fund-gauge__orb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 4px;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, #0d5c44, #2bf0aa 22%, #b6ffe6 46%, #28d99a 68%, #0d5c44);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* 液池：中心透明，仅贴绿环的内圈压暗，形成管壁暗边 */
+.fund-gauge__well {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 20%, rgba(190, 235, 255, 0.14) 0%, transparent 28%),
+    radial-gradient(circle at 50% 50%, rgba(10, 24, 36, 0.05) 0%, rgba(8, 20, 32, 0.28) 60%, rgba(5, 16, 18, 0.8) 86%, rgba(2, 10, 10, 0.94) 100%);
+  box-shadow:
+    inset 0 0 14px 4px rgba(3, 18, 14, 0.88),
+    inset 0 3px 8px rgba(190, 240, 255, 0.16),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.4);
+}
+
+/* 液面高度 = 拨付完成率，高度变化带过渡 */
+.fund-gauge__liquid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #35e9ad 0%, #1ecb90 42%, #0b8a61 100%);
+  transition: height 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 水中高光，让液体更通透 */
+.fund-gauge__liquid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 66% 46% at 50% 100%, rgba(255, 255, 255, 0.26), transparent 70%);
+  pointer-events: none;
+}
+
+/* 液面波纹：宽度为液池 2 倍，平移量等于一个完整波形周期，循环无缝 */
+.fund-gauge__wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 30px;
+  pointer-events: none;
+  animation: fund-wave 8s linear infinite;
+}
+
+/* 绿色浪体：与液体本体同色并下沉 6px 衔接，避免出现横向分割线 */
+.fund-gauge__wave--body {
+  bottom: calc(100% - 6px);
+  fill: #35e9ad;
+}
+
+/* 浅绿浪层：位于浪体之后，波峰略高于绿色浪体，与浪体同向同速、错开相位 */
+.fund-gauge__wave--mint {
+  bottom: calc(100% - 3px);
+  height: 36px;
+  fill: rgba(178, 255, 232, 0.5);
+  animation-delay: -2s;
+}
+
+/* 波纹整体向右侧流动：从 -1 个周期平移回 0，首尾波形一致，循环无缝 */
+@keyframes fund-wave {
+  from {
+    transform: translateX(-33.3333%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* 环内数值：百分比 + 已拨付金额 */
+.fund-gauge__value {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  pointer-events: none;
+  gap: 3px;
   text-align: center;
+  pointer-events: none;
+  text-shadow:
+    0 1px 6px rgba(2, 12, 20, 0.9),
+    0 0 12px rgba(4, 30, 26, 0.65);
 }
 
-.gauge-center b {
-  font-size: 18px;
+.fund-gauge__value b {
+  font-size: 30px;
   font-weight: 700;
-  line-height: 1.1;
-  color: #eaf7ff;
-  text-shadow: 0 0 8px rgba(4, 18, 34, 0.95);
+  line-height: 1;
+  color: #f2fffb;
 }
 
-.gauge-center span {
-  font-size: 10px;
-  color: #7fa8c6;
+.fund-gauge__value b em {
+  margin-left: 1px;
+  font-size: 14px;
+  font-style: normal;
 }
+
+/* 环下说明已移除，环体独占面板高度 */
 
 /* ========== 各村项目分布 ========== */
 .village-map {
@@ -2190,55 +2473,123 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 8px rgba(255, 107, 129, 0.9);
 }
 
-/* ========== 核心指标 ========== */
+/* ========== 核心指标：全息科技风环形发光底座 ========== */
 .metric-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: 1fr;
   gap: 8px;
   height: 100%;
+  /* 允许 grid 行被压缩到内容高度，避免 min-height 撑开 */
+  grid-auto-flow: row;
+  align-content: stretch;
 }
 
+/* 卡片：暗深蓝毛玻璃底，切角与外层面板呼应，整体低亮度 */
 .metric-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-left: 2px solid rgba(96, 184, 244, 0.35);
-  background: linear-gradient(90deg, rgba(16, 48, 78, 0.55) 0%, rgba(8, 22, 38, 0.1) 100%);
-}
-
-.metric-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.metric-text {
+  position: relative;
+  min-width: 0;
+  /* 去掉强制最小高度，让 grid 自动分配 1/2 高度 */
+  padding: 6px 6px 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  justify-content: flex-end;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  background:
+    radial-gradient(ellipse 68% 48% at 50% 100%, rgba(56, 168, 255, 0.16) 0%, rgba(8, 24, 44, 0) 72%),
+    linear-gradient(180deg, rgba(12, 32, 56, 0.6) 0%, rgba(5, 15, 28, 0.42) 100%);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(150, 220, 255, 0.14),
+    inset 0 0 24px rgba(40, 130, 210, 0.08);
 }
 
-.metric-label {
-  font-size: 11px;
-  color: #8fb8d4;
+/* 内侧细描边：clip-path 会裁掉 border，用内阴影绘制 1px 发光轮廓 */
+.metric-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(96, 184, 244, 0.18);
+}
+
+/* ★ 新方案：菱形底座 + 发散光束 = 同一张 SVG，stage 容器覆盖整张卡片 */
+.metric-stage {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.metric-stage > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* 动态数字：整体再上移，贴近卡片顶部，远离光束亮部 */
+.metric-readout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
 }
 
 .metric-value {
-  font-size: 21px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.5px;
+  /* 每张卡片由父级注入 --metric-accent，实现四色区分 */
+  color: var(--metric-accent, #f4f9fd);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+  /* 贴边深色描影保证锐利，外加一层同色微光融入卡片 */
+  text-shadow:
+    0 0 1px rgba(2, 10, 20, 0.95),
+    0 1px 1px rgba(2, 10, 20, 0.95),
+    0 1px 2px rgba(2, 10, 20, 0.9),
+    0 0 7px var(--metric-accent, rgba(88, 178, 255, 0.35));
 }
 
 .metric-value em {
   margin-left: 3px;
   font-size: 11px;
   font-style: normal;
-  font-weight: 400;
-  color: #8fb8d4;
+  font-weight: 600;
+  color: var(--metric-accent, #cfe2ef);
+  opacity: 0.88;
+  text-shadow: 0 0 1px rgba(2, 10, 20, 0.95), 0 1px 1px rgba(2, 10, 20, 0.95);
 }
+
+.metric-label {
+  /* 与数字同色、略降不透明度做层级，仍保持清晰 */
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--metric-accent, #c9dceb);
+  opacity: 0.9;
+  text-shadow:
+    0 0 1px rgba(2, 10, 20, 0.95),
+    0 1px 1px rgba(2, 10, 20, 0.95),
+    0 1px 2px rgba(2, 10, 20, 0.9);
+}
+
+
 
 /* ========== 项目状态分布：悬浮轨道圆盘 ========== */
 .donut-stage {
@@ -2302,50 +2653,91 @@ onBeforeUnmount(() => {
 
 /* 外层：最淡、虚线弱化，拉开纵深 */
 .dn-orbit-outer {
-  stroke: rgba(70, 152, 220, 0.26);
-  stroke-width: 1;
+  stroke: rgba(94, 190, 240, 0.56);
+  stroke-width: 1.2;
   stroke-dasharray: 3 6;
+  filter: drop-shadow(0 0 3px rgba(74, 178, 234, 0.28));
 }
 
-/* 中层：淡光轨道 */
+/* 中层：最初的淡蓝色渐变轨道 */
 .dn-orbit-mid {
   stroke: url(#dn-mid-grad);
   stroke-width: 1.4;
   filter: drop-shadow(0 0 6px rgba(53, 180, 255, 0.32));
 }
 
-/* 内层：主发光轨道，亮度最高 */
-.dn-orbit-inner {
-  stroke: url(#dn-inner-grad);
-  stroke-width: 2.2;
-  filter: drop-shadow(0 0 10px rgba(53, 216, 255, 0.6));
-}
-
-/* 内层流动高光光带：一段亮色虚线沿椭圆缓慢循环 */
-.dn-flow {
+/* 中圈流光：拖尾层在前，亮度低、长度长，形成自然渐隐尾迹 */
+.dn-orbit-flow-trail {
   fill: none;
-  stroke: rgba(178, 244, 255, 0.95);
-  stroke-width: 2.4;
+  stroke: rgba(110, 205, 255, 0.3);
+  stroke-width: 1.7;
   stroke-linecap: round;
-  stroke-dasharray: 60 311;
-  filter: drop-shadow(0 0 9px rgba(53, 216, 255, 0.9));
-  animation: dn-flow-run 4.2s linear infinite;
+  stroke-dasharray: 190 361;
+  animation: dn-orbit-flow-run 4.8s linear infinite;
 }
 
-@keyframes dn-flow-run {
+/* 中圈流光：头部亮弧，仅比提亮后的轨道稍亮，避免突兀 */
+.dn-orbit-flow {
+  fill: none;
+  stroke: rgba(150, 224, 255, 0.9);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 70 481;
+  filter: drop-shadow(0 0 4px rgba(90, 200, 255, 0.35));
+  animation: dn-orbit-flow-run 4.8s linear infinite;
+}
+
+@keyframes dn-orbit-flow-run {
   from {
-    stroke-dashoffset: 371;
+    stroke-dashoffset: 551;
   }
   to {
     stroke-dashoffset: 0;
   }
 }
 
+/* 中心实心圆台：外侧壁与完整椭圆顶面共同形成约 22px 的厚度 */
+.dn-platform-outer-wall {
+  fill: url(#dn-platform-side-grad);
+  stroke: rgba(140, 235, 255, 0.8);
+  stroke-width: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 7, 18, 0.45)) drop-shadow(0 0 3px rgba(90, 215, 255, 0.3));
+}
+
+.dn-platform-bottom-rim {
+  fill: none;
+  stroke: rgba(150, 240, 255, 0.9);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 4px rgba(90, 220, 255, 0.4));
+}
+
+.dn-platform-top {
+  fill: url(#dn-platform-top-grad);
+  stroke: rgba(150, 240, 255, 0.95);
+  stroke-width: 1.2;
+}
+
+/* 玻璃反射使用清晰轮廓，不添加模糊或雾化滤镜 */
+.dn-platform-gloss {
+  fill: url(#dn-platform-gloss-grad);
+  pointer-events: none;
+}
+
+.dn-platform-edge {
+  fill: none;
+}
+
+.dn-platform-edge-outer {
+  stroke: url(#dn-inner-grad);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 4px rgba(53, 216, 255, 0.65));
+}
+
 /* 中心：大号白色高亮数字 + 副标题 */
 .dn-center {
   position: absolute;
   left: 50%;
-  top: 48.3%;
+  top: 37%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2360,7 +2752,7 @@ onBeforeUnmount(() => {
   line-height: 1;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 14px rgba(53, 216, 255, 0.95), 0 0 32px rgba(53, 216, 255, 0.45);
+  text-shadow: 0 0 8px rgba(53, 216, 255, 0.7);
 }
 
 .dn-center span {
@@ -2467,25 +2859,17 @@ onBeforeUnmount(() => {
 .event-main {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 
 .event-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 12px;
+  line-height: 1.45;
   color: #e4f3ff;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.event-meta {
-  font-size: 10px;
-  color: #6c8ba6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-all;
 }
 
 .event-time {

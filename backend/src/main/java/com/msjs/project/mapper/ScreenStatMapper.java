@@ -134,8 +134,13 @@ public interface ScreenStatMapper {
     Long countMaterialWarn();
 
     /**
-     * 实时事件：仅业务写操作（POST/PUT/DELETE 且返回成功），
-     * 排除查询、登录鉴权、大屏轮询、验证码等噪声，按时间倒序取最近 N 条。
+     * 实时事件：仅业务写操作（POST/PUT/DELETE 且返回成功），按时间倒序取最近 N 条。
+     * 排除规则：
+     * 1) 噪声：查询、登录鉴权、大屏轮询、验证码；
+     * 2) 非关注模块（业务要求大屏只呈现项目推进类事件）：
+     *    基础信息管理 /api/base/、物资管理 /api/material/、
+     *    系统管理 /api/system/、附件管理 /api/file/（上传/分片/合并等纯文件操作）、
+     *    综合查询 /api/project/{cycle,fund}/query。
      * 富文本摘要在 Service 层基于 params 提取，此处仅返回原始字段。
      */
     @Select("SELECT id, username, module, operation, method, url, params, "
@@ -145,6 +150,12 @@ public interface ScreenStatMapper {
             + "AND module <> '登录鉴权' "
             + "AND operation NOT LIKE '%查询%' "
             + "AND url NOT IN ('/api/dashboard/screen','/api/auth/captcha') "
+            + "AND url NOT LIKE '/api/base/%' "
+            + "AND url NOT LIKE '/api/material/%' "
+            + "AND url NOT LIKE '/api/system/%' "
+            + "AND url NOT LIKE '/api/file/%' "
+            + "AND url NOT LIKE '/api/project/cycle/query%' "
+            + "AND url NOT LIKE '/api/project/fund/query%' "
             + "ORDER BY oper_time DESC, id DESC LIMIT #{limit}")
     List<ScreenEventVO> selectRecentEvents(@Param("limit") int limit);
 }
