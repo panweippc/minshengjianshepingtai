@@ -27,7 +27,11 @@
           :lg="6"
           :style="{ animationDelay: `${index * 70 + 60}ms` }"
         >
-          <el-card class="stat-card" shadow="never">
+          <el-card
+            class="stat-card"
+            shadow="never"
+            :style="{ background: item.tint, borderColor: item.border }"
+          >
             <div class="stat-body">
               <div
                 class="stat-icon"
@@ -146,9 +150,11 @@ const statCards = computed(() => [
     value: overview.value?.villageCount ?? 0,
     unit: '个',
     icon: 'OfficeBuilding',
-    color: '#3d8bff',
-    gradient: 'linear-gradient(135deg, #3d8bff 0%, #77b6ff 100%)',
-    shadow: 'rgba(61, 139, 255, 0.28)'
+    color: '#22619e',
+    gradient: 'linear-gradient(135deg, #22619e 0%, #17518c 100%)',
+    shadow: 'rgba(23, 81, 140, 0.32)',
+    tint: 'linear-gradient(135deg, #eef5fd 0%, #ffffff 72%)',
+    border: '#dbe8f7'
   },
   {
     key: 'household',
@@ -156,9 +162,11 @@ const statCards = computed(() => [
     value: overview.value?.householdCount ?? 0,
     unit: '户',
     icon: 'House',
-    color: '#34b37e',
-    gradient: 'linear-gradient(135deg, #34b37e 0%, #7bd8a8 100%)',
-    shadow: 'rgba(52, 179, 126, 0.28)'
+    color: '#0f9d6c',
+    gradient: 'linear-gradient(135deg, #0f9d6c 0%, #3ecf92 100%)',
+    shadow: 'rgba(15, 157, 108, 0.32)',
+    tint: 'linear-gradient(135deg, #edfaf4 0%, #ffffff 72%)',
+    border: '#d5efe4'
   },
   {
     key: 'facility',
@@ -166,9 +174,11 @@ const statCards = computed(() => [
     value: overview.value?.facilityCount ?? 0,
     unit: '处',
     icon: 'Connection',
-    color: '#f0a63c',
-    gradient: 'linear-gradient(135deg, #f0a63c 0%, #ffd07a 100%)',
-    shadow: 'rgba(240, 166, 60, 0.28)'
+    color: '#e59114',
+    gradient: 'linear-gradient(135deg, #e59114 0%, #ffc247 100%)',
+    shadow: 'rgba(229, 145, 20, 0.32)',
+    tint: 'linear-gradient(135deg, #fff8ec 0%, #ffffff 72%)',
+    border: '#f6e6c9'
   },
   {
     key: 'material',
@@ -176,9 +186,11 @@ const statCards = computed(() => [
     value: overview.value?.materialStockTotal ?? 0,
     unit: '件',
     icon: 'Box',
-    color: '#f56c6c',
-    gradient: 'linear-gradient(135deg, #f56c6c 0%, #ff9f8f 100%)',
-    shadow: 'rgba(245, 108, 108, 0.28)'
+    color: '#e35353',
+    gradient: 'linear-gradient(135deg, #e35353 0%, #ff8a6e 100%)',
+    shadow: 'rgba(227, 83, 83, 0.32)',
+    tint: 'linear-gradient(135deg, #fef2f2 0%, #ffffff 72%)',
+    border: '#f8dcdc'
   }
 ])
 
@@ -258,7 +270,7 @@ onMounted(() => {
   font-weight: 600;
   letter-spacing: 0.5px;
   line-height: 1.3;
-  color: #1f2d3d;
+  color: #14384a;
 }
 
 .welcome-wave {
@@ -292,16 +304,16 @@ onMounted(() => {
 .meta-chip {
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid #dbe8fc;
-  background: #eef4ff;
+  border: 1px solid #d3e2f2;
+  background: #eef4fb;
   font-size: 12px;
-  color: #2f6fd0;
+  color: #17518c;
 }
 
 .meta-date {
   margin-left: 4px;
   font-size: 12px;
-  color: #8a94a6;
+  color: #7d8e9b;
 }
 
 @keyframes rise-in {
@@ -326,19 +338,20 @@ onMounted(() => {
 
 .stat-card {
   overflow: hidden;
-  border: none;
-  border-radius: 14px;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  border: 1px solid #eef4f8;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(31, 95, 168, 0.06);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 26px rgba(31, 95, 191, 0.14);
+  box-shadow: 0 14px 28px rgba(23, 81, 140, 0.16);
 }
 
 .stat-card :deep(.el-card__body) {
   padding: 20px;
+  background: transparent;
 }
 
 .stat-body {
@@ -351,12 +364,13 @@ onMounted(() => {
 .stat-icon {
   width: 52px;
   height: 52px;
-  border-radius: 14px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .stat-text {
@@ -367,7 +381,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: #7b8794;
+  color: #5d7182;
   letter-spacing: 0.2px;
   white-space: nowrap;
   overflow: hidden;
@@ -378,7 +392,7 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 30px;
   font-weight: 700;
-  color: #1f2d3d;
+  color: #112f4a;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -387,29 +401,29 @@ onMounted(() => {
   margin-left: 6px;
   font-size: 12px;
   font-weight: 400;
-  color: #a0a9b6;
+  color: #94a4b2;
 }
 
 .stat-watermark {
   position: absolute;
   right: 2px;
   bottom: -18px;
-  opacity: 0.06;
+  opacity: 0.07;
   pointer-events: none;
 }
 
 /* ========== 项目进度概览 ========== */
 .progress-card {
-  border: none;
-  border-radius: 14px;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  border: 1px solid #eef4f8;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(31, 95, 168, 0.06);
   animation: rise-in 0.45s ease both;
   animation-delay: 340ms;
 }
 
 .progress-card :deep(.el-card__header) {
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f3f8;
+  border-bottom: 1px solid #eef4f8;
 }
 
 .progress-card :deep(.el-card__body) {
@@ -433,22 +447,23 @@ onMounted(() => {
   width: 4px;
   height: 18px;
   border-radius: 2px;
-  background: linear-gradient(180deg, #4392ff 0%, #8cc4ff 100%);
+  background: linear-gradient(180deg, #22619e 0%, #6aa9dd 100%);
 }
 
 .chart-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: #123a5e;
   letter-spacing: 0.2px;
 }
 
 .progress-total {
   padding: 4px 12px;
   border-radius: 999px;
-  background: #eef4ff;
+  border: 1px solid #dfe9f6;
+  background: #f4f8fd;
   font-size: 12px;
-  color: #2f6fd0;
+  color: #17518c;
 }
 
 /* 进度图例 */
@@ -456,35 +471,39 @@ onMounted(() => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 14px;
   font-size: 12px;
-  color: #8a94a6;
+  color: #66798c;
 }
 
 .legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid #e9eff7;
+  border-radius: 999px;
+  background: #f7fafd;
 }
 
 .legend-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 
 .legend-dot.done {
-  background-color: #a0cfff;
+  background: linear-gradient(135deg, #a7cbe9 0%, #7fb4df 100%);
 }
 
 .legend-dot.current {
-  background-color: #409eff;
-  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.12);
+  background: linear-gradient(135deg, #5a97cd 0%, #3a7bb8 100%);
+  box-shadow: 0 0 0 3px rgba(58, 123, 184, 0.14);
 }
 
 .legend-dot.todo {
-  background-color: #eff2f7;
+  background-color: #e4ebf4;
 }
 
 /* 项目列表：一个项目一条记录 */
@@ -504,8 +523,8 @@ onMounted(() => {
 }
 
 .project-row:hover {
-  background-color: #f6f9ff;
-  box-shadow: inset 3px 0 0 rgba(64, 158, 255, 0.6);
+  background-color: #f3f7fc;
+  box-shadow: inset 3px 0 0 rgba(23, 81, 140, 0.55);
 }
 
 .project-info {
@@ -520,7 +539,7 @@ onMounted(() => {
 .project-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1f2d3d;
+  color: #14384a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -528,14 +547,14 @@ onMounted(() => {
 
 .project-code {
   font-size: 12px;
-  color: #9aa3af;
+  color: #8598a8;
   font-variant-numeric: tabular-nums;
 }
 
 .stage-track {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
   min-width: 100px;
 }
@@ -543,29 +562,30 @@ onMounted(() => {
 .stage-cell {
   flex: 1;
   min-width: 0;
-  height: 22px;
-  border-radius: 6px;
-  background-color: #f1f4f9;
+  height: 24px;
+  border-radius: 8px;
+  background-color: #f1f6fb;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #9aa3af;
+  letter-spacing: 0.2px;
+  color: #94a7b9;
   white-space: nowrap;
   overflow: hidden;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background 0.3s, color 0.3s, box-shadow 0.3s;
 }
 
 .stage-cell.done {
-  background-color: #a0cfff;
+  background: linear-gradient(135deg, #b9d8ef 0%, #93c1e4 100%);
   color: #ffffff;
 }
 
 .stage-cell.current {
-  background: linear-gradient(135deg, #409eff 0%, #6fb3ff 100%);
+  background: linear-gradient(135deg, #5a97cd 0%, #3a7bb8 100%);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.35);
+  box-shadow: 0 3px 10px rgba(58, 123, 184, 0.28);
 }
 
 .stage-text {
@@ -577,14 +597,14 @@ onMounted(() => {
   text-align: right;
   font-size: 12px;
   font-weight: 600;
-  color: #2f6fd0;
+  color: #1b5c9c;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .stage-text.archived {
-  color: #3aa675;
+  color: #17518c;
 }
 
 /* 适配窄屏 */

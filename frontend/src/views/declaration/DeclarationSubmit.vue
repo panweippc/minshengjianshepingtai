@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="declaration-page">
     <!-- 筛选区（一行） -->
     <el-card shadow="never" class="query-card">
@@ -1922,7 +1922,7 @@ onMounted(async () => {
 /* ============ 申报材料附件（立项 Approval.vue 同款 Grid + 同款 upload-trigger） ============ */
 .attachment-row { border: 1px solid #ebeef5; border-radius: 6px; margin-bottom: 10px; }
 .attachment-row-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: #f5f7fa; border-radius: 6px 6px 0 0; }
-.attachment-row-index { font-weight: 600; color: #409eff; }
+.attachment-row-index { font-weight: 600; color: #22619e; }
 /* 关键：用 Grid 替代 Flex，三列天然等宽（flex 之前被 attachment-field-wide/flex:1.2 搞歪了） */
 .attachment-row-body {
   display: grid;
@@ -1943,7 +1943,7 @@ onMounted(async () => {
   border: 1px dashed #dcdfe6; border-radius: 4px; color: #909399;
   background: #fff; font-size: 14px; cursor: pointer;
 }
-.upload-trigger:hover { border-color: #409eff; color: #409eff; }
+.upload-trigger:hover { border-color: #22619e; color: #22619e; }
 
 /* 明细行横向合并后的样式 —— 字号和父申报行一致（默认 el-table cell 14px） */
 .detail-line.merged {
@@ -1961,7 +1961,7 @@ onMounted(async () => {
 
 /* 子明细行（_isDetail=true）整行浅灰底色 */
 :deep(.el-table__body tr.is-detail-row > td) { background-color: #fafbfc !important; }
-:deep(.el-table__body tr.is-detail-row td:first-child) { border-left: 3px solid #409eff; }
+:deep(.el-table__body tr.is-detail-row td:first-child) { border-left: 3px solid #22619e; }
 
 /* 明细级附件区 */
 .detail-attachments { margin-top: 8px; border-top: 1px dashed #ebeef5; padding-top: 12px; }
@@ -1976,7 +1976,7 @@ onMounted(async () => {
 /* ============ 申报材料附件（立项 Approval.vue 同款 Grid + 同款 upload-trigger） ============ */
 .attachment-row { border: 1px solid #ebeef5; border-radius: 6px; margin-bottom: 10px; }
 .attachment-row-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: #f5f7fa; border-radius: 6px 6px 0 0; }
-.attachment-row-index { font-weight: 600; color: #409eff; }
+.attachment-row-index { font-weight: 600; color: #22619e; }
 /* 关键：Grid 强制三列等宽，彻底解决 Flex 被 el-select/el-input 默认 min-width 撑歪的问题 */
 .attachment-row-body {
   display: grid !important;
@@ -2006,7 +2006,7 @@ onMounted(async () => {
   font-size: 14px;
   cursor: pointer;
 }
-.upload-trigger:hover { border-color: #409eff; color: #409eff; }
+.upload-trigger:hover { border-color: #22619e; color: #22619e; }
 
 /* 新增/编辑申报弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
 .main-dialog .el-dialog__body {

@@ -575,7 +575,7 @@ onMounted(() => {
   color: #909399;
 }
 .tree-toggle-btn:hover {
-  color: #409eff;
+  color: #22619e;
 }
 /* 收起状态：卡片缩为窄条，右侧列表区自动占满剩余宽度 */
 .tree-card.is-collapsed {
@@ -598,7 +598,7 @@ onMounted(() => {
   color: #606266;
 }
 .tree-collapsed:hover .tree-collapsed-icon {
-  color: #409eff;
+  color: #22619e;
 }
 .tree-body {
   flex: 1;
@@ -681,7 +681,7 @@ onMounted(() => {
   background: #f5f7fa;
 }
 .tree-card :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: #e8f2ff;
+  background: #eef4fb;
 }
 .tree-node-icon {
   flex: 0 0 auto;
@@ -689,7 +689,7 @@ onMounted(() => {
   color: #e6a23c;
 }
 .tree-node-icon.is-town {
-  color: #3b82f6;
+  color: #22619e;
 }
 .tree-node-count {
   flex: 0 0 auto;

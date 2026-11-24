@@ -1121,7 +1121,7 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   cursor: pointer;
 }
 
@@ -1131,12 +1131,12 @@ onMounted(async () => {
 
 .attachment-file-download {
   flex-shrink: 0;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 </style>
 

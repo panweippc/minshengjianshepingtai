@@ -1,98 +1,74 @@
 <template>
   <div class="login-page">
-    <!-- 背景光斑 -->
-    <div class="bg" aria-hidden="true">
-      <span class="blob b1" />
-      <span class="blob b2" />
-      <span class="blob b3" />
-      <span class="dot-grid" />
-    </div>
+    <!-- 主场景：左侧平台名称 + 右侧登录卡 -->
+    <div class="scene">
+      <section class="intro">
+        <h1>民生建设项目管理平台</h1>
+        <p>服务民生 · 共建美好家园</p>
+      </section>
 
-    <!-- 登录卡片 -->
-    <div class="login-card">
-        <div class="card-brand">
-          <span class="logo-badge">
-            <el-icon :size="22"><Platform /></el-icon>
-          </span>
-          <div class="brand-text">
-            <strong>民生建设项目管理平台</strong>
-          </div>
+      <div class="login-wrap">
+        <div class="login-card">
+          <h2 class="card-title">账号登录</h2>
+
+          <el-form
+            ref="formRef"
+            :model="form"
+            :rules="rules"
+            label-position="top"
+            @keyup.enter="handleLogin"
+          >
+            <el-form-item prop="username">
+              <el-input
+                v-model="form.username"
+                class="line-input"
+                placeholder="请输入账号"
+                maxlength="32"
+                autocomplete="username"
+              />
+            </el-form-item>
+
+            <el-form-item prop="password">
+              <el-input
+                v-model="form.password"
+                class="line-input"
+                type="password"
+                placeholder="请输入密码"
+                show-password
+                autocomplete="current-password"
+              />
+            </el-form-item>
+
+            <el-form-item prop="captchaCode">
+              <div class="captcha-row">
+                <el-input
+                  v-model="form.captchaCode"
+                  class="line-input"
+                  placeholder="请输入验证码"
+                  maxlength="6"
+                  autocomplete="off"
+                />
+                <div
+                  class="captcha-img"
+                  title="点击刷新验证码"
+                  @click="refreshCaptcha"
+                >
+                  <img v-if="captcha.captchaImage" :src="captcha.captchaImage" alt="验证码" />
+                  <span v-else>{{ captchaLoading ? '加载中…' : '加载失败，点击重试' }}</span>
+                </div>
+              </div>
+            </el-form-item>
+
+            <el-button class="login-btn" :loading="loading" @click="handleLogin">
+              {{ loading ? '登录中…' : '登 录' }}
+            </el-button>
+          </el-form>
         </div>
-
-      <div class="card-title">
-        <h1>欢迎回来</h1>
       </div>
-
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-        size="large"
-        @keyup.enter="handleLogin"
-      >
-        <el-form-item prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="请输入登录账号"
-            prefix-icon="User"
-            maxlength="32"
-            clearable
-            autocomplete="username"
-          />
-        </el-form-item>
-
-        <el-form-item prop="password">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="请输入登录密码"
-            prefix-icon="Lock"
-            show-password
-            autocomplete="current-password"
-          />
-        </el-form-item>
-
-        <el-form-item prop="captchaCode">
-          <div class="captcha-row">
-            <el-input
-              v-model="form.captchaCode"
-              placeholder="请输入验证码"
-              prefix-icon="Key"
-              maxlength="4"
-              clearable
-              autocomplete="off"
-            />
-            <img
-              v-if="captchaImage"
-              :src="captchaImage"
-              class="captcha-img"
-              alt="验证码"
-              title="看不清？点击刷新"
-              @click="refreshCaptcha"
-            />
-            <div v-else class="captcha-img captcha-placeholder" title="点击加载" @click="refreshCaptcha">
-              加载中
-            </div>
-          </div>
-        </el-form-item>
-
-        <div class="form-extra">
-          <el-checkbox v-model="remember">记住账号</el-checkbox>
-        </div>
-
-        <el-button
-          class="login-btn"
-          type="primary"
-          :loading="loading"
-          @click="handleLogin"
-        >
-          {{ loading ? '登录中…' : '登 录' }}
-        </el-button>
-      </el-form>
     </div>
 
-    <p class="page-foot">© 2026 民生建设项目管理平台</p>
+    <!-- 底部标语 -->
+    <footer class="page-foot">让民生服务更便捷，让城乡生活更有温度</footer>
   </div>
 </template>
 
@@ -103,25 +79,25 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getCaptcha } from '@/api/auth'
-
-/** 记住账号的本地存储键 */
-const REMEMBER_KEY = 'login_username'
+import type { CaptchaVO } from '@/types/system'
 
 const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
-const remember = ref(false)
-/** 验证码标识，由后端下发 */
-const captchaId = ref('')
-/** 验证码图片（Base64） */
-const captchaImage = ref('')
+const captchaLoading = ref(false)
 
 const form = reactive({
   username: '',
   password: '',
   captchaCode: ''
+})
+
+/** 验证码：图片 Base64 + 标识，点击图片刷新 */
+const captcha = reactive<CaptchaVO>({
+  captchaId: '',
+  captchaImage: ''
 })
 
 const rules: FormRules = {
@@ -130,23 +106,25 @@ const rules: FormRules = {
   captchaCode: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
 }
 
-/** 获取/刷新验证码，验证码每次使用后即失效，需重新获取 */
+/** 拉取验证码并清空已输入的验证码；验证码一次性使用，失败后需重新获取 */
 const refreshCaptcha = async () => {
+  if (captchaLoading.value) return
+  captchaLoading.value = true
   try {
     const res = await getCaptcha()
-    captchaId.value = res.data.captchaId
-    captchaImage.value = res.data.captchaImage
+    captcha.captchaId = res.data.captchaId
+    captcha.captchaImage = res.data.captchaImage
+    form.captchaCode = ''
   } catch {
-    // 统一拦截器已提示错误信息
+    // 统一拦截器已提示错误信息；清空图片，避免一直停留在“加载中”
+    captcha.captchaId = ''
+    captcha.captchaImage = ''
+  } finally {
+    captchaLoading.value = false
   }
 }
 
 onMounted(() => {
-  const saved = localStorage.getItem(REMEMBER_KEY)
-  if (saved) {
-    form.username = saved
-    remember.value = true
-  }
   refreshCaptcha()
 })
 
@@ -161,21 +139,15 @@ const handleLogin = async () => {
     await store.login({
       username,
       password: form.password,
-      captchaId: captchaId.value,
+      captchaId: captcha.captchaId,
       captchaCode: form.captchaCode.trim()
     })
-    if (remember.value) {
-      localStorage.setItem(REMEMBER_KEY, username)
-    } else {
-      localStorage.removeItem(REMEMBER_KEY)
-    }
     ElMessage.success('登录成功')
     // 有 redirect 参数时回到原目标页，否则进入首页
     const redirect = route.query.redirect
     router.replace(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/')
   } catch {
-    // 统一拦截器已提示错误信息；验证码已一次性使用，需刷新
-    form.captchaCode = ''
+    // 统一拦截器已提示错误信息；验证码已一次性失效，重新获取
     refreshCaptcha()
   } finally {
     loading.value = false
@@ -187,270 +159,250 @@ const handleLogin = async () => {
 .login-page {
   position: relative;
   box-sizing: border-box;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 600px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px 56px;
   overflow: hidden;
-  background: #f6f8fb;
+  background-color: #eaf2fa;
+  /* 政务风园林插画背景（本地静态图），叠加浅蓝色纱与侧边栏同色系，加载失败时回退为浅蓝渐变 */
+  background-image: linear-gradient(180deg, rgba(234, 242, 250, 0.3) 0%, rgba(23, 81, 140, 0.1) 100%),
+    url('/login-bg.png');
+  background-size: cover;
+  background-position: center;
 }
 
-/* ---------- 背景装饰 ---------- */
-.bg {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  animation: blob-drift 18s ease-in-out infinite alternate;
-}
-
-.blob.b1 {
-  width: 560px;
-  height: 560px;
-  top: -220px;
-  left: -160px;
-  background: rgba(147, 197, 253, 0.5);
-}
-
-.blob.b2 {
-  width: 520px;
-  height: 520px;
-  right: -180px;
-  bottom: -220px;
-  background: rgba(196, 181, 253, 0.42);
-  animation-delay: -6s;
-}
-
-.blob.b3 {
-  width: 340px;
-  height: 340px;
-  top: 18%;
-  right: 12%;
-  background: rgba(125, 211, 252, 0.32);
-  animation-delay: -12s;
-}
-
-/* 光斑缓慢漂移，营造呼吸感 */
-@keyframes blob-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(24px, -18px, 0) scale(1.06);
-  }
-}
-
-/* 极淡的点阵纹理 */
-.dot-grid {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(30, 64, 120, 0.1) 1px, transparent 1px);
-  background-size: 26px 26px;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 10%, transparent 68%);
-  mask-image: radial-gradient(ellipse at 50% 45%, #000 10%, transparent 68%);
-}
-
-/* ---------- 卡片 ---------- */
-.login-card {
+/* ---------- 主场景 ---------- */
+.scene {
   position: relative;
   z-index: 1;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 432px;
-  padding: 38px 42px 30px;
-  border-radius: 22px;
-  background: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 30px 80px rgba(15, 40, 90, 0.12),
-    0 2px 8px rgba(15, 40, 90, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  animation: card-in 0.55s cubic-bezier(0.22, 0.68, 0.36, 1) both;
-}
-
-/* 卡片入场：轻微上浮 + 淡入 */
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.card-brand {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid #eef2f8;
-}
-
-.logo-badge {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  color: #fff;
-  background: linear-gradient(140deg, #3a7ce6 0%, #18418f 100%);
-  box-shadow: 0 8px 18px rgba(24, 65, 143, 0.26);
-}
-
-.brand-text strong {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-  color: #16243c;
-  letter-spacing: 0.6px;
-}
-
-.card-title {
-  margin: 28px 0 26px;
-}
-
-.card-title h1 {
-  margin: 0 0 9px;
-  font-size: 27px;
-  font-weight: 600;
-  color: #101d33;
-  letter-spacing: 0.5px;
-}
-
-/* 验证码行：输入框占满剩余宽度，右侧图片点击可刷新 */
-.captcha-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 10px;
-}
-
-.captcha-row :deep(.el-input) {
   flex: 1;
-}
-
-.captcha-img {
-  flex: none;
-  width: 120px;
-  height: 40px;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.captcha-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f7fa;
-  color: #a8b1bf;
-  font-size: 12px;
-}
-
-.form-extra {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: -2px 0 24px;
-  font-size: 13px;
+  gap: 48px;
+  min-height: 0;
+  padding: 40px 6.5% 54px;
 }
 
+.intro {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 620px;
+  margin-left: 1%;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: clamp(28px, 3.2vw, 46px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  color: #123a5e;
+  text-shadow: 0 2px 20px rgba(255, 255, 255, 0.55);
+}
+
+.intro p {
+  margin: 20px 0 0;
+  font-size: clamp(17px, 1.6vw, 22px);
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: #17518c;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.6);
+}
+
+.login-wrap {
+  flex: 0 0 440px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---------- 登录卡片 ---------- */
+.login-card {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 62px 40px 58px;
+  border-radius: 18px;
+  /* 磨砂玻璃：半透明让背景插画透出，与页面背景融为一体 */
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 18px 46px rgba(23, 81, 140, 0.14);
+  backdrop-filter: blur(18px) saturate(125%);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+}
+
+.card-title {
+  margin: 0 0 38px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #17324a;
+}
+
+/* 下划线风格输入框 */
+:deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+:deep(.el-form-item.is-error) {
+  margin-bottom: 28px;
+}
+
+.line-input :deep(.el-input__wrapper) {
+  height: 50px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-bottom: 1px solid #dbe5f0;
+  transition: border-color 0.2s;
+}
+
+.line-input :deep(.el-input__wrapper:hover) {
+  border-bottom-color: #b9cde3;
+}
+
+.line-input :deep(.el-input__wrapper.is-focus) {
+  border-bottom-color: #22619e;
+  box-shadow: none;
+}
+
+.line-input :deep(.el-input__inner) {
+  font-size: 14px;
+  color: #17324a;
+}
+
+/* 验证码行：下划线输入框 + 可点击刷新的图片 */
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.captcha-row :deep(.el-input) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.captcha-img {
+  flex: 0 0 122px;
+  width: 122px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #eef4fb;
+  border: 1px solid #dbe5f0;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.captcha-img:hover {
+  border-color: #22619e;
+}
+
+.captcha-img img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.captcha-img span {
+  font-size: 12px;
+  color: #8fa3b3;
+}
+
+/* 胶囊渐变按钮 */
 .login-btn {
   width: 100%;
-  height: 48px;
+  height: 50px;
+  margin-top: 34px;
   border: none;
-  border-radius: 12px;
-  font-size: 15.5px;
-  font-weight: 500;
-  letter-spacing: 4px;
-  background: linear-gradient(95deg, #2f6fd8 0%, #1a4bb0 100%);
-  box-shadow: 0 10px 24px rgba(26, 75, 176, 0.28);
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 6px;
+  color: #fff;
+  /* 与侧边栏同一套政务蓝渐变 */
+  background: linear-gradient(95deg, #22619e 0%, #17518c 100%);
+  box-shadow: 0 12px 24px rgba(23, 81, 140, 0.28);
   transition: filter 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .login-btn:hover,
 .login-btn:focus {
-  background: linear-gradient(95deg, #2f6fd8 0%, #1a4bb0 100%);
+  background: linear-gradient(95deg, #22619e 0%, #17518c 100%);
   filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(26, 75, 176, 0.34);
+  box-shadow: 0 16px 30px rgba(23, 81, 140, 0.34);
 }
 
 .login-btn:active {
   transform: translateY(0);
-  box-shadow: 0 6px 16px rgba(26, 75, 176, 0.24);
+  box-shadow: 0 6px 16px rgba(23, 81, 140, 0.24);
 }
 
+/* ---------- 底部标语 ---------- */
 .page-foot {
   position: relative;
   z-index: 1;
-  margin: 28px 0 0;
-  font-size: 12px;
-  color: #aab4c2;
+  padding: 0 24px 26px;
   text-align: center;
-}
-
-/* 输入框：白底、细边框、聚焦光圈 */
-:deep(.el-form-item) {
-  margin-bottom: 20px;
-}
-
-:deep(.el-input__wrapper) {
-  height: 48px;
-  padding: 0 14px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 0 0 1px #e4eaf3 inset;
-  transition: box-shadow 0.2s;
-}
-
-:deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #ccd9e9 inset;
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #2f6fd8 inset, 0 0 0 4px rgba(47, 111, 216, 0.12);
-}
-
-:deep(.el-input__prefix) {
-  color: #a3aec1;
+  font-size: 14.5px;
+  letter-spacing: 2px;
+  color: #2f5573;
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.7);
 }
 
 /* ---------- 响应式 ---------- */
-@media (max-width: 520px) {
-  .login-page {
-    padding: 24px 16px 48px;
+@media (max-width: 900px) {
+  .scene {
+    flex-direction: column;
+    justify-content: center;
+    gap: 22px;
+    padding: 44px 20px 32px;
+  }
+
+  .intro {
+    margin-left: 0;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .intro h1 {
+    font-size: clamp(20px, 5.2vw, 26px);
+    letter-spacing: 1px;
+  }
+
+  .intro p {
+    margin-top: 10px;
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+
+  .login-wrap {
+    flex: 0 1 440px;
+    width: min(440px, 100%);
+    justify-content: center;
   }
 
   .login-card {
-    padding: 32px 24px 26px;
+    background: rgba(255, 255, 255, 0.82);
   }
 
-  .card-title h1 {
-    font-size: 23px;
+  .page-foot {
+    font-size: 13px;
+    letter-spacing: 1px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .blob {
-    animation: none;
-  }
-
-  .login-card {
-    animation: none;
-  }
-
   .login-btn {
     transition: none;
   }

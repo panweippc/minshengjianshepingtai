@@ -587,7 +587,7 @@ watch(() => props.targetId, load)
 .detail-section-title {
   margin-bottom: 8px;
   padding-left: 8px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid #22619e;
   font-size: 13px;
   font-weight: 600;
   color: #303133;
@@ -621,12 +621,12 @@ watch(() => props.targetId, load)
 }
 .attachment-download {
   flex: 0 0 auto;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
   font-size: 14px;
 }
 .attachment-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 .attachment-remark {
   color: #909399;

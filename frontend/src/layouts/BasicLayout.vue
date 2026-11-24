@@ -9,8 +9,8 @@
         :default-active="activeMenu"
         class="menu"
         router
-        background-color="#001529"
-        text-color="#a6adb4"
+        background-color="transparent"
+        text-color="#dbe9f2"
         active-text-color="#ffffff"
       >
         <template v-for="menu in routeMenus" :key="menu.id">
@@ -495,7 +495,9 @@ const handleCommand = (cmd: string) => {
 }
 /* el-aside */
 .aside {
-  background-color: #001529;
+  /* 政务蓝渐变侧边栏：取色自参考图的深蓝色 */
+  background: linear-gradient(180deg, #22619e 0%, #17518c 100%);
+  border-right: none;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -523,7 +525,10 @@ const handleCommand = (cmd: string) => {
   font-size: 16px;
   font-weight: 600;
   gap: 8px;
-  border-bottom: 1px solid #1f2d3d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.logo .el-icon {
+  color: #8fc7ff;
 }
 .menu {
   border-right: none;
@@ -531,13 +536,34 @@ const handleCommand = (cmd: string) => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  background-color: transparent;
+}
+/* 菜单项悬停：白色淡叠加，保持深蓝底的通透感 */
+.menu :deep(.el-menu-item:hover),
+.menu :deep(.el-sub-menu__title:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+/* 子菜单项与一级菜单使用同一底色，避免展开后出现深浅不一的色块 */
+.menu :deep(.el-sub-menu .el-menu-item) {
+  background-color: transparent;
+}
+.menu :deep(.el-sub-menu .el-menu-item:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+/* 激活菜单：白色渐变高亮块 + 浅蓝左侧细条 */
+.menu :deep(.el-menu-item.is-active) {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 100%);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 #9ecdfa;
 }
 /* 侧边栏滚动条样式 */
 .menu::-webkit-scrollbar {
   width: 6px;
 }
 .menu::-webkit-scrollbar-thumb {
-  background-color: #2f4b66;
+  background-color: rgba(255, 255, 255, 0.24);
   border-radius: 3px;
 }
 .menu::-webkit-scrollbar-track {
@@ -549,11 +575,11 @@ const handleCommand = (cmd: string) => {
   display: flex;
   align-items: center;
   height: 56px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid #e6eef7;
   background-color: #fff;
   padding: 0 16px;
   flex-shrink: 0;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.05);
+  box-shadow: 0 1px 4px rgba(31, 95, 168, 0.05);
   position: relative;
   z-index: 1;
 }
@@ -562,7 +588,7 @@ const handleCommand = (cmd: string) => {
   flex-shrink: 0;
   padding-left: 14px;
   margin-left: 4px;
-  border-left: 1px solid #f0f2f5;
+  border-left: 1px solid #eef4f8;
 }
 .user-trigger {
   display: flex;
@@ -575,7 +601,7 @@ const handleCommand = (cmd: string) => {
   transition: background-color 0.2s ease;
 }
 .user-trigger:hover {
-  background-color: #f5f7fa;
+  background-color: #eef3f7;
 }
 .user-avatar {
   display: flex;
@@ -584,18 +610,18 @@ const handleCommand = (cmd: string) => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background-color: #ecf5ff;
-  color: #409eff;
+  background-color: #e8eff5;
+  color: #17518c;
   font-size: 15px;
 }
 .user-name {
-  color: #303133;
+  color: #14384a;
   font-size: 14px;
   white-space: nowrap;
   transition: color 0.2s ease;
 }
 .user-trigger:hover .user-name {
-  color: #409eff;
+  color: #17518c;
 }
 .user-arrow {
   font-size: 12px;
@@ -614,11 +640,11 @@ const handleCommand = (cmd: string) => {
   border: none;
   border-radius: 4px;
   background-color: transparent;
-  color: #606266;
+  color: #4a5c68;
 }
 .sidebar-toggle:hover {
-  background-color: #f2f3f5;
-  color: #303133;
+  background-color: #eef3f7;
+  color: #17518c;
 }
 .sidebar-toggle .el-icon {
   font-size: 18px;
@@ -636,8 +662,8 @@ const handleCommand = (cmd: string) => {
   transition: color 0.2s ease, background-color 0.2s ease;
 }
 .tabs-arrow:not(.is-hidden):hover {
-  background-color: #f5f7fa;
-  color: #409eff;
+  background-color: #eef3f7;
+  color: #17518c;
 }
 /* 无被遮挡页签时隐藏箭头（保留占位，避免页签区宽度抖动） */
 .tabs-arrow.is-hidden {
@@ -683,16 +709,16 @@ const handleCommand = (cmd: string) => {
     box-shadow 0.2s ease;
 }
 .tab-item:hover {
-  border-color: #c6e2ff;
-  background-color: #f5f7fa;
-  color: #409eff;
+  border-color: #cbd9e4;
+  background-color: #f2f6fa;
+  color: #17518c;
 }
 .tab-item.is-active {
   padding: 0 14px;
-  border-color: #409eff;
-  background-color: #409eff;
-  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.25);
-  color: #fff;
+  border-color: #bcd6ee;
+  background-color: #e8f1fb;
+  box-shadow: 0 2px 6px rgba(23, 81, 140, 0.08);
+  color: #17518c;
   font-weight: 500;
 }
 .tab-title {
@@ -718,11 +744,11 @@ const handleCommand = (cmd: string) => {
   color: #909399;
 }
 .tab-item.is-active .tab-close {
-  color: #fff;
+  color: #6f9cc9;
 }
 .tab-item.is-active .tab-close:hover {
-  background-color: rgba(255, 255, 255, 0.22);
-  color: #fff;
+  background-color: rgba(23, 81, 140, 0.12);
+  color: #17518c;
 }
 
 /* ========== 个人中心弹窗 ========== */
@@ -732,14 +758,14 @@ const handleCommand = (cmd: string) => {
 .profile-form :deep(.el-form-item__label) {
   color: #303133;
 }
-/* 分区标题：左侧蓝色竖条 */
+/* 分区标题：左侧墨蓝竖条 */
 .form-section-title {
   margin: 4px 0 14px;
   padding-left: 8px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid #17518c;
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #14384a;
   line-height: 1.2;
 }
 .form-section-title:not(:first-child) {
@@ -760,7 +786,8 @@ const handleCommand = (cmd: string) => {
   position: relative;
   flex: 1;
   min-height: 0;
-  background-color: #f5f7fa;
+  /* 内容区用更浅的蓝白，与侧边栏形成层次 */
+  background-color: #f7fafd;
   padding: 20px;
   box-sizing: border-box;
   overflow-y: auto;
@@ -791,8 +818,8 @@ const handleCommand = (cmd: string) => {
   color: #303133;
 }
 .user-dropdown-popper .el-dropdown-menu__item:not(.is-disabled):hover {
-  background-color: #ecf5ff;
-  color: #409eff;
+  background-color: #eef3f7;
+  color: #17518c;
 }
 .user-dropdown-popper .el-dropdown-menu__item--divided {
   margin-top: 0;

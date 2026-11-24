@@ -92,7 +92,7 @@
                 v-if="row.nodeType === 'declare'"
                 class="detail-type-icon detail-type-icon--folder"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22619e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
                 </svg>
               </el-icon>
@@ -227,7 +227,7 @@
                       v-if="row.nodeType === 'declare'"
                       class="detail-type-icon detail-type-icon--folder"
                     >
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22619e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
                     </el-icon>
                     <el-icon
                       v-else
@@ -1774,7 +1774,7 @@ onMounted(async () => {
 
 .tree-toggle--declare {
   /* 与 el-button type="primary" 的链接按钮保持同色 */
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   /* 二级行的箭头与文字整体右移，形成层级错位 */
   margin-left: 15px;
 }
@@ -1894,8 +1894,8 @@ onMounted(async () => {
 }
 
 .detail-type-icon--household {
-  background: #e8f3ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
 }
 
 .detail-type-icon--facility {
@@ -1909,7 +1909,7 @@ onMounted(async () => {
   height: 16px;
   border-radius: 0;
   background: transparent;
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   font-size: 14px;
 }
 
@@ -2020,7 +2020,7 @@ onMounted(async () => {
 
 /* 农户：蓝色标签；公共基础设施：橙色标签 */
 .decl-picker-tag--household {
-  background: #409eff;
+  background: #22619e;
 }
 
 .decl-picker-tag--facility {
@@ -2071,7 +2071,7 @@ onMounted(async () => {
   line-height: 20px;
   text-align: center;
   border-radius: 50%;
-  background: #409eff;
+  background: #22619e;
   color: #fff;
   font-size: 12px;
 }
@@ -2117,8 +2117,8 @@ onMounted(async () => {
 }
 
 .upload-trigger:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: #22619e;
+  color: #22619e;
 }
 
 .upload-file-list {
@@ -2158,7 +2158,7 @@ onMounted(async () => {
 }
 
 .upload-file-preview:hover {
-  color: #409eff;
+  color: #22619e;
 }
 
 .upload-file-download,
@@ -2168,7 +2168,7 @@ onMounted(async () => {
 }
 
 .upload-file-download {
-  color: #409eff;
+  color: #22619e;
 }
 
 .upload-file-remove:hover {
@@ -2203,7 +2203,7 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
@@ -2215,12 +2215,12 @@ onMounted(async () => {
   flex: none;
   margin-left: 4px;
   font-size: 14px;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 /* 页签右侧的数量徽标 */

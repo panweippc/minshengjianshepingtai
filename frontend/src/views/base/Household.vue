@@ -920,7 +920,7 @@ onMounted(async () => {
   color: #909399;
 }
 .tree-toggle-btn:hover {
-  color: #409eff;
+  color: #22619e;
 }
 /* 收起状态：卡片缩为窄条，右侧列表区自动占满剩余宽度 */
 .tree-card.is-collapsed {
@@ -943,7 +943,7 @@ onMounted(async () => {
   color: #606266;
 }
 .tree-collapsed:hover .tree-collapsed-icon {
-  color: #409eff;
+  color: #22619e;
 }
 .tree-body {
   flex: 1;
@@ -982,7 +982,7 @@ onMounted(async () => {
   background: #f5f7fa;
 }
 .tree-card :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: #e8f2ff;
+  background: #eef4fb;
 }
 .tree-node {
   display: flex;
@@ -997,7 +997,7 @@ onMounted(async () => {
   color: #e6a23c;
 }
 .tree-node-icon.is-town {
-  color: #3b82f6;
+  color: #22619e;
 }
 .tree-node-name {
   flex: 1;
@@ -1093,8 +1093,8 @@ onMounted(async () => {
   height: 20px;
   flex: 0 0 20px;
   border-radius: 50%;
-  background: #ecf5ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -1141,8 +1141,8 @@ onMounted(async () => {
   cursor: pointer;
 }
 .upload-trigger:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: #22619e;
+  color: #22619e;
 }
 .upload-trigger span {
   overflow: hidden;
@@ -1183,16 +1183,16 @@ onMounted(async () => {
   cursor: pointer;
 }
 .upload-file-preview:hover {
-  color: #409eff;
+  color: #22619e;
 }
 .upload-file-download {
   flex: 0 0 auto;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
   font-size: 14px;
 }
 .upload-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 .upload-file-remove {
   flex: 0 0 auto;
@@ -1221,19 +1221,19 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .detail-file-download {
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
   font-size: 14px;
 }
 .detail-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 .attachment-title {
   font-weight: 600;
   color: #303133;
   margin-bottom: 8px;
   padding-left: 8px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid #22619e;
 }
 
 .detail-mode :deep(.el-descriptions__body .el-descriptions__table) {

@@ -673,7 +673,7 @@ onBeforeUnmount(() => {
   padding: 9px 18px;
 }
 .filter-right :deep(.el-button--primary) {
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.28);
+  box-shadow: 0 4px 12px rgba(34, 97, 158, 0.28);
 }
 .filter-item {
   display: flex;
@@ -779,13 +779,13 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
 }
 .stat-item.active {
-  background: #eef4ff;
-  color: #2f6bff;
+  background: #eef4fb;
+  color: #22619e;
   font-weight: 500;
 }
 .stat-item.active .stat-check {
-  background: #2f6bff;
-  border-color: #2f6bff;
+  background: #22619e;
+  border-color: #22619e;
 }
 .stat-item.active .stat-check::after {
   content: '';
@@ -814,7 +814,7 @@ onBeforeUnmount(() => {
   padding: 1px 8px;
 }
 .stat-item.active .stat-count {
-  color: #2f6bff;
+  color: #22619e;
   background: #e0eaff;
 }
 .stat-item.disabled {
@@ -882,8 +882,8 @@ onBeforeUnmount(() => {
 }
 .record-badge {
   font-size: 12px;
-  color: #409eff;
-  background: #eef4ff;
+  color: #22619e;
+  background: #eef4fb;
   border-radius: 14px;
   padding: 5px 12px;
   white-space: nowrap;
@@ -982,7 +982,7 @@ onBeforeUnmount(() => {
   padding: 8px 14px; font-size: 13px; color: #3a4557;
   cursor: pointer;
 }
-.row-context-menu__item:hover { background: #eef4ff; color: #2f6bff; }
+.row-context-menu__item:hover { background: #eef4fb; color: #22619e; }
 
 .detail-tip { margin-top: 8px; font-size: 12px; color: #909399; }
 </style>

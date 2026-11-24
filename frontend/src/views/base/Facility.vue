@@ -964,7 +964,7 @@ onMounted(() => {
   color: #909399;
 }
 .tree-toggle-btn:hover {
-  color: #409eff;
+  color: #22619e;
 }
 /* 收起状态：卡片缩为窄条，右侧列表区自动占满剩余宽度 */
 .tree-card.is-collapsed {
@@ -987,7 +987,7 @@ onMounted(() => {
   color: #606266;
 }
 .tree-collapsed:hover .tree-collapsed-icon {
-  color: #409eff;
+  color: #22619e;
 }
 .tree-body {
   flex: 1;
@@ -1059,7 +1059,7 @@ onMounted(() => {
   background: #f5f7fa;
 }
 .tree-card :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: #e8f2ff;
+  background: #eef4fb;
 }
 .tree-node {
   display: flex;
@@ -1074,7 +1074,7 @@ onMounted(() => {
   color: #e6a23c;
 }
 .tree-node-icon.is-town {
-  color: #3b82f6;
+  color: #22619e;
 }
 .tree-node-name {
   flex: 1;
@@ -1123,7 +1123,7 @@ onMounted(() => {
   line-height: 20px;
   border-radius: 50%;
   background: #e8f0fe;
-  color: #3b82f6;
+  color: #22619e;
   font-size: 12px;
   font-weight: 600;
   text-align: center;
@@ -1171,8 +1171,8 @@ onMounted(() => {
   transition: border-color 0.2s, color 0.2s;
 }
 .upload-trigger:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: #22619e;
+  color: #22619e;
 }
 .upload-trigger span {
   overflow: hidden;
@@ -1220,11 +1220,11 @@ onMounted(() => {
 /* 附件下载图标：统一使用小箭头样式（蓝色可点击） */
 .upload-file-download {
   flex: 0 0 auto;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 .upload-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 .section-title {
   margin: 16px 0 8px;
@@ -1239,12 +1239,12 @@ onMounted(() => {
 /* 查看弹窗附件下载图标：与户基础信息页保持一致的小箭头 */
 .attachment-file-download {
   margin-left: 6px;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
   vertical-align: middle;
 }
 .attachment-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 </style>
 

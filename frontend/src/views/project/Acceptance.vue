@@ -73,7 +73,7 @@
                 v-if="row.nodeType === 'declare'"
                 class="detail-type-icon detail-type-icon--folder"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22619e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
               </el-icon>
               <el-icon
                 v-if="row.nodeType === 'detail'"
@@ -287,7 +287,7 @@
                 <el-icon
                   v-if="row.vtKind === 'declare'"
                   class="accept-tree-kind accept-tree-kind--declare"
-                ><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></el-icon>
+                ><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22619e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></el-icon>
                 <el-icon
                   v-else-if="row.detailType === 'FACILITY'"
                   class="detail-type-icon detail-type-icon--facility"
@@ -1722,7 +1722,7 @@ const buildStatusLabel = (status?: string): string => {
 /** 施工进度条颜色，与施工管理保持一致 */
 const buildProgressColor = (status?: string): string => {
   if (status === 'COMPLETED') return '#67c23a'
-  if (status === 'IN_PROGRESS') return '#409eff'
+  if (status === 'IN_PROGRESS') return '#22619e'
   return '#c0c4cc'
 }
 
@@ -2452,7 +2452,7 @@ onMounted(async () => {
 }
 
 .tree-toggle--declare {
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   margin-left: 15px;
 }
 
@@ -2538,8 +2538,8 @@ onMounted(async () => {
 }
 
 .status-tag--IN_PROGRESS {
-  color: #409eff;
-  background: #ecf5ff;
+  color: #22619e;
+  background: #eef4fb;
 }
 
 .status-tag--COMPLETED {
@@ -2585,8 +2585,8 @@ onMounted(async () => {
 }
 
 .detail-type-icon--household {
-  background: #e8f3ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
 }
 
 .detail-type-icon--facility {
@@ -2600,7 +2600,7 @@ onMounted(async () => {
   height: 16px;
   border-radius: 0;
   background: transparent;
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   font-size: 14px;
 }
 
@@ -2618,7 +2618,7 @@ onMounted(async () => {
 }
 
 .attachment-file-name {
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   cursor: pointer;
   max-width: 180px;
   overflow: hidden;
@@ -2631,12 +2631,12 @@ onMounted(async () => {
 }
 
 .upload-file-download {
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
 .upload-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 .attachment-file-cell {
@@ -2646,12 +2646,12 @@ onMounted(async () => {
 }
 
 .attachment-file-download {
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 .declare-no-attachment-text {
@@ -2673,7 +2673,7 @@ onMounted(async () => {
 }
 
 .accept-tree-kind--declare {
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   font-size: 14px;
   flex-shrink: 0;
 }
@@ -2756,7 +2756,7 @@ onMounted(async () => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary, #22619e);
   color: #ffffff;
   font-size: 11px;
 }
@@ -2809,8 +2809,8 @@ onMounted(async () => {
 }
 
 .upload-trigger:hover {
-  border-color: var(--el-color-primary, #409eff);
-  color: var(--el-color-primary, #409eff);
+  border-color: var(--el-color-primary, #22619e);
+  color: var(--el-color-primary, #22619e);
 }
 
 .upload-file-item {
@@ -2856,7 +2856,7 @@ onMounted(async () => {
 
 .simple-progress__fill {
   height: 100%;
-  background-color: var(--el-color-primary, #409eff);
+  background-color: var(--el-color-primary, #22619e);
   border-radius: 4px;
   transition: width 0.3s ease;
 }

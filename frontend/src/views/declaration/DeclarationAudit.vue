@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="declaration-page">
     <!-- 筛选区（一行） -->
     <el-card shadow="never" class="query-card">
@@ -1394,14 +1394,14 @@ watch(() => query.pageNum, (val, oldVal) => {
 
 .attachment-row { border: 1px solid #ebeef5; border-radius: 6px; margin-bottom: 10px; }
 .attachment-row-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: #f5f7fa; border-radius: 6px 6px 0 0; }
-.attachment-row-index { font-weight: 600; color: #409eff; }
+.attachment-row-index { font-weight: 600; color: #22619e; }
 .attachment-row-body { display: flex; gap: 12px; padding: 12px; }
 .attachment-field { flex: 1; min-width: 0; }
 .attachment-field-wide { flex: 1.2; }
 .attachment-field label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }
 
 .upload-trigger { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px dashed #dcdfe6; border-radius: 4px; cursor: pointer; color: #606266; min-height: 34px; }
-.upload-trigger:hover { border-color: #409eff; color: #409eff; }
+.upload-trigger:hover { border-color: #22619e; color: #22619e; }
 
 /* 明细行横向合并后的样式 —— 字号和父申报行一致（默认 el-table cell 14px） */
 .detail-line.merged {
@@ -1419,7 +1419,7 @@ watch(() => query.pageNum, (val, oldVal) => {
 
 /* 子明细行（_isDetail=true）整行浅灰底色 */
 :deep(.el-table__body tr.is-detail-row > td) { background-color: #fafbfc !important; }
-:deep(.el-table__body tr.is-detail-row td:first-child) { border-left: 3px solid #409eff; }
+:deep(.el-table__body tr.is-detail-row td:first-child) { border-left: 3px solid #22619e; }
 
 /* 明细级附件区 */
 .detail-attachments { margin-top: 8px; border-top: 1px dashed #ebeef5; padding-top: 12px; }
@@ -1449,7 +1449,7 @@ watch(() => query.pageNum, (val, oldVal) => {
   border: 1px solid #ebeef5; border-radius: 6px;
   padding: 8px 10px; margin-bottom: 8px; background: #fafbfc;
 }
-.decl-no { width: 48px; text-align: center; color: #409eff; font-weight: 600; }
+.decl-no { width: 48px; text-align: center; color: #22619e; font-weight: 600; }
 .decl-code { width: 130px; }
 .decl-title { flex: 1; min-width: 0; }
 .decl-amount { width: 120px; text-align: right; color: #d4380d; font-weight: 600; }
@@ -1467,7 +1467,7 @@ watch(() => query.pageNum, (val, oldVal) => {
 .att-card-index {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;
-  background: #409eff; color: #fff; font-size: 12px; font-weight: 600;
+  background: #22619e; color: #fff; font-size: 12px; font-weight: 600;
 }
 .att-card-title { flex: 1; font-size: 13px; font-weight: 600; color: #303133; }
 .att-card-body {

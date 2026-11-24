@@ -81,7 +81,7 @@
                 v-if="row.nodeType === 'declare'"
                 class="detail-type-icon detail-type-icon--folder"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22619e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
               </el-icon>
               <!-- 三级明细按类型区分图标：农户为头像图标，公共基础设施为设施图标 -->
               <el-icon
@@ -1539,7 +1539,7 @@ const statusLabel = (status?: string): string => {
 
 const progressColor = (status?: string): string => {
   if (status === CONSTRUCTION_STATUS_COMPLETED) return '#67c23a'
-  if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '#409eff'
+  if (status === CONSTRUCTION_STATUS_IN_PROGRESS) return '#22619e'
   return '#c0c4cc'
 }
 
@@ -2186,7 +2186,7 @@ onMounted(async () => {
 }
 
 .tree-toggle--declare {
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   margin-left: 15px;
 }
 
@@ -2266,8 +2266,8 @@ onMounted(async () => {
 }
 
 .detail-type-icon--household {
-  background: #e8f3ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
 }
 
 .detail-type-icon--facility {
@@ -2281,7 +2281,7 @@ onMounted(async () => {
   height: 16px;
   border-radius: 0;
   background: transparent;
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #22619e);
   font-size: 14px;
 }
 
@@ -2307,8 +2307,8 @@ onMounted(async () => {
 }
 
 .status-tag--IN_PROGRESS {
-  color: #409eff;
-  background: #ecf5ff;
+  color: #22619e;
+  background: #eef4fb;
 }
 
 .status-tag--COMPLETED {
@@ -2388,7 +2388,7 @@ onMounted(async () => {
   bottom: 16px;
   width: 3px;
   border-radius: 2px;
-  background: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary, #22619e);
 }
 
 .construction-name__main {
@@ -2445,8 +2445,8 @@ onMounted(async () => {
 
 .construction-name__tag--IN_PROGRESS {
   border-color: #d9ecff;
-  background: #ecf5ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
 }
 
 .construction-name__tag--NOT_STARTED {
@@ -2477,7 +2477,7 @@ onMounted(async () => {
   width: 3px;
   height: 14px;
   border-radius: 2px;
-  background: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary, #22619e);
 }
 
 .section-header__extra {
@@ -2647,8 +2647,8 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #ecf5ff;
-  color: #409eff;
+  background: #eef4fb;
+  color: #22619e;
   font-size: 12px;
   font-weight: 600;
 }
@@ -2732,7 +2732,7 @@ onMounted(async () => {
 }
 
 .attach-file-chip__name:hover {
-  color: #409eff;
+  color: #22619e;
 }
 
 .attach-file-chip__download,
@@ -2743,7 +2743,7 @@ onMounted(async () => {
 }
 
 .attach-file-chip__download {
-  color: #409eff;
+  color: #22619e;
 }
 
 .attach-file-chip__close {
@@ -2761,7 +2761,7 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
@@ -2773,12 +2773,12 @@ onMounted(async () => {
   flex: none;
   margin-left: 4px;
   font-size: 14px;
-  color: #409eff;
+  color: #22619e;
   cursor: pointer;
 }
 
 .attachment-file-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 /* 完工确认弹窗 */
@@ -2791,18 +2791,18 @@ onMounted(async () => {
 /* 三级查看附件表格中的下载箭头 */
 .attachment-download {
   margin-left: 8px;
-  color: #409eff;
+  color: #22619e;
   font-size: 13px;
   vertical-align: middle;
   cursor: pointer;
 }
 
 .attachment-download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 .attach-file-chip__download:hover {
-  color: #337ecc;
+  color: #22619e;
 }
 
 .attach-file-chip__close:hover {
@@ -2826,8 +2826,8 @@ onMounted(async () => {
 }
 
 .attach-upload__inner:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: #22619e;
+  color: #22619e;
 }
 
 /* 验收页签：验收进度条 */
