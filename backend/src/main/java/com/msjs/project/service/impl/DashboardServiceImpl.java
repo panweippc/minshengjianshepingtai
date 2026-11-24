@@ -2,10 +2,16 @@ package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.msjs.project.common.Constants;
+import com.msjs.project.entity.Declaration;
+import com.msjs.project.entity.DeclarationHousehold;
+import com.msjs.project.entity.DeclarationPublicFacility;
+import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.BaseFacilityMapper;
+import com.msjs.project.mapper.DeclarationHouseholdMapper;
 import com.msjs.project.mapper.DeclarationMapper;
+import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
 import com.msjs.project.mapper.HouseholdMapper;
 import com.msjs.project.mapper.MaterialItemMapper;
 import com.msjs.project.mapper.ProjectApprovalMapper;
@@ -64,12 +70,20 @@ public class DashboardServiceImpl implements DashboardService {
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     /** 项目类型字典编码 */
     private static final String DICT_PROJECT_TYPE = "xiang_mu_lei_xing";
+    /** 资金来源字典编码（事件摘要用） */
+    private static final String DICT_FUND_SOURCE = "zi_jin_lai_yuan";
+    /** 一级资金类型字典编码（事件摘要用） */
+    private static final String DICT_FUND_TYPE = "zi_jin_lei_xing";
+    /** 二级/三级下拨类型字典编码（事件摘要用） */
+    private static final String DICT_ALLOC_TYPE = "xia_bo_lei_xing";
     /** 项目类型柱状图展示的村庄数量 */
     private static final int TYPE_VILLAGE_LIMIT = 6;
     /** 各村项目类型明细统计展示的村庄数量 */
     private static final int TYPE_DETAIL_VILLAGE_LIMIT = 8;
     /** 实时事件后端返回条数上限（前端再做去重合并，保留流式观感） */
     private static final int EVENT_LIMIT = 10;
+    /** 实时事件查询条数：先多取再按摘要去重，避免重复事件占满展示位 */
+    private static final int EVENT_FETCH_LIMIT = 60;
 
     private final SysRegionMapper regionMapper;
     private final HouseholdMapper householdMapper;
@@ -77,6 +91,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final MaterialItemMapper materialItemMapper;
     private final ProjectApprovalMapper projectApprovalMapper;
     private final DeclarationMapper declarationMapper;
+    private final DeclarationHouseholdMapper declarationHouseholdMapper;
+    private final DeclarationPublicFacilityMapper declarationPublicFacilityMapper;
     private final ScreenStatMapper screenStatMapper;
     private final SysDictMapper sysDictMapper;
 
@@ -199,17 +215,30 @@ public class DashboardServiceImpl implements DashboardService {
             item.setWarning(warning > 0 && stock <= warning);
         }
         vo.setMaterialStats(materialStats);
-        List<ScreenEventVO> events = screenStatMapper.selectRecentEvents(EVENT_LIMIT);
+        List<ScreenEventVO> rawEvents = screenStatMapper.selectRecentEvents(EVENT_FETCH_LIMIT);
         // 构建 区划代码→村名 映射，用于从操作参数中还原事件发生地点
         Map<String, String> villageByCode = regionMapper.selectList(
                         new LambdaQueryWrapper<SysRegion>()
                                 .eq(SysRegion::getLevel, Constants.REGION_LEVEL_VILLAGE))
                 .stream()
                 .collect(Collectors.toMap(SysRegion::getCode, SysRegion::getName, (a, b) -> a));
-        for (ScreenEventVO event : events) {
-            event.setSummary(buildEventSummary(event, villageByCode));
+        // 资金来源/资金类型字典，用于资金事件摘要展示中文标签
+        Map<String, Map<String, String>> fundDict = loadDictLabels(
+                DICT_FUND_SOURCE, DICT_FUND_TYPE, DICT_ALLOC_TYPE);
+        for (ScreenEventVO event : rawEvents) {
+            event.setSummary(buildEventSummary(event, villageByCode, fundDict));
             event.setCategory(resolveEventCategory(event.getModule(), event.getUrl()));
         }
+        // 同一批操作（摘要完全相同）只保留最新一条，避免「城关村7户 · 审核通过」重复刷屏
+        Map<String, ScreenEventVO> distinctEvents = new LinkedHashMap<>();
+        for (ScreenEventVO event : rawEvents) {
+            String key = (event.getSummary() == null || event.getSummary().isBlank())
+                    ? String.valueOf(event.getId()) : event.getSummary();
+            distinctEvents.putIfAbsent(key, event);
+        }
+        List<ScreenEventVO> events = distinctEvents.values().stream()
+                .limit(EVENT_LIMIT)
+                .collect(Collectors.toList());
         vo.setEvents(events);
 
         vo.setUpdateTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
@@ -379,35 +408,89 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     /**
-     * 构建事件富文本摘要：从操作参数中提取「地点 · 对象 · 动作（数量）」。
-     * params 存在两种格式（JSON / 对象 toString()），用正则兼容提取；提取不到时回退为「模块 · 操作」。
+     * 构建事件摘要：优先按业务接口还原「具体对象」，如
+     * 「XX申报 · 张三 · 明细审核（通过）」「城关村危房改造 · 立项审核通过」「XX项目 · 下拨资金（2000元）」；
+     * 无法定位业务对象时回退为「模块 · 操作」。
      */
-    private String buildEventSummary(ScreenEventVO event, Map<String, String> villageByCode) {
+    private String buildEventSummary(ScreenEventVO event, Map<String, String> villageByCode,
+                                     Map<String, Map<String, String>> fundDict) {
+        String url = event.getUrl() == null ? "" : event.getUrl();
         String params = event.getParams();
-        // 地点：优先参数内村名，其次用 regionCode 查村名映射
+        String operation = event.getOperation();
+
+        // 申报类：反查申报单标题，明细审核额外反查户主/设施
+        if (url.startsWith("/api/declaration/audit-detail")) {
+            return buildDetailAuditSummary(params, operation);
+        }
+        if (url.startsWith("/api/declaration/")) {
+            String title = firstNonBlank(extractParam(params, "title"),
+                    declarationTitle(toLong(extractParam(params, "id"))));
+            return joinSubject(title, withAction(operation, extractParam(params, "action")));
+        }
+        // 立项类：参数带项目名直接用，否则按立项ID反查
+        if (url.startsWith("/api/project/approval")) {
+            Long id = toLong(extractParam(params, "id"));
+            String name = firstNonBlank(extractParam(params, "projectName"),
+                    id == null ? null : approvalProjectName(id));
+            return joinSubject(name, operation);
+        }
+        // 资金类：不展示「资金登记/下拨资金」，改为「项目 · 资金来源/资金类型（金额）」
+        if (url.startsWith("/api/project/fund")) {
+            String name = approvalProjectName(toLong(extractParam(params, "approvalId")));
+            String fundValue = extractParam(params, "fundType");
+            String source = dictLabel(fundDict, DICT_FUND_SOURCE, extractParam(params, "fundSource"));
+            // 两个字典键值重叠（如 1/2），按操作优先选字典：登记用 zi_jin_lei_xing，下拨用 xia_bo_lei_xing
+            boolean register = operation != null && operation.contains("登记");
+            String type = register
+                    ? firstNonBlank(dictLabel(fundDict, DICT_FUND_TYPE, fundValue),
+                            dictLabel(fundDict, DICT_ALLOC_TYPE, fundValue))
+                    : firstNonBlank(dictLabel(fundDict, DICT_ALLOC_TYPE, fundValue),
+                            dictLabel(fundDict, DICT_FUND_TYPE, fundValue));
+            String category = joinNonBlank(source, type, " / ");
+            List<String> parts = new ArrayList<>(2);
+            if (name != null) {
+                parts.add(name);
+            }
+            if (category != null) {
+                parts.add(category);
+            }
+            String summary = String.join(" · ", parts);
+            String amount = formatAmount(extractParam(params, "amount"));
+            if (amount != null) {
+                summary = summary.isBlank() ? amount + "元" : summary + "（" + amount + "元）";
+            }
+            return summary.isBlank() ? operation : summary;
+        }
+        // 施工/验收类：按立项ID反查项目名
+        if (url.startsWith("/api/project/construction") || url.startsWith("/api/project/acceptance")) {
+            Long approvalId = toLong(extractParam(params, "approvalId"));
+            String name = approvalProjectName(approvalId == null ? firstLong(params) : approvalId);
+            return joinSubject(name, operation);
+        }
+
+        // 其余走通用提取（地点 · 对象 · 操作）
         String where = firstNonBlank(
                 extractParam(params, "regionName"),
                 extractParam(params, "villageName"),
                 villageByCode.get(extractParam(params, "regionCode")));
-        // 对象：物品/设施/户主/项目/申报单/字典/仓库，最后兜底通用 name（如新增区划的村名）。
-        // 注意：不提取 fileName——许多 DTO 内嵌附件列表带哈希文件名，会污染摘要；文件操作回退为「模块 · 操作」即可。
+        // 注意：不提取 fileName——许多 DTO 内嵌附件列表带哈希文件名，会污染摘要。
         String what = firstNonBlank(
                 extractParam(params, "itemName"),
                 extractParam(params, "facilityName"),
                 extractParam(params, "headName"),
                 extractParam(params, "projectName"),
+                extractParam(params, "title"),
                 extractParam(params, "declarationNo"),
                 extractParam(params, "dictLabel"),
                 extractParam(params, "warehouseName"),
                 extractParam(params, "name"));
-        // 数量：优先 数量+单位，其次 金额（元）
         String qty = null;
         String quantity = extractParam(params, "quantity");
         if (quantity != null) {
             String unit = extractParam(params, "unit");
             qty = quantity + (unit == null ? "" : unit);
         } else {
-            String amount = extractParam(params, "amount");
+            String amount = formatAmount(extractParam(params, "amount"));
             if (amount != null) {
                 qty = amount + "元";
             }
@@ -419,7 +502,6 @@ public class DashboardServiceImpl implements DashboardService {
         if (what != null) {
             parts.add(what);
         }
-        String operation = event.getOperation();
         if (operation != null && !operation.isBlank()) {
             parts.add(operation);
         }
@@ -431,6 +513,192 @@ public class DashboardServiceImpl implements DashboardService {
             summary = event.getModule() + " · " + operation;
         }
         return summary;
+    }
+
+    /**
+     * 明细审核摘要：反查申报单标题与所属村组，用「户数/设施数」代替户主或设施名称，
+     * 拼成「申报标题 · 村组N户 · 审核通过」
+     */
+    private String buildDetailAuditSummary(String params, String operation) {
+        Long detailId = toLong(extractParam(params, "detailId"));
+        String detailKind = extractParam(params, "detailKind");
+        String title = null;
+        String region = null;
+        String countText = null;
+        if (detailId != null && "public_facility".equals(detailKind)) {
+            DeclarationPublicFacility f = declarationPublicFacilityMapper.selectById(detailId);
+            if (f != null) {
+                title = declarationTitle(f.getDeclarationId());
+                region = f.getSnapshotRegionName();
+                countText = countFacilities(f.getDeclarationId(), f.getSnapshotRegionCode()) + "处";
+            }
+        } else if (detailId != null) {
+            DeclarationHousehold h = declarationHouseholdMapper.selectById(detailId);
+            if (h != null) {
+                title = declarationTitle(h.getDeclarationId());
+                region = h.getSnapshotRegionName();
+                countText = countHouseholds(h.getDeclarationId(), h.getSnapshotRegionCode()) + "户";
+            }
+        }
+        List<String> parts = new ArrayList<>(3);
+        if (title != null) {
+            parts.add(title);
+        }
+        String target = (region == null ? "" : region) + (countText == null ? "" : countText);
+        if (!target.isBlank()) {
+            parts.add(target);
+        }
+        // 直接展示审核结论，不再显示「明细审核」字样
+        String action = actionLabel(extractParam(params, "action"));
+        parts.add(action == null ? operation : "审核" + action);
+        return String.join(" · ", parts);
+    }
+
+    /** 统计申报单在某村组下的农户明细数（村组为空时统计全单） */
+    private long countHouseholds(Long declarationId, String regionCode) {
+        if (declarationId == null) {
+            return 1;
+        }
+        LambdaQueryWrapper<DeclarationHousehold> wrapper = new LambdaQueryWrapper<DeclarationHousehold>()
+                .eq(DeclarationHousehold::getDeclarationId, declarationId);
+        if (regionCode != null && !regionCode.isBlank()) {
+            wrapper.eq(DeclarationHousehold::getSnapshotRegionCode, regionCode);
+        }
+        Long count = declarationHouseholdMapper.selectCount(wrapper);
+        return count == null || count == 0 ? 1 : count;
+    }
+
+    /** 统计申报单在某村组下的公建设施明细数（村组为空时统计全单） */
+    private long countFacilities(Long declarationId, String regionCode) {
+        if (declarationId == null) {
+            return 1;
+        }
+        LambdaQueryWrapper<DeclarationPublicFacility> wrapper = new LambdaQueryWrapper<DeclarationPublicFacility>()
+                .eq(DeclarationPublicFacility::getDeclarationId, declarationId);
+        if (regionCode != null && !regionCode.isBlank()) {
+            wrapper.eq(DeclarationPublicFacility::getSnapshotRegionCode, regionCode);
+        }
+        Long count = declarationPublicFacilityMapper.selectCount(wrapper);
+        return count == null || count == 0 ? 1 : count;
+    }
+
+    /** 查询申报单标题（标题为空时回退业务编码） */
+    private String declarationTitle(Long id) {
+        if (id == null) {
+            return null;
+        }
+        Declaration declaration = declarationMapper.selectById(id);
+        return declaration == null ? null : firstNonBlank(declaration.getTitle(), declaration.getBusinessCode());
+    }
+
+    /** 查询立项项目名称 */
+    private String approvalProjectName(Long approvalId) {
+        if (approvalId == null) {
+            return null;
+        }
+        ProjectApproval approval = projectApprovalMapper.selectById(approvalId);
+        return approval == null ? null : approval.getProjectName();
+    }
+
+    /** 操作 + 审核结论（approve通过 / reject驳回 / return退回） */
+    private String withAction(String operation, String action) {
+        String label = actionLabel(action);
+        if (operation == null || operation.isBlank()) {
+            return label == null ? "" : label;
+        }
+        return label == null ? operation : operation + "（" + label + "）";
+    }
+
+    /** 审核动作翻译：approve通过 / reject驳回 / return退回 */
+    private String actionLabel(String action) {
+        if ("approve".equalsIgnoreCase(action)) {
+            return "通过";
+        }
+        if ("reject".equalsIgnoreCase(action)) {
+            return "驳回";
+        }
+        if ("return".equalsIgnoreCase(action)) {
+            return "退回";
+        }
+        return null;
+    }
+
+    /** 批量加载字典标签：类型 → (字典值 → 标签) */
+    private Map<String, Map<String, String>> loadDictLabels(String... dictTypes) {
+        List<SysDict> list = sysDictMapper.selectList(new LambdaQueryWrapper<SysDict>()
+                .in(SysDict::getDictType, List.of(dictTypes)));
+        Map<String, Map<String, String>> result = new HashMap<>();
+        for (SysDict dict : list) {
+            result.computeIfAbsent(dict.getDictType(), k -> new HashMap<>())
+                    .put(dict.getDictValue(), dict.getDictLabel());
+        }
+        return result;
+    }
+
+    /** 按字典类型与值取中文标签，缺失返回 null */
+    private String dictLabel(Map<String, Map<String, String>> dictCache, String dictType, String value) {
+        if (dictCache == null || dictType == null || value == null) {
+            return null;
+        }
+        Map<String, String> items = dictCache.get(dictType);
+        if (items == null) {
+            return null;
+        }
+        String label = items.get(value);
+        return label == null || label.isBlank() ? null : label;
+    }
+
+    /** 用指定分隔符拼接非空片段，全部为空返回 null */
+    private String joinNonBlank(String first, String second, String delimiter) {
+        if (first == null || first.isBlank()) {
+            return (second == null || second.isBlank()) ? null : second;
+        }
+        if (second == null || second.isBlank()) {
+            return first;
+        }
+        return first + delimiter + second;
+    }
+
+    /** 主角与操作拼接：有对象时「对象 · 操作」，否则仅操作 */
+    private String joinSubject(String subject, String operation) {
+        String act = operation == null ? "" : operation;
+        if (subject == null || subject.isBlank()) {
+            return act;
+        }
+        return act.isBlank() ? subject : subject + " · " + act;
+    }
+
+    /** 字符串转 Long，失败返回 null */
+    private Long toLong(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 从参数中取第一个较长数字（兼容 @PathVariable 序列化成的裸 ID） */
+    private Long firstLong(String params) {
+        if (params == null || params.isBlank()) {
+            return null;
+        }
+        Matcher m = Pattern.compile("(\\d{5,})").matcher(params);
+        return m.find() ? toLong(m.group(1)) : null;
+    }
+
+    /** 金额去尾零：2000.00 → 2000 */
+    private String formatAmount(String amount) {
+        if (amount == null || amount.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(amount.trim()).stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException e) {
+            return amount;
+        }
     }
 
     /**
