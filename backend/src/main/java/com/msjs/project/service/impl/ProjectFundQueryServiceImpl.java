@@ -1,6 +1,8 @@
 package com.msjs.project.service.impl;
 
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.LoginUser;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.mapper.FundQueryMapper;
@@ -123,18 +125,57 @@ public class ProjectFundQueryServiceImpl implements ProjectFundQueryService {
     private FundQueryMapper.QueryParams buildQueryParams(String regionCode, String year) {
         FundQueryMapper.QueryParams p = new FundQueryMapper.QueryParams();
         p.setYear(blankToNull(year));
-        p.setRegionCodes(collectDescendantRegionCodes(regionCode));
-        if (p.getRegionCodes() != null && p.getRegionCodes().isEmpty()) {
-            p.setRegionCodes(null);
+        // 数据权限：当前登录用户能看到的全部区划
+        List<String> scopeCodes = collectUserScopeRegionCodes();
+        // 前端可选传入的筛选区划（包含其后代）
+        List<String> requestCodes = collectDescendantRegionCodes(regionCode);
+
+        List<String> finalCodes;
+        if (scopeCodes == null) {
+            // scopeCodes == null 表示 DATA_SCOPE_ALL，全量放行
+            finalCodes = requestCodes;
+        } else if (scopeCodes.isEmpty()) {
+            // 用户未绑定区划，返回不可能匹配的编码，保证查不到数据
+            finalCodes = List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        } else if (requestCodes == null || requestCodes.isEmpty()) {
+            finalCodes = scopeCodes;
+        } else {
+            Set<String> scopeSet = new HashSet<>(scopeCodes);
+            finalCodes = requestCodes.stream().filter(scopeSet::contains).toList();
         }
+        // empty list 不是"不过滤"，而是"交集为空没有权限可看" → 用占位码让 IN 匹配 0 行
+        if (finalCodes != null && finalCodes.isEmpty()) {
+            finalCodes = List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        p.setRegionCodes(finalCodes);
         return p;
+    }
+
+    /**
+     * 根据当前登录用户的数据权限范围，计算其有权访问的全部区划 code。
+     * 返回 null 表示 DATA_SCOPE_ALL（全部数据权限，不做过滤）。
+     */
+    private List<String> collectUserScopeRegionCodes() {
+        LoginUser user = UserContext.get();
+        if (user == null || user.getDataScope() == null) {
+            return List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        if (user.getDataScope() == Constants.DATA_SCOPE_ALL) {
+            return null;
+        }
+        String userCode = user.getRegionCode();
+        if (userCode == null || userCode.isBlank()) {
+            return List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        if (user.getDataScope() == Constants.DATA_SCOPE_REGION_ONLY) {
+            return List.of(userCode.trim());
+        }
+        return collectDescendantRegionCodes(userCode);
     }
 
     /** 递归收集本级区划 + 全部后代区划 code */
     private List<String> collectDescendantRegionCodes(String regionCode) {
         if (regionCode == null || regionCode.isBlank()) return Collections.emptyList();
-        // 先看 regionMapper 有没有 listByParentCode 或全量查询
-        // 没有就直接查 t_sys_region 全量，内存递归
         List<SysRegion> all = regionMapper.selectList(null);
         Set<String> targets = new HashSet<>();
         collectChildren(all, regionCode.trim(), targets);

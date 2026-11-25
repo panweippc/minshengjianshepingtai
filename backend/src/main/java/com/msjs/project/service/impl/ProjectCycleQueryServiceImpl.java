@@ -1,5 +1,8 @@
 package com.msjs.project.service.impl;
 
+import com.msjs.project.common.Constants;
+import com.msjs.project.common.LoginUser;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.ProjectCycleQueryDTO;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.entity.SysDict;
@@ -42,21 +45,36 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     private final SysDictService dictService;
     private final SysRegionMapper regionMapper;
 
-    /** 村全量字典缓存（level=5 即村，name 作 join key）——按字典全量 left join，无数据也输出 */
-    private volatile List<String> allVillageNamesCache;
+    /**
+     * 村字典（level=5 即村，取当前登录用户数据权限范围内的村名列表）
+     * 注意：这里**不做全局缓存**——村名列表依赖当前登录用户的区划权限，必须每次动态计算。
+     * 跨乡镇用户看到的村组集合完全不同，不能用全局共享缓存。
+     * 过滤策略：scopeCodes 是用户可见的所有区划 code，对每个 level=5 村判断
+     *   村 code 是否以 scopeCodes 里任意一个为前缀（LIKE 'prefix%'）。
+     */
     private List<String> getAllVillageNames() {
-        if (allVillageNamesCache != null) return allVillageNamesCache;
-        synchronized (this) {
-            if (allVillageNamesCache != null) return allVillageNamesCache;
-            List<SysRegion> levels = regionMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
-                            .eq(SysRegion::getLevel, 5)
-                            .orderByAsc(SysRegion::getSort));
-            List<String> names = new ArrayList<>();
-            for (SysRegion r : levels) if (r.getName() != null && !r.getName().isBlank()) names.add(r.getName());
-            allVillageNamesCache = names;
-            return names;
+        List<String> scopeCodes = collectUserScopeRegionCodes();
+        boolean needFilter = scopeCodes != null; // null=DATA_SCOPE_ALL 不做过滤
+        List<SysRegion> allLevel5 = regionMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
+                        .eq(SysRegion::getLevel, 5)
+                        .orderByAsc(SysRegion::getSort));
+        List<String> names = new ArrayList<>();
+        for (SysRegion r : allLevel5) {
+            if (r.getName() == null || r.getName().isBlank()) continue;
+            if (needFilter) {
+                String rc = r.getCode();
+                boolean visible = false;
+                if (rc != null) {
+                    for (String sc : scopeCodes) {
+                        if (rc.startsWith(sc)) { visible = true; break; }
+                    }
+                }
+                if (!visible) continue;
+            }
+            names.add(r.getName());
         }
+        return names;
     }
 
     // ================== 对外接口 ==================
@@ -75,12 +93,13 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     private ProjectCycleStatVO doStat(ProjectCycleQueryDTO query) {
         ProjectCycleQueryMapper.QueryParams p = buildQueryParams(query.getRegionCode(), query.getYear());
         String queryType = blankToDefault(query.getQueryType(), "category");
+        System.err.println("[数据隔离-DIAG] queryType=" + queryType + " regionCodes=" + p.getRegionCodes() + " year=" + p.getYear());
 
         // 方案4（按项目状态）走 detail 粒度专用 SQL：每条三级农户/设施明细独立一行，
         // 自带 buildStatus + acceptStatusDetail，Service 直接用行内值打标签，不用 approval 粒度聚合 Map
         List<ProjectCycleRawVO> rawList;
         if ("status".equals(queryType)) {
-            rawList = cycleMapper.selectStatusDetailRaw();
+            rawList = cycleMapper.selectStatusDetailRaw(p);
         } else if ("establish".equals(queryType)) {
             // 方案3（按立项状态）需要包含所有状态的立项单（不仅仅是 approved）
             rawList = cycleMapper.selectRawListAllStatus(p);
@@ -283,13 +302,66 @@ public class ProjectCycleQueryServiceImpl implements ProjectCycleQueryService {
     private ProjectCycleQueryMapper.QueryParams buildQueryParams(String regionCode, String year) {
         ProjectCycleQueryMapper.QueryParams p = new ProjectCycleQueryMapper.QueryParams();
         p.setYear(blankToNull(year));
-        p.setRegionCodes(collectDescendantRegionCodes(regionCode));
-        if (p.getRegionCodes() != null && p.getRegionCodes().isEmpty()) {
-            p.setRegionCodes(null);
+        // 数据权限：当前登录用户能看到的全部区划
+        List<String> scopeCodes = collectUserScopeRegionCodes();
+        // 前端可选传入的筛选区划（包含其后代）
+        List<String> requestCodes = collectDescendantRegionCodes(regionCode);
+
+        List<String> finalCodes;
+        if (scopeCodes == null) {
+            // scopeCodes == null 表示 DATA_SCOPE_ALL，全量放行
+            finalCodes = requestCodes;
+        } else if (scopeCodes.isEmpty()) {
+            // 用户未绑定区划，返回不可能匹配的编码，保证查不到数据
+            finalCodes = List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        } else if (requestCodes == null || requestCodes.isEmpty()) {
+            finalCodes = scopeCodes;
+        } else {
+            // 前端传了也必须是权限的子集，取交集
+            Set<String> scopeSet = new HashSet<>(scopeCodes);
+            finalCodes = requestCodes.stream().filter(scopeSet::contains).toList();
         }
+        // empty list 不是"不过滤"，而是"交集为空没有权限可看" → 用占位码让 IN 匹配 0 行
+        if (finalCodes != null && finalCodes.isEmpty()) {
+            finalCodes = List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        p.setRegionCodes(finalCodes);
         return p;
     }
 
+    /**
+     * 根据当前登录用户的数据权限范围，计算其有权访问的全部区划 code。
+     * 返回 null 表示 DATA_SCOPE_ALL（全部数据权限，不做过滤）。
+     */
+    private List<String> collectUserScopeRegionCodes() {
+        LoginUser user = UserContext.get();
+        log.info("[数据隔离] collectUserScopeRegionCodes user={} regionCode={} dataScope={}",
+                user == null ? "null" : user.getUsername(),
+                user == null ? "null" : user.getRegionCode(),
+                user == null ? "null" : user.getDataScope());
+        if (user == null || user.getDataScope() == null) {
+            return List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        if (user.getDataScope() == Constants.DATA_SCOPE_ALL) {
+            log.info("[数据隔离] dataScope=ALL → 全量放行");
+            return null; // 全部权限 → 不过滤
+        }
+        String userCode = user.getRegionCode();
+        if (userCode == null || userCode.isBlank()) {
+            return List.of(Constants.DATA_SCOPE_NO_MATCH_CODE);
+        }
+        if (user.getDataScope() == Constants.DATA_SCOPE_REGION_ONLY) {
+            List<String> r = List.of(userCode.trim());
+            log.info("[数据隔离] dataScope=ONLY → regionCodes={}", r);
+            return r;
+        }
+        // DATA_SCOPE_REGION_AND_CHILDREN：本级 + 全部后代
+        List<String> r = collectDescendantRegionCodes(userCode);
+        log.info("[数据隔离] dataScope=AND_CHILDREN → regionCodes={}", r);
+        return r;
+    }
+
+    /** 递归收集本级区划 + 全部后代区划 code */
     private List<String> collectDescendantRegionCodes(String regionCode) {
         if (regionCode == null || regionCode.isBlank()) return Collections.emptyList();
         List<SysRegion> all = regionMapper.selectList(null);

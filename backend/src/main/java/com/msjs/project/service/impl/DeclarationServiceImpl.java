@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
@@ -117,6 +118,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .eq(targetAuditStatuses == null && isNotBlank(status), Declaration::getStatus, status)
                 .eq(isNotBlank(townCode), Declaration::getTownCode, townCode)
                 .eq(isNotBlank(villageGroupCode), Declaration::getVillageGroupCode, villageGroupCode);
+        // 数据隔离：按当前登录用户区划权限过滤（本区/本区及以下/全部）
+        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
         // tab 分类逻辑（audit_status 匹配）：搬到 Java 层，避免 .apply() 占位符坑
         if (targetAuditStatuses != null) {
             Set<Long> matchingDeclIds = collectDeclIdsByAuditStatus(targetAuditStatuses);
@@ -462,6 +465,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .eq(isNotBlank(declarationType), Declaration::getDeclarationType, declarationType)
                 .eq(isNotBlank(declarationCategory), Declaration::getDeclarationCategory, declarationCategory)
                 .eq(targetAuditStatuses == null && isNotBlank(status), Declaration::getStatus, status);
+        // 数据隔离：审核人也只能看到自己权限范围内乡镇的待审核申报
+        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
         // tab 分类逻辑（audit_status 匹配）：搬到 Java 层，统一走 collectDeclIdsByAuditStatus 工具方法
         if (targetAuditStatuses != null) {
             Set<Long> matchingDeclIds = collectDeclIdsByAuditStatus(targetAuditStatuses);
@@ -1739,6 +1744,27 @@ public class DeclarationServiceImpl implements DeclarationService {
         FIXED_STATUS_LABELS.put("established", "已立项");
     }
 
+    /**
+     * 两个明细级审批状态合并为申报单整体状态。
+     * 优先级（最"严重"→最"好"）：rejected > pending > approved > established。
+     * 任意明细有 rejected → 整体 rejected；有 pending → pending；有 approved → approved；全 established → established。
+     */
+    private static int statusRank(String s) {
+        if (s == null) return 99;
+        switch (s) {
+            case "rejected": return 0;
+            case "pending": return 1;
+            case "approved": return 2;
+            case "established": return 3;
+            default: return 99;
+        }
+    }
+    private static String resolveOverallStatus(String prev, String cur) {
+        if (prev == null || prev.isBlank()) return cur;
+        if (cur == null || cur.isBlank()) return prev;
+        return statusRank(prev) <= statusRank(cur) ? prev : cur;
+    }
+
     /** 审批状态值 → 中文标签（固定口径） */
     private String mapAuditStatusLabel(String auditStatus) {
         if (auditStatus == null) return "";
@@ -1818,6 +1844,8 @@ public class DeclarationServiceImpl implements DeclarationService {
 
         // 1) 前置过滤：按顶部条件过滤 declaration 主表
         LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<>();
+        // 数据隔离：按当前登录用户区划权限过滤（本区/本区及以下/全部）
+        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
         if (year != null && !year.isBlank()) {
             try {
                 int y = Integer.parseInt(year.trim());
@@ -1846,11 +1874,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         List<SysDict> catDict = sysDictService.listByType("shen_bao_lei_bie");
 
         // ==== 村全量字典（区划表 level=5 即村）——按字典全量 left join，保证无数据村也显示 ====
-        List<SysRegion> allVillageRegions = regionMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysRegion>()
-                        .eq(SysRegion::getLevel, 5)
-                        .orderByAsc(SysRegion::getSort)
-        );
+        // 但必须按当前登录用户的数据权限范围裁剪村组列表，禁止跨乡镇看到其他乡镇的村组名
+        List<SysRegion> allVillageRegions = loadScopeVillageRegions();
         Map<String, String> villageCode2Name = new LinkedHashMap<>();
         List<String> villageCodeOrder = new ArrayList<>();
         for (SysRegion r : allVillageRegions) {
@@ -2061,19 +2086,24 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         sidebar.setByCategory(byCategory);
 
-        // 按审批状态 —— 固定四项输出
+        // 按审批状态 —— 固定四项输出。口径：申报单级去重后，每个申报单反推出一个整体状态。
+        // 状态优先级（最"严重"→最"好"）：rejected > pending > approved > established
+        // 这样保证 status 侧边栏 count 加起来 = 申报单总数，不会因明细级多状态重复计算。
         List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
-        Map<String, Set<Long>> statusDecl = new HashMap<>();
+        Map<Long, String> declOverallStatus = new HashMap<>();
         for (FlatItem f : flatItems) {
-            String s = f.auditStatus == null ? "" : f.auditStatus;
-            statusDecl.computeIfAbsent(s, k -> new HashSet<>());
-            if (f.declarationId != null) statusDecl.get(s).add(f.declarationId);
+            if (f.declarationId == null) continue;
+            String cur = f.auditStatus == null ? "" : f.auditStatus;
+            String prev = declOverallStatus.get(f.declarationId);
+            declOverallStatus.put(f.declarationId, resolveOverallStatus(prev, cur));
         }
+        Map<String, Long> statusCount = declOverallStatus.values().stream()
+                .collect(Collectors.groupingBy(s -> s == null ? "" : s, Collectors.counting()));
         for (Map.Entry<String, String> e : FIXED_STATUS_LABELS.entrySet()) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
             it.setValue(e.getKey());
             it.setLabel(e.getValue());
-            it.setCount(statusDecl.getOrDefault(e.getKey(), Collections.emptySet()).size());
+            it.setCount(statusCount.getOrDefault(e.getKey(), 0L).intValue());
             byStatus.add(it);
         }
         sidebar.setByStatus(byStatus);
@@ -2207,6 +2237,37 @@ public class DeclarationServiceImpl implements DeclarationService {
             current = next;
         }
         return result;
+    }
+
+    /**
+     * 取当前登录用户数据权限范围内的所有村组（level=5）区划。
+     * 用途：统计类接口的"无数据村组也要显示"字典不能泄露跨乡镇村组名。
+     * 数据权限：全部→全量村组；本区及以下→本级乡镇及其子孙级下的村组；仅本区→本级乡镇下的村组。
+     * 过滤策略：先算用户可见的所有区划 code 集合，再对每个 level=5 村判断：
+     *   村 code 是否以 scopeCodes 里任意一个为前缀（LIKE 'prefix%'）。
+     *   这比只看 parent_code 更健壮——不管区划层级结构是啥样都能正确隔离。
+     */
+    private List<SysRegion> loadScopeVillageRegions() {
+        LoginUser user = UserContext.get();
+        boolean needFilter = user != null && user.getDataScope() != null
+                && user.getDataScope() != Constants.DATA_SCOPE_ALL;
+        List<SysRegion> allVillages = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getLevel, 5).orderByAsc(SysRegion::getSort));
+        if (!needFilter) return allVillages;
+        String regionCode = user.getRegionCode();
+        if (regionCode == null || regionCode.isBlank()) return new ArrayList<>();
+        Set<String> scopeCodes = collectDescendantRegionCodes(regionCode.trim());
+        if (scopeCodes.isEmpty()) scopeCodes.add(regionCode.trim());
+        return allVillages.stream()
+                .filter(v -> {
+                    String vc = v.getCode();
+                    if (vc == null) return false;
+                    for (String sc : scopeCodes) {
+                        if (vc.startsWith(sc)) return true;
+                    }
+                    return false;
+                })
+                .collect(Collectors.toList());
     }
 
     // ============ 登录首页弹窗提醒 ============
