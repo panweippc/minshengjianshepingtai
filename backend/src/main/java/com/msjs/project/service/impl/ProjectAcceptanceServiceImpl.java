@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.AcceptDetailDTO;
 import com.msjs.project.dto.AcceptNodeDTO;
 import com.msjs.project.dto.AcceptRecordUpdateDTO;
@@ -17,6 +19,7 @@ import com.msjs.project.entity.ProjectApprovalDeclare;
 import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.entity.ProjectArchive;
 import com.msjs.project.entity.ProjectConstruction;
+import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.ProjectAcceptanceAttachmentMapper;
 import com.msjs.project.mapper.ProjectAcceptanceMapper;
 import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
@@ -25,6 +28,7 @@ import com.msjs.project.mapper.ProjectApprovalDetailMapper;
 import com.msjs.project.mapper.ProjectApprovalMapper;
 import com.msjs.project.mapper.ProjectArchiveMapper;
 import com.msjs.project.mapper.ProjectConstructionMapper;
+import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectAcceptanceService;
 import com.msjs.project.vo.AcceptanceNodeVO;
 import com.msjs.project.vo.AcceptanceRecordVO;
@@ -60,6 +64,7 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
     private final ProjectAcceptanceAttachmentMapper acceptanceAttachmentMapper;
     private final ProjectArchiveMapper archiveMapper;
     private final ProjectConstructionMapper constructionMapper;
+    private final SysRegionMapper regionMapper;
 
     @Override
     public PageVO<AcceptanceNodeVO> page(long pageNum, long pageSize, String projectName,
@@ -76,6 +81,7 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
                 .orderByDesc(ProjectApproval::getSubmitTime)
                 .orderByDesc(ProjectApproval::getId);
+        applyApprovalRegionScope(wrapper);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
         List<AcceptanceNodeVO> nodes = result.getRecords().isEmpty()
@@ -817,5 +823,28 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /** 数据权限：立项所属乡镇 region_code = 当前登录人所属乡镇 */
+    private void applyApprovalRegionScope(LambdaQueryWrapper<ProjectApproval> wrapper) {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return;
+        }
+        String currentCode = loginUser.getRegionCode().trim();
+        SysRegion town = null;
+        for (int i = 0; i < 6; i++) {
+            SysRegion r = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getCode, currentCode));
+            if (r == null) break;
+            boolean isTown = ("1".equals(r.getRegionType())
+                    || (r.getLevel() != null && r.getLevel() == Constants.REGION_LEVEL_TOWN));
+            if (isTown) { town = r; break; }
+            if (!isNotBlank(r.getParentCode())) break;
+            currentCode = r.getParentCode();
+        }
+        if (town != null) {
+            wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
+        }
     }
 }

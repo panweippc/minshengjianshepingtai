@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.FundAttachmentDTO;
 import com.msjs.project.dto.FundSaveDTO;
 import com.msjs.project.dto.FundUpdateDTO;
@@ -17,6 +19,7 @@ import com.msjs.project.entity.ProjectApprovalDeclare;
 import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.entity.ProjectFundAttachment;
+import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.BaseFacilityAttachmentMapper;
 import com.msjs.project.mapper.DeclarationAttachmentMapper;
 import com.msjs.project.mapper.HouseholdAttachmentMapper;
@@ -26,6 +29,7 @@ import com.msjs.project.mapper.ProjectApprovalDetailMapper;
 import com.msjs.project.mapper.ProjectApprovalMapper;
 import com.msjs.project.mapper.ProjectFundAttachmentMapper;
 import com.msjs.project.mapper.ProjectFundMapper;
+import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectFundService;
 import com.msjs.project.vo.FundMaterialAttachmentVO;
 import com.msjs.project.vo.FundNodeVO;
@@ -63,6 +67,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
     private final HouseholdAttachmentMapper householdAttachmentMapper;
     private final BaseFacilityAttachmentMapper facilityAttachmentMapper;
     private final DeclarationAttachmentMapper declarationAttachmentMapper;
+    private final SysRegionMapper regionMapper;
 
     @Override
     public PageVO<FundNodeVO> page(long pageNum, long pageSize, String projectName,
@@ -79,6 +84,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
                 .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
                 .orderByDesc(ProjectApproval::getSubmitTime);
+        applyApprovalRegionScope(wrapper);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
         List<ProjectApproval> approvals = result.getRecords();
@@ -728,5 +734,31 @@ public class ProjectFundServiceImpl implements ProjectFundService {
 
     private String trimToNull(String value) {
         return isNotBlank(value) ? value.trim() : null;
+    }
+
+    /**
+     * 给 wrapper 追加"立项所属乡镇 region_code = 当前登录人所属乡镇"的数据权限过滤。
+     * 未绑定区划 / 解析不到乡镇 → 不过滤（兜底放行）。
+     */
+    private void applyApprovalRegionScope(LambdaQueryWrapper<ProjectApproval> wrapper) {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return;
+        }
+        String currentCode = loginUser.getRegionCode().trim();
+        SysRegion town = null;
+        for (int i = 0; i < 6; i++) {
+            SysRegion r = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getCode, currentCode));
+            if (r == null) break;
+            boolean isTown = ("1".equals(r.getRegionType())
+                    || (r.getLevel() != null && r.getLevel() == Constants.REGION_LEVEL_TOWN));
+            if (isTown) { town = r; break; }
+            if (!isNotBlank(r.getParentCode())) break;
+            currentCode = r.getParentCode();
+        }
+        if (town != null) {
+            wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
+        }
     }
 }

@@ -16,6 +16,7 @@ import com.msjs.project.entity.ProjectConstruction;
 import com.msjs.project.entity.ProjectConstructionAttachment;
 import com.msjs.project.entity.ProjectConstructionLog;
 import com.msjs.project.entity.ProjectAcceptance;
+import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.ProjectAcceptanceMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
 import com.msjs.project.mapper.ProjectApprovalDetailMapper;
@@ -23,6 +24,7 @@ import com.msjs.project.mapper.ProjectApprovalMapper;
 import com.msjs.project.mapper.ProjectConstructionAttachmentMapper;
 import com.msjs.project.mapper.ProjectConstructionLogMapper;
 import com.msjs.project.mapper.ProjectConstructionMapper;
+import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectConstructionService;
 import com.msjs.project.vo.ConstructionAttachmentVO;
 import com.msjs.project.vo.ConstructionLogVO;
@@ -62,6 +64,7 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
     private final ProjectConstructionLogMapper constructionLogMapper;
     private final ProjectConstructionAttachmentMapper constructionAttachmentMapper;
     private final ProjectAcceptanceMapper acceptanceMapper;
+    private final SysRegionMapper regionMapper;
 
     @Override
     public PageVO<ConstructionNodeVO> page(long pageNum, long pageSize, String projectCode, String projectName,
@@ -78,6 +81,7 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
                 .eq(isNotBlank(projectType), ProjectApproval::getProjectType, projectType)
                 .orderByDesc(ProjectApproval::getSubmitTime)
                 .orderByDesc(ProjectApproval::getId);
+        applyApprovalRegionScope(wrapper);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
         PageVO<ConstructionNodeVO> vo = new PageVO<>();
@@ -848,5 +852,28 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
 
     private String trimToNull(String value) {
         return isNotBlank(value) ? value.trim() : null;
+    }
+
+    /** 数据权限：立项所属乡镇 region_code = 当前登录人所属乡镇 */
+    private void applyApprovalRegionScope(LambdaQueryWrapper<ProjectApproval> wrapper) {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return;
+        }
+        String currentCode = loginUser.getRegionCode().trim();
+        SysRegion town = null;
+        for (int i = 0; i < 6; i++) {
+            SysRegion r = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getCode, currentCode));
+            if (r == null) break;
+            boolean isTown = ("1".equals(r.getRegionType())
+                    || (r.getLevel() != null && r.getLevel() == Constants.REGION_LEVEL_TOWN));
+            if (isTown) { town = r; break; }
+            if (!isNotBlank(r.getParentCode())) break;
+            currentCode = r.getParentCode();
+        }
+        if (town != null) {
+            wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
+        }
     }
 }
