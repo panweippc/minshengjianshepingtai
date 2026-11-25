@@ -2,9 +2,14 @@ package com.msjs.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.DataScopeUtils;
+import com.msjs.project.common.LoginUser;
+import com.msjs.project.common.UserContext;
+import com.msjs.project.entity.BaseFacility;
 import com.msjs.project.entity.Declaration;
 import com.msjs.project.entity.DeclarationHousehold;
 import com.msjs.project.entity.DeclarationPublicFacility;
+import com.msjs.project.entity.Household;
 import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.entity.SysRegion;
@@ -99,17 +104,33 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DashboardOverviewVO overview() {
         DashboardOverviewVO vo = new DashboardOverviewVO();
+        // 数据权限：非全部范围用户（镇/村）按本人区划前缀过滤；未绑定区划时使用不可能匹配编码，保证返回空数据
+        LoginUser loginUser = UserContext.get();
+        String regionPrefix = null;
+        if (loginUser != null && loginUser.getDataScope() != null
+                && loginUser.getDataScope() != Constants.DATA_SCOPE_ALL) {
+            String regionCode = loginUser.getRegionCode();
+            regionPrefix = (regionCode == null || regionCode.isBlank())
+                    ? Constants.DATA_SCOPE_NO_MATCH_CODE
+                    : regionCode.trim();
+        }
         // 行政村总数：区划层级为村（5）的节点数量
-        vo.setVillageCount(regionMapper.selectCount(new LambdaQueryWrapper<SysRegion>()
-                .eq(SysRegion::getLevel, Constants.REGION_LEVEL_VILLAGE)));
+        LambdaQueryWrapper<SysRegion> villageWrapper = new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getLevel, Constants.REGION_LEVEL_VILLAGE);
+        DataScopeUtils.applyRegionScope(villageWrapper, SysRegion::getCode);
+        vo.setVillageCount(regionMapper.selectCount(villageWrapper));
         // 农户总数：户基础信息未删除记录数
-        vo.setHouseholdCount(householdMapper.selectCount(null));
+        LambdaQueryWrapper<Household> householdWrapper = new LambdaQueryWrapper<>();
+        DataScopeUtils.applyRegionScope(householdWrapper, Household::getRegionCode);
+        vo.setHouseholdCount(householdMapper.selectCount(householdWrapper));
         // 公共基础设施总数：设施未删除记录数
-        vo.setFacilityCount(facilityMapper.selectCount(null));
+        LambdaQueryWrapper<BaseFacility> facilityWrapper = new LambdaQueryWrapper<>();
+        DataScopeUtils.applyRegionScope(facilityWrapper, BaseFacility::getRegionCode);
+        vo.setFacilityCount(facilityMapper.selectCount(facilityWrapper));
         // 在库物资总数：全部物品库存数量之和
         vo.setMaterialStockTotal(materialItemMapper.sumStockQty());
-        // 项目进度概览：一个项目一条记录，可同时处于多个阶段
-        List<ProjectProgressVO> progressList = projectApprovalMapper.selectProjectProgress();
+        // 项目进度概览：一个项目一条记录，可同时处于多个阶段；按申报单所属村组过滤数据范围
+        List<ProjectProgressVO> progressList = projectApprovalMapper.selectProjectProgress(regionPrefix);
         for (ProjectProgressVO item : progressList) {
             List<Integer> stages = new ArrayList<>(4);
             // 已归档为生命周期终点，优先判定：忽略可能残留的施工中明细状态，仅展示已归档

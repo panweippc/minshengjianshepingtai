@@ -79,8 +79,6 @@
           v-loading="loading"
           :data="tableData"
           row-key="code"
-          :tree-props="{ children: 'children' }"
-          :default-expand-all="true"
           border
           stripe
         >
@@ -133,6 +131,18 @@
             </template>
           </el-table-column>
         </el-table>
+        <div class="pagination-bar">
+          <el-pagination
+            :current-page="query.pageNum"
+            :page-size="query.pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @current-change="handlePageChange"
+            @size-change="handleSizeChange"
+          />
+        </div>
       </el-card>
     </div>
 
@@ -236,7 +246,7 @@ import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import {
   getVillageTree,
-  getVillageTreePage,
+  getVillagePage,
   getVillageDetail,
   createVillage,
   updateVillage,
@@ -316,7 +326,7 @@ const query = reactive<VillageQuery>({
   pageSize: 10
 })
 const total = ref(0)
-const tableData = ref<VillageTreeVO[]>([])
+const tableData = ref<VillageVO[]>([])
 const loading = ref(false)
 
 const dialogVisible = ref(false)
@@ -379,31 +389,39 @@ const loadTree = async () => {
 }
 
 /** 递归统计树节点总数 */
-const countTreeNodes = (nodes: VillageTreeVO[]): number => {
-  let n = 0
-  for (const node of nodes) {
-    n += 1 + countTreeNodes(node.children || [])
-  }
-  return n
-}
-
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getVillageTreePage({
+    const res = await getVillagePage({
+      pageNum: query.pageNum,
+      pageSize: query.pageSize,
       name: query.name,
       secretary: query.secretary,
       director: query.director,
       nodeCode: query.nodeCode
     })
-    tableData.value = res.data || []
-    total.value = countTreeNodes(tableData.value)
+    tableData.value = res.data?.records || []
+    total.value = res.data?.total || 0
   } finally {
     loading.value = false
   }
 }
 
 const handleQuery = () => {
+  query.pageNum = 1
+  loadData()
+}
+
+/** 切换页码 */
+const handlePageChange = (pageNum: number) => {
+  query.pageNum = pageNum
+  loadData()
+}
+
+/** 切换每页条数 */
+const handleSizeChange = (pageSize: number) => {
+  query.pageSize = pageSize
+  query.pageNum = 1
   loadData()
 }
 
@@ -650,6 +668,11 @@ onMounted(() => {
   margin-right: 0;
 }
 .list-card {
+  margin-top: 12px;
+}
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 12px;
 }
 .card-header {

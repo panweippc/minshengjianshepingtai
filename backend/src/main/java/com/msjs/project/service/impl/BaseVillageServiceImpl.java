@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.RegionSaveDTO;
 import com.msjs.project.entity.SysRegion;
@@ -32,11 +33,13 @@ public class BaseVillageServiceImpl implements BaseVillageService {
 
     @Override
     public List<RegionTreeVO> tree() {
-        List<SysRegion> regions = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+        LambdaQueryWrapper<SysRegion> wrapper = new LambdaQueryWrapper<SysRegion>()
                 .ge(SysRegion::getLevel, Constants.REGION_MANAGE_MIN_LEVEL)
                 .orderByAsc(SysRegion::getLevel)
                 .orderByAsc(SysRegion::getSort)
-                .orderByAsc(SysRegion::getCode));
+                .orderByAsc(SysRegion::getCode);
+        applyDataScope(wrapper);
+        List<SysRegion> regions = regionMapper.selectList(wrapper);
         Map<String, RegionTreeVO> nodeMap = new LinkedHashMap<>();
         regions.forEach(region -> nodeMap.put(region.getCode(), toTreeNode(region)));
         List<RegionTreeVO> roots = new ArrayList<>();
@@ -67,17 +70,21 @@ public class BaseVillageServiceImpl implements BaseVillageService {
                 .orderByAsc(SysRegion::getLevel)
                 .orderByAsc(SysRegion::getSort)
                 .orderByAsc(SysRegion::getCode);
+        // 村级等非全部范围用户仅能查询本人区划范围内的数据
+        applyDataScope(wrapper);
         return PageVO.of(regionMapper.selectPage(page, wrapper));
     }
 
     @Override
     public List<RegionTreeVO> treePage(String name, String secretary, String director, String nodeCode) {
         // 全量查询管理范围内区划，后续在内存中筛选并组装为树（树形表格不分页，避免父子断裂）
-        List<SysRegion> all = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+        LambdaQueryWrapper<SysRegion> wrapper = new LambdaQueryWrapper<SysRegion>()
                 .ge(SysRegion::getLevel, Constants.REGION_MANAGE_MIN_LEVEL)
                 .orderByAsc(SysRegion::getLevel)
                 .orderByAsc(SysRegion::getSort)
-                .orderByAsc(SysRegion::getCode));
+                .orderByAsc(SysRegion::getCode);
+        applyDataScope(wrapper);
+        List<SysRegion> all = regionMapper.selectList(wrapper);
 
         boolean hasFilter = isNotBlank(name) || isNotBlank(secretary) || isNotBlank(director);
         List<SysRegion> filtered;
@@ -104,6 +111,15 @@ public class BaseVillageServiceImpl implements BaseVillageService {
             }
         }
         return roots;
+    }
+
+    /**
+     * 按当前登录用户的数据权限范围追加区划过滤条件
+     *
+     * @param wrapper 查询条件
+     */
+    private void applyDataScope(LambdaQueryWrapper<SysRegion> wrapper) {
+        DataScopeUtils.applyRegionScope(wrapper, SysRegion::getCode);
     }
 
     /** 筛选出指定节点及其所有子孙 */
@@ -160,6 +176,10 @@ public class BaseVillageServiceImpl implements BaseVillageService {
         SysRegion region = selectByCode(code);
         if (region == null) {
             throw new BizException("区划不存在或已被删除");
+        }
+        // 数据权限：防止通过编码直取越权查看其他区划
+        if (!DataScopeUtils.canAccessRegion(region.getCode())) {
+            throw new BizException("无权访问其他区划的信息");
         }
         return region;
     }

@@ -21,6 +21,7 @@ public interface ProjectApprovalMapper extends BaseMapper<ProjectApproval> {
      * 已驳回项目不参与进度展示；已归档项目仅保留一周（按归档操作更新时间）
      */
     @Select("""
+            <script>
             SELECT
                 pa.id AS id,
                 pa.approval_code AS approvalCode,
@@ -29,14 +30,24 @@ public interface ProjectApprovalMapper extends BaseMapper<ProjectApproval> {
                 UPPER(pa.accept_status) AS acceptStatus
             FROM t_project_approval pa
             WHERE pa.deleted = 0
-              AND UPPER(pa.status) <> 'REJECTED'
+              AND NOT (UPPER(pa.status) = 'REJECTED')
               AND NOT (
                   UPPER(pa.accept_status) = 'ARCHIVED'
-                  AND COALESCE(pa.update_time, pa.create_time) < DATE_SUB(NOW(), INTERVAL 7 DAY)
+                  AND COALESCE(pa.update_time, pa.create_time) &lt; DATE_SUB(NOW(), INTERVAL 7 DAY)
               )
+            <if test="regionPrefix != null and regionPrefix != ''">
+              AND EXISTS (
+                  SELECT 1
+                  FROM t_project_approval_declare pad
+                  INNER JOIN t_declaration d ON d.id = pad.declaration_id AND d.deleted = 0
+                  WHERE pad.approval_id = pa.id
+                    AND d.village_group_code LIKE CONCAT(#{regionPrefix}, '%')
+              )
+            </if>
             ORDER BY pa.create_time DESC
+            </script>
             """)
-    List<ProjectProgressVO> selectProjectProgress();
+    List<ProjectProgressVO> selectProjectProgress(@Param("regionPrefix") String regionPrefix);
 
     /**
      * 统计指定 approvalId 集合的项目预算总额

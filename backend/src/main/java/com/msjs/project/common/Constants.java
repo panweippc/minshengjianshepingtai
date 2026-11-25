@@ -54,6 +54,15 @@ public final class Constants {
     /** 村委会管理层级起点（乡镇） */
     public static final int REGION_MANAGE_MIN_LEVEL = REGION_LEVEL_TOWN;
 
+    /** 数据权限范围：全部数据 */
+    public static final int DATA_SCOPE_ALL = 1;
+    /** 数据权限范围：本区及以下（含本区与全部下级） */
+    public static final int DATA_SCOPE_REGION_AND_CHILDREN = 2;
+    /** 数据权限范围：仅本区 */
+    public static final int DATA_SCOPE_REGION_ONLY = 3;
+    /** 数据权限：用户未绑定区划时用于保证查询结果为空的不可能匹配编码 */
+    public static final String DATA_SCOPE_NO_MATCH_CODE = "__NO_MATCH__";
+
     /** 文件状态：临时（分片上传中，未归档） */
     public static final int FILE_STATUS_TEMP = 0;
     /** 文件状态：正式归档 */

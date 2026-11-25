@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.HouseholdSaveDTO;
 import com.msjs.project.entity.Household;
@@ -64,6 +65,8 @@ public class HouseholdServiceImpl implements HouseholdService {
                 // 这里不能直接写 headIdCard.trim()，否则 headIdCard 为 null 时会 NPE
                 .eq(isNotBlank(headIdCard), Household::getHeadIdCard, headIdCard == null ? null : headIdCard.trim())
                 .orderByDesc(Household::getCreateTime);
+        // 数据权限：村级等非全部范围用户仅能查看本人区划范围内的农户
+        DataScopeUtils.applyRegionScope(wrapper, Household::getRegionCode);
         return PageVO.of(householdMapper.selectPage(page, wrapper));
     }
 
@@ -73,6 +76,8 @@ public class HouseholdServiceImpl implements HouseholdService {
         QueryWrapper<Household> wrapper = new QueryWrapper<Household>()
                 .select("region_code", "COUNT(*) AS cnt")
                 .groupBy("region_code");
+        // 数据权限：村级等非全部范围用户仅统计本人区划范围内的农户
+        DataScopeUtils.applyRegionScope(wrapper, "region_code");
         List<Map<String, Object>> rows = householdMapper.selectMaps(wrapper);
         List<RegionHouseholdCountVO> result = new ArrayList<>();
         for (Map<String, Object> row : rows) {
@@ -94,6 +99,10 @@ public class HouseholdServiceImpl implements HouseholdService {
         Household household = householdMapper.selectById(id);
         if (household == null) {
             throw new BizException("户基础信息不存在或已被删除");
+        }
+        // 数据权限：防止通过 ID 直取越权查看其他区划的农户
+        if (!DataScopeUtils.canAccessRegion(household.getRegionCode())) {
+            throw new BizException("无权访问其他区划的户基础信息");
         }
         return household;
     }

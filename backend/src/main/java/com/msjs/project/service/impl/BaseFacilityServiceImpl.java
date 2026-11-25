@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.dto.FacilitySaveDTO;
 import com.msjs.project.dto.FacilitySaveDTO.FacilityAttachmentSaveDTO;
@@ -65,6 +66,8 @@ public class BaseFacilityServiceImpl implements BaseFacilityService {
                 .like(isNotBlank(facilityName), BaseFacility::getFacilityName, facilityName)
                 .eq(isNotBlank(facilityType), BaseFacility::getFacilityType, facilityType)
                 .orderByDesc(BaseFacility::getCreateTime);
+        // 数据权限：村级等非全部范围用户仅能查看本人区划范围内的设施
+        DataScopeUtils.applyRegionScope(wrapper, BaseFacility::getRegionCode);
         return PageVO.of(facilityMapper.selectPage(page, wrapper));
     }
 
@@ -74,6 +77,8 @@ public class BaseFacilityServiceImpl implements BaseFacilityService {
         QueryWrapper<BaseFacility> wrapper = new QueryWrapper<BaseFacility>()
                 .select("region_code", "COUNT(*) AS cnt")
                 .groupBy("region_code");
+        // 数据权限：村级等非全部范围用户仅统计本人区划范围内的设施
+        DataScopeUtils.applyRegionScope(wrapper, "region_code");
         List<Map<String, Object>> rows = facilityMapper.selectMaps(wrapper);
         List<RegionFacilityCountVO> result = new ArrayList<>();
         for (Map<String, Object> row : rows) {
@@ -95,6 +100,10 @@ public class BaseFacilityServiceImpl implements BaseFacilityService {
         BaseFacility facility = facilityMapper.selectById(id);
         if (facility == null) {
             throw new BizException("设施不存在或已被删除");
+        }
+        // 数据权限：防止通过 ID 直取越权查看其他区划的设施
+        if (!DataScopeUtils.canAccessRegion(facility.getRegionCode())) {
+            throw new BizException("无权访问其他区划的公共基础设施");
         }
         FacilityDetailVO vo = new FacilityDetailVO();
         vo.setId(facility.getId());
