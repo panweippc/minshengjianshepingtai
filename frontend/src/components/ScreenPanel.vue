@@ -30,7 +30,7 @@ defineProps<{
 </script>
 
 <style scoped>
-/* 立体玻璃卡片：外层渐变描边 + 内层玻璃底 + 顶部高光 */
+/* 立体玻璃卡片：回调实一点（用户说之前太透），保留"能看到一点底图但不抢眼" */
 .screen-panel {
   position: relative;
   display: flex;
@@ -38,14 +38,14 @@ defineProps<{
   padding: 1px;
   background: linear-gradient(
     150deg,
-    rgba(122, 212, 255, 0.7) 0%,
-    rgba(48, 120, 186, 0.2) 26%,
-    rgba(30, 84, 140, 0.16) 70%,
-    rgba(110, 205, 255, 0.55) 100%
+    rgba(122, 212, 255, 0.62) 0%,
+    rgba(48, 120, 186, 0.16) 26%,
+    rgba(30, 84, 140, 0.14) 70%,
+    rgba(110, 205, 255, 0.48) 100%
   );
   clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
   filter:
-    drop-shadow(0 14px 22px rgba(0, 6, 14, 0.55))
+    drop-shadow(0 14px 22px rgba(0, 6, 14, 0.5))
     drop-shadow(0 0 12px rgba(64, 164, 255, 0.12));
 }
 
@@ -56,12 +56,13 @@ defineProps<{
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  /* 回调到 0.78 / 0.82 / 0.8 —— 能看到底图，但面板本身还是清晰的容器 */
   background:
-    radial-gradient(ellipse 90% 60% at 12% -12%, rgba(56, 132, 200, 0.28) 0%, rgba(10, 22, 36, 0) 62%),
-    linear-gradient(180deg, rgba(14, 34, 56, 0.97) 0%, rgba(7, 16, 28, 0.98) 45%, rgba(3, 9, 16, 0.99) 100%);
+    radial-gradient(ellipse 90% 60% at 12% -12%, rgba(56, 132, 200, 0.24) 0%, rgba(10, 22, 36, 0) 62%),
+    linear-gradient(180deg, rgba(14, 34, 56, 0.78) 0%, rgba(7, 16, 28, 0.82) 45%, rgba(3, 9, 16, 0.8) 100%);
   box-shadow:
     inset 0 1px 0 rgba(160, 228, 255, 0.16),
-    inset 0 -30px 46px rgba(0, 0, 0, 0.38);
+    inset 0 -30px 46px rgba(0, 0, 0, 0.3);
   clip-path: polygon(17.6px 0, 100% 0, 100% calc(100% - 17.6px), calc(100% - 17.6px) 100%, 0 100%, 0 17.6px);
 }
 
@@ -76,7 +77,7 @@ defineProps<{
     linear-gradient(0deg, rgba(58, 150, 230, 0.08) 0%, transparent 22%);
 }
 
-/* 整条标题栏：青色渐变底 + 顶/底高光 */
+/* 整条标题栏：回调实一点 */
 .panel-head {
   position: relative;
   z-index: 1;
@@ -86,7 +87,7 @@ defineProps<{
   flex-shrink: 0;
   height: 40px;
   padding: 0 14px;
-  background: linear-gradient(90deg, rgba(24, 74, 118, 0.92) 0%, rgba(18, 50, 84, 0.55) 50%, rgba(10, 26, 44, 0.06) 100%);
+  background: linear-gradient(90deg, rgba(24, 74, 118, 0.82) 0%, rgba(18, 50, 84, 0.55) 50%, rgba(10, 26, 44, 0.08) 100%);
   border-bottom: 1px solid rgba(96, 184, 244, 0.3);
   box-shadow:
     inset 0 1px 0 rgba(150, 224, 255, 0.2),
