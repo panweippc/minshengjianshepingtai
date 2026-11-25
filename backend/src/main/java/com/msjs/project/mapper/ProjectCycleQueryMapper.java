@@ -62,18 +62,18 @@ public interface ProjectCycleQueryMapper {
             "   GROUP BY approval_id" +
             " ) fund ON fund.approval_id = a.id " +
             " WHERE a.deleted = 0 AND a.status = 'APPROVED' " +
-            " <if test='year != null and year != \"\"'>" +
-            "   AND YEAR(a.submit_time) = #{year}" +
+            " <if test='p.year != null and p.year != \"\"'>" +
+            "   AND YEAR(a.submit_time) = #{p.year}" +
             " </if>" +
-            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
+            " <if test='p.regionCodes != null and p.regionCodes.size() &gt; 0'>" +
             "   AND a.region_code IN " +
-            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "   <foreach collection='p.regionCodes' item='rc' open='(' separator=',' close=')'>" +
             "     #{rc}" +
             "   </foreach>" +
             " </if>" +
             " ORDER BY a.id DESC, d.id DESC" +
             "</script>")
-    List<ProjectCycleRawVO> selectRawList(QueryParams p);
+    List<ProjectCycleRawVO> selectRawList(@Param("p") QueryParams p);
 
     /**
      * 查询审批通过但尚未归档的立项单（用于统计"待立项"/"已立项"中的已立项部分）
@@ -118,15 +118,15 @@ public interface ProjectCycleQueryMapper {
             "   GROUP BY approval_id" +
             " ) fund ON fund.approval_id = a.id " +
             " WHERE a.deleted = 0 " +  // 包含所有立项状态
-            " <if test='regionCodes != null and regionCodes.size() &gt; 0'>" +
+            " <if test='p.regionCodes != null and p.regionCodes.size() &gt; 0'>" +
             "   AND a.region_code IN " +
-            "   <foreach collection='regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "   <foreach collection='p.regionCodes' item='rc' open='(' separator=',' close=')'>" +
             "     #{rc}" +
             "   </foreach>" +
             " </if>" +
             " ORDER BY a.id DESC, d.id DESC" +
             "</script>")
-    List<ProjectCycleRawVO> selectRawListAllStatus(QueryParams p);
+    List<ProjectCycleRawVO> selectRawListAllStatus(@Param("p") QueryParams p);
 
     /**
      * 查询施工状态聚合（项目级）
@@ -169,46 +169,54 @@ public interface ProjectCycleQueryMapper {
      * 同时也 LEFT JOIN approval、declare、archive、fund 等表，让返回行尽量和 selectRawList 对齐
      * （Service 层的 buildGroupedRows / buildRow / buildGlobalSummary 可以直接复用）。
      */
-    @Select("SELECT " +
-            "  a.id AS approvalId, " +
-            "  a.approval_code AS approvalCode, " +
-            "  a.project_name AS projectName, " +
-            "  a.project_source AS projectSource, " +
-            "  a.project_type AS projectType, " +
-            "  a.status AS approvalStatus, " +
-            "  a.accept_status AS acceptStatus, " +
-            "  a.budget AS budget, " +
-            "  a.region_code AS regionCode, " +
-            "  a.submit_time AS submitTime, " +
-            "  ar.create_time AS archiveCreateTime, " +
-            "  d.id AS declareId, " +
-            "  d.declare_category AS declareCategory, " +
-            "  d.village_name AS villageName, " +
-            "  cd.id AS detailId, " +
-            "  cd.target_name AS detailTargetName, " +
-            "  cd.detail_type AS detailType, " +
-            "  c.build_status AS buildStatus, " +
-            "  IFNULL(ac.accept_status, 'PENDING') AS acceptStatusDetail, " +
-            "  CASE WHEN cd.detail_type = 'HOUSEHOLD' THEN 1 ELSE 0 END AS householdCount, " +
-            "  CASE WHEN cd.detail_type = 'FACILITY' THEN 1 ELSE 0 END AS facilityCount, " +
-            "  IFNULL(fund.total_fund, 0) AS totalFund " +
-            "FROM t_project_construction c " +
-            "JOIN t_project_approval a ON a.id = c.approval_id AND a.deleted = 0 " +
-            "LEFT JOIN t_project_approval_declare d ON d.id = c.declare_id AND d.deleted = 0 " +
-            "LEFT JOIN t_project_approval_detail cd ON cd.id = c.detail_id AND cd.deleted = 0 " +
-            "LEFT JOIN t_project_acceptance ac ON ac.approval_id = c.approval_id " +
-            "  AND ac.detail_id = c.detail_id AND ac.deleted = 0 " +
-            "LEFT JOIN t_project_archive ar ON ar.approval_id = a.id AND ar.deleted = 0 " +
-            "LEFT JOIN (" +
-            "  SELECT approval_id, SUM(amount) AS total_fund " +
-            "  FROM t_project_fund " +
-            "  WHERE deleted = 0 AND node_level = 1 AND fund_type = '2' " +
-            "  GROUP BY approval_id" +
+    @Select("<script>" +
+            " SELECT " +
+            "   a.id AS approvalId, " +
+            "   a.approval_code AS approvalCode, " +
+            "   a.project_name AS projectName, " +
+            "   a.project_source AS projectSource, " +
+            "   a.project_type AS projectType, " +
+            "   a.status AS approvalStatus, " +
+            "   a.accept_status AS acceptStatus, " +
+            "   a.budget AS budget, " +
+            "   a.region_code AS regionCode, " +
+            "   a.submit_time AS submitTime, " +
+            "   ar.create_time AS archiveCreateTime, " +
+            "   d.id AS declareId, " +
+            "   d.declare_category AS declareCategory, " +
+            "   d.village_name AS villageName, " +
+            "   cd.id AS detailId, " +
+            "   cd.target_name AS detailTargetName, " +
+            "   cd.detail_type AS detailType, " +
+            "   c.build_status AS buildStatus, " +
+            "   IFNULL(ac.accept_status, 'PENDING') AS acceptStatusDetail, " +
+            "   CASE WHEN cd.detail_type = 'HOUSEHOLD' THEN 1 ELSE 0 END AS householdCount, " +
+            "   CASE WHEN cd.detail_type = 'FACILITY' THEN 1 ELSE 0 END AS facilityCount, " +
+            "   IFNULL(fund.total_fund, 0) AS totalFund " +
+            " FROM t_project_construction c " +
+            " JOIN t_project_approval a ON a.id = c.approval_id AND a.deleted = 0 " +
+            " LEFT JOIN t_project_approval_declare d ON d.id = c.declare_id AND d.deleted = 0 " +
+            " LEFT JOIN t_project_approval_detail cd ON cd.id = c.detail_id AND cd.deleted = 0 " +
+            " LEFT JOIN t_project_acceptance ac ON ac.approval_id = c.approval_id " +
+            "   AND ac.detail_id = c.detail_id AND ac.deleted = 0 " +
+            " LEFT JOIN t_project_archive ar ON ar.approval_id = a.id AND ar.deleted = 0 " +
+            " LEFT JOIN (" +
+            "   SELECT approval_id, SUM(amount) AS total_fund " +
+            "   FROM t_project_fund " +
+            "   WHERE deleted = 0 AND node_level = 1 AND fund_type = '2' " +
+            "   GROUP BY approval_id" +
             " ) fund ON fund.approval_id = a.id " +
-            "WHERE c.deleted = 0 AND c.node_level = 3 " +
-            "  AND a.status = 'APPROVED'" +
-            "ORDER BY a.id DESC, cd.id DESC")
-    List<ProjectCycleRawVO> selectStatusDetailRaw();
+            " WHERE c.deleted = 0 AND c.node_level = 3 " +
+            "   AND a.status = 'APPROVED'" +
+            " <if test='p.regionCodes != null and p.regionCodes.size() &gt; 0'>" +
+            "   AND a.region_code IN " +
+            "   <foreach collection='p.regionCodes' item='rc' open='(' separator=',' close=')'>" +
+            "     #{rc}" +
+            "   </foreach>" +
+            " </if>" +
+            " ORDER BY a.id DESC, cd.id DESC" +
+            "</script>")
+    List<ProjectCycleRawVO> selectStatusDetailRaw(@Param("p") QueryParams p);
 
     /** 施工状态聚合结果 */
     @lombok.Data

@@ -238,7 +238,7 @@
                 </el-table-column>
                 <el-table-column label="文件名称" min-width="240">
                   <template #default="{ row }">
-                    <div class="attachment-file-cell">
+                    <div class="attachment-file-cell attachment-file-cell--inline">
                       <span class="attachment-file-name" :title="row.fileName" @click="openFile(row)">
                         {{ row.fileName || '-' }}
                       </span>

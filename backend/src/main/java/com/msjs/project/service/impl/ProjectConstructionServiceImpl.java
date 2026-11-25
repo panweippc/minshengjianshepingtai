@@ -557,6 +557,26 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         List<ConstructionNodeVO> records = new ArrayList<>(approvals.size());
         for (ProjectApproval approval : approvals) {
             ConstructionNodeVO projectNode = buildProjectNode(approval, projectMap.get(approval.getId()));
+            // 兜底：项目级开工/完工日期为空时，从该立项下的三级明细记录聚合
+            if (projectNode.getStartDate() == null || projectNode.getCompleteDate() == null) {
+                List<ProjectConstruction> approvalDetails = detailMap.values().stream()
+                        .filter(c -> approval.getId().equals(c.getApprovalId()))
+                        .toList();
+                if (projectNode.getStartDate() == null) {
+                    approvalDetails.stream()
+                            .map(ProjectConstruction::getStartDate)
+                            .filter(java.util.Objects::nonNull)
+                            .min(LocalDate::compareTo)
+                            .ifPresent(projectNode::setStartDate);
+                }
+                if (projectNode.getCompleteDate() == null) {
+                    approvalDetails.stream()
+                            .map(ProjectConstruction::getCompleteDate)
+                            .filter(java.util.Objects::nonNull)
+                            .max(LocalDate::compareTo)
+                            .ifPresent(projectNode::setCompleteDate);
+                }
+            }
             List<ConstructionNodeVO> declareNodes = new ArrayList<>();
             for (ProjectApprovalDeclare declare : declaresByApproval.getOrDefault(approval.getId(), Collections.emptyList())) {
                 ConstructionNodeVO declareNode = buildDeclareNode(approval.getId(), declare);
