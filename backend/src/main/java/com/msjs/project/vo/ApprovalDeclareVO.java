@@ -63,4 +63,7 @@ public class ApprovalDeclareVO implements Serializable {
 
     @Schema(description = "申报材料附件（declare_id 指向本申报）")
     private List<ApprovalAttachmentVO> attachments;
+
+    @Schema(description = "申报单附件（Declaration.attachments，优先展示）")
+    private List<ApprovalAttachmentVO> declarationAttachments;
 }

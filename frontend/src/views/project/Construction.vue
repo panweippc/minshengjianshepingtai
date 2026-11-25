@@ -565,8 +565,17 @@
                   <el-descriptions-item label="申报内容" :span="2">{{ viewApprovalDeclare?.declareContent || '-' }}</el-descriptions-item>
                 </el-descriptions>
                 <el-divider content-position="left">申报材料附件</el-divider>
-                <el-empty v-if="!viewApprovalDeclare?.attachments?.length" description="暂无申报材料附件" :image-size="60" />
-                <el-table v-else :data="viewApprovalDeclare.attachments" size="small" border>
+                <el-empty
+                  v-if="!(viewApprovalDeclare?.declarationAttachments?.length ?? viewApprovalDeclare?.attachments?.length)"
+                  description="暂无申报材料附件"
+                  :image-size="60"
+                />
+                <el-table
+                  v-else
+                  :data="viewApprovalDeclare?.declarationAttachments?.length ? viewApprovalDeclare.declarationAttachments : (viewApprovalDeclare?.attachments || [])"
+                  size="small"
+                  border
+                >
                   <el-table-column label="附件类型" width="120" align="center">
                     <template #default="{ row }">
                       {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}

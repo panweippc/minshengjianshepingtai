@@ -603,16 +603,6 @@
               <el-descriptions-item label="申报类型">{{ viewRow.type || '-' }}</el-descriptions-item>
               <el-descriptions-item label="申报金额">{{ formatMoney(viewRow.budget) }} 元</el-descriptions-item>
               <el-descriptions-item label="申报内容" :span="2">{{ viewRow.raw.declareContent || '-' }}</el-descriptions-item>
-              <!-- 申报材料附件：以字段+附件按钮展示，点击弹窗查看附件列表 -->
-              <el-descriptions-item label="附件" :span="2">
-                <el-button
-                  v-if="viewRow.raw.attachments?.length"
-                  link
-                  type="primary"
-                  @click="openDeclareAttachList"
-                >附件 ({{ viewRow.raw.attachments.length }})</el-button>
-                <span v-else>-</span>
-              </el-descriptions-item>
             </el-descriptions>
 
             <el-divider content-position="left">资金流水</el-divider>
@@ -696,11 +686,16 @@
 
             <el-divider content-position="left">申报材料附件</el-divider>
             <el-empty
-              v-if="!viewRow.raw.attachments?.length"
+              v-if="!((viewRow.raw.declarationAttachments ?? viewRow.raw.attachments)?.length)"
               description="暂无申报材料附件"
               :image-size="60"
             />
-            <el-table v-else :data="viewRow.raw.attachments" size="small" border>
+            <el-table
+              v-else
+              :data="viewRow.raw.declarationAttachments?.length ? viewRow.raw.declarationAttachments : (viewRow.raw.attachments || [])"
+              size="small"
+              border
+            >
               <el-table-column label="附件类型" width="120" align="center">
                 <template #default="{ row }">
                   {{ dictLabel('li_xiang_fu_jian_lei_xing', row.attachmentType) || '-' }}
@@ -919,16 +914,6 @@
                 <el-descriptions-item label="事项说明">{{ viewRow.raw.detailRemark || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="申报金额">{{ formatMoney(viewRow.budget) }} 元</el-descriptions-item>
                 <el-descriptions-item label="拨付金额">{{ formatMoney(viewRow.allocatedAmount) }} 元</el-descriptions-item>
-                <!-- 申报材料附件：以字段+附件按钮展示，点击弹窗查看附件列表 -->
-                <el-descriptions-item label="附件" :span="2">
-                  <el-button
-                    v-if="viewRow.raw.materialAttachments?.length"
-                    link
-                    type="primary"
-                    @click="openDetailAttachList"
-                  >附件 ({{ viewRow.raw.materialAttachments.length }})</el-button>
-                  <span v-else>-</span>
-                </el-descriptions-item>
               </template>
             </el-descriptions>
 
@@ -1832,11 +1817,13 @@ const openAttachList = (row: DeclareTreeRow, type: 'material' | 'fund') => {
   attachListVisible.value = true
 }
 
-/** 二级查看-事项申报资金页签：申报材料附件按钮，弹出附件列表 */
+/** 二级查看-事项申报资金页签：申报单附件（Declaration.attachments 优先），弹出附件列表 */
 const openDeclareAttachList = () => {
   const row = viewRow.value
   if (!row) return
-  attachListData.value = row.raw.attachments || []
+  attachListData.value = row.raw.declarationAttachments?.length
+    ? row.raw.declarationAttachments
+    : row.raw.attachments || []
   attachDictType.value = 'li_xiang_fu_jian_lei_xing'
   attachListTitle.value = `申报材料附件 — ${[row.code, row.name].filter(Boolean).join(' ')}`
   attachListVisible.value = true
@@ -1858,7 +1845,6 @@ const openDeclareDetailAttachList = (row: FundNodeVO, type: 'material' | 'fund')
   attachListData.value = files || []
   attachDictType.value = type === 'material' ? 'fu_jian_lei_xing' : 'zi_jin_fu_jian_lei_xing'
   attachListTitle.value = `${type === 'material' ? '申报材料附件' : '资金凭证附件'} — ${[row.code, row.name].filter(Boolean).join(' ')}`
-  attachListShowTime.value = true
   attachListVisible.value = true
 }
 
