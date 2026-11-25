@@ -136,7 +136,7 @@ public interface ScreenStatMapper {
     /**
      * 实时事件：仅业务写操作（POST/PUT/DELETE 且返回成功），按时间倒序取最近 N 条。
      * 排除规则：
-     * 1) 噪声：查询、登录鉴权、大屏轮询、验证码；
+     * 1) 噪声：查询、编辑、查看、登录鉴权、大屏轮询、验证码（编辑/查看不产生业务推进，不上大屏）；
      * 2) 非关注模块（业务要求大屏只呈现项目推进类事件）：
      *    基础信息管理 /api/base/、物资管理 /api/material/、
      *    系统管理 /api/system/、附件管理 /api/file/（上传/分片/合并等纯文件操作）、
@@ -149,6 +149,9 @@ public interface ScreenStatMapper {
             + "AND result_code = 200 "
             + "AND module <> '登录鉴权' "
             + "AND operation NOT LIKE '%查询%' "
+            + "AND operation NOT LIKE '%编辑%' "
+            + "AND operation NOT LIKE '%查看%' "
+            + "AND operation NOT LIKE '%修改%' "
             + "AND url NOT IN ('/api/dashboard/screen','/api/auth/captcha') "
             + "AND url NOT LIKE '/api/base/%' "
             + "AND url NOT LIKE '/api/material/%' "

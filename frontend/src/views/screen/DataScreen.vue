@@ -498,7 +498,7 @@
             </div>
           </ScreenPanel>
 
-          <ScreenPanel title="实时事件" badge="STREAM">
+          <ScreenPanel title="实时事件">
             <div v-if="eventStream.length" class="event-viewport">
               <div class="event-track" :class="{ scrolling: eventScrollable }" :style="eventScrollStyle">
                 <ul v-for="copy in eventScrollable ? 2 : 1" :key="copy" class="event-list" :aria-hidden="copy === 2">
@@ -704,8 +704,16 @@ const EVENT_DOT_COLORS: Record<string, string> = {
 const EVENT_DOT_DEFAULT = '#60b8f4'
 /** 不展示的模块类别：基础信息管理 / 物资管理 / 系统管理 / 附件管理（后端已过滤，此处兜底清理历史缓存） */
 const EVENT_HIDDEN_CATEGORIES = new Set(['base', 'material', 'system', 'file'])
+/** 不展示的操作关键词：编辑/查看/查询/修改属于维护类操作，不产生业务推进（后端已过滤，此处兜底清理历史缓存） */
+const EVENT_HIDDEN_OPERATIONS = ['编辑', '查看', '查询', '修改']
 /** 事件流：跨轮询去重合并，新事件前置 */
 const eventStream = ref<ScreenEventVO[]>([])
+/** 判断事件是否属于不展示的噪声事件（模块或操作任一命中即隐藏） */
+function isHiddenEvent(event: ScreenEventVO): boolean {
+  if (EVENT_HIDDEN_CATEGORIES.has(event.category)) return true
+  const operation = event.operation ?? ''
+  return EVENT_HIDDEN_OPERATIONS.some((keyword) => operation.includes(keyword))
+}
 /** 事件流去重键：摘要相同视为同一条事件，只保留最新 */
 function eventStreamKey(event: ScreenEventVO): string {
   return event.summary?.trim() || event.id
@@ -718,13 +726,11 @@ function mergeEvents(incoming: ScreenEventVO[]) {
     map.set(eventStreamKey(event), event)
   }
   for (const event of incoming ?? []) {
-    if (EVENT_HIDDEN_CATEGORIES.has(event.category)) continue
+    if (isHiddenEvent(event)) continue
     map.set(eventStreamKey(event), event)
   }
-  // 每轮都按类别剪枝，确保已排除模块的历史缓存能立即消失
-  const merged = Array.from(map.values()).filter(
-    (e) => !EVENT_HIDDEN_CATEGORIES.has(e.category)
-  )
+  // 每轮都按模块与操作剪枝，确保已排除模块/操作的历史缓存能立即消失
+  const merged = Array.from(map.values()).filter((e) => !isHiddenEvent(e))
   merged.sort((a, b) => (a.operTime < b.operTime ? 1 : -1))
   eventStream.value = merged.slice(0, EVENT_STREAM_MAX)
 }
@@ -1629,6 +1635,8 @@ onBeforeUnmount(() => {
 }
 
 .header-side {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1664,6 +1672,7 @@ onBeforeUnmount(() => {
 /* 标题居中容器：柔光衬底 */
 .header-center {
   position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
