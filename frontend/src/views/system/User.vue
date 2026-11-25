@@ -68,9 +68,18 @@
           <el-input v-model="form.realName" placeholder="真实姓名" />
         </el-form-item>
         <el-form-item label="所属区划" prop="regionCode">
-          <el-select v-model="form.regionCode" placeholder="选择行政区划" clearable filterable style="width: 100%">
-            <el-option v-for="r in regionList" :key="r.code" :label="r.name" :value="r.code" />
-          </el-select>
+          <el-tree-select
+            v-model="form.regionCode"
+            :data="regionTree"
+            :props="{ label: 'name', value: 'code', children: 'children' }"
+            check-strictly
+            :render-after-expand="false"
+            default-expand-all
+            clearable
+            filterable
+            placeholder="选择行政区划"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" placeholder="手机号" />
@@ -112,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getUserPage, createUser, updateUser, deleteUser, resetPassword, getUserRoleIds } from '@/api/user'
@@ -146,6 +155,31 @@ const pwdForm = reactive({ id: '', password: '' })
 // 下拉数据
 const roleList = ref<RoleVO[]>([])
 const regionList = ref<RegionVO[]>([])
+
+/** 区划树节点（按 parentCode 组装层级，用于所属区划树形下拉） */
+interface RegionTreeNode extends RegionVO {
+  children?: RegionTreeNode[]
+}
+
+/** 由扁平区划列表构建树：父级不在列表中的节点作为根节点，保持后端排序 */
+const regionTree = computed<RegionTreeNode[]>(() => {
+  const nodeMap = new Map<string, RegionTreeNode>()
+  regionList.value.forEach((r) => nodeMap.set(r.code, { ...r, children: [] }))
+  const roots: RegionTreeNode[] = []
+  nodeMap.forEach((node) => {
+    const parent = node.parentCode ? nodeMap.get(node.parentCode) : undefined
+    if (parent) parent.children!.push(node)
+    else roots.push(node)
+  })
+  // 清理空 children，避免叶子节点出现无意义的展开箭头
+  const clean = (nodes: RegionTreeNode[]) =>
+    nodes.forEach((n) => {
+      if (n.children && n.children.length) clean(n.children)
+      else delete n.children
+    })
+  clean(roots)
+  return roots
+})
 
 const formRules: FormRules = {
   username: [
