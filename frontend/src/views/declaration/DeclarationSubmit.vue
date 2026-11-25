@@ -533,55 +533,82 @@
             </el-col>
           </el-row>
 
-          <!-- ============ 申报材料附件（动态多行，上限30） ============ -->
-          <div class="section-block">
-            <el-divider content-position="left" class="section-divider">
-              <span>📎 申报材料附件</span>
+          <!-- ============ 申报材料附件（参考施工管理一级编辑样式；每组可上传多个文件，上限30组） ============ -->
+          <div class="attach-divider">
+            <span class="attach-divider__line attach-divider__line--short" />
+            <span class="attach-divider__title">附件列表</span>
+            <el-button
+              link
+              type="primary"
+              :icon="Plus"
+              :disabled="form.attachments.length >= 30"
+              @click="addAttachmentRow"
+            >添加附件</el-button>
+            <span class="attach-divider__line" />
+          </div>
+          <div v-for="(row, idx) in form.attachments" :key="idx" class="attach-card">
+            <div class="attach-card__head">
+              <span class="attach-card__index">{{ idx + 1 }}</span>
+              <span class="attach-card__name">附件 #{{ idx + 1 }}</span>
               <el-button
                 link
-                type="primary"
-                :icon="Plus"
-                :disabled="form.attachments.length >= 30"
-                @click="addAttachmentRow"
-              >
-                添加一组附件（{{ form.attachments.length }}/30）
-              </el-button>
-            </el-divider>
-            <div v-if="!form.attachments.length" class="empty-tip">
-              暂无附件，点击上方按钮添加
+                type="danger"
+                icon="Delete"
+                class="attach-card__remove"
+                @click="removeAttachmentRow(idx)"
+              >删除</el-button>
             </div>
-            <div v-for="(row, idx) in form.attachments" :key="idx" class="attachment-row">
-              <div class="attachment-row-header">
-                <span class="attachment-row-index">#{{ idx + 1 }}</span>
-                <el-button link type="danger" icon="Delete" @click="removeAttachmentRow(idx)">删除</el-button>
+            <div class="attach-card__body">
+              <div class="attach-field">
+                <div class="attach-field__label">附件类型</div>
+                <el-select v-model="row.attachmentType" placeholder="请选择类型..." clearable>
+                  <el-option v-for="d in attachmentTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
+                </el-select>
               </div>
-              <div class="attachment-row-body">
-                <div class="attachment-field">
-                  <label>附件类型</label>
-                  <el-select v-model="row.attachmentType" placeholder="请选择" style="width: 100%">
-                    <el-option v-for="d in attachmentTypeOpts" :key="d.dictValue" :label="d.dictLabel" :value="d.dictValue" />
-                  </el-select>
+              <div class="attach-field">
+                <div class="attach-field__label">上传附件</div>
+                <el-upload
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  multiple
+                  class="attach-upload"
+                  @change="(file: any) => handleAttachmentFileChange(file, row)"
+                >
+                  <div class="attach-upload__inner">
+                    <el-icon><Upload /></el-icon>
+                    <span>点击选择文件...</span>
+                  </div>
+                </el-upload>
+                <!-- 同一组附件下已上传的文件列表（支持多个） -->
+                <div v-if="row.files.length" class="attach-file-list">
+                  <div v-for="(f, fi) in row.files" :key="fi" class="attach-file-chip">
+                    <el-icon class="attach-file-chip__icon"><Document /></el-icon>
+                    <span
+                      class="attach-file-chip__name"
+                      :title="f.fileName"
+                      @click="openAttachmentFile(f)"
+                    >{{ f.fileName }}</span>
+                    <el-icon
+                      v-if="f.fileKey"
+                      class="attach-file-chip__download"
+                      title="下载"
+                      @click.stop="openAttachmentFile(f, true)"
+                    ><Download /></el-icon>
+                    <el-icon
+                      class="attach-file-chip__close"
+                      title="移除"
+                      @click.stop="removeAttachmentFile(row, fi)"
+                    ><Close /></el-icon>
+                  </div>
                 </div>
-                <div class="attachment-field">
-                  <label>上传文件</label>
-                  <el-upload
-                    :auto-upload="false"
-                    :show-file-list="false"
-                    @change="(file: any) => handleAttachmentFileChange(file, row)"
-                  >
-                    <div class="upload-trigger">
-                      <el-icon><Upload /></el-icon>
-                      <span>{{ row.fileName || '点击选择文件' }}</span>
-                    </div>
-                  </el-upload>
-                </div>
-                <div class="attachment-field attachment-field-wide">
-                  <label>备注</label>
-                  <el-input v-model="row.remark" placeholder="选填" maxlength="256" />
-                </div>
+              </div>
+              <div class="attach-field">
+                <div class="attach-field__label">备注</div>
+                <el-input v-model="row.remark" placeholder="选填" maxlength="128" />
               </div>
             </div>
           </div>
+          <div v-if="!form.attachments.length" class="attach-empty">暂无附件，请点击上方「添加附件」</div>
         </el-form>
       </div>
 
@@ -848,7 +875,7 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Upload, Loading, Paperclip } from '@element-plus/icons-vue'
+import { Plus, Upload, Loading, Paperclip, Document, Download, Close } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
 import { uploadFile as uploadFileToServer, getPresignUrl } from '@/api/file'
@@ -1281,16 +1308,21 @@ function parseFieldDiff(s: string | null | undefined) {
 const userTown = ref<UserRegionVO>({})
 const userTownName = computed(() => userTown.value.townName || userTown.value.currentRegionName || '未绑定区划')
 
-// 弹窗表单
-interface AttachmentRow {
-  attachmentType?: string
+// 弹窗表单：一组附件 = 一个附件类型 + 多个文件 + 备注
+interface AttachmentFile {
+  id?: string
   fileName?: string
   fileKey?: string
   bucket?: string
   fileSize?: number
-  remark?: string
+  uploading?: boolean
 }
-const form = reactive<DeclarationSaveDTO & { attachments: AttachmentRow[] }>({
+interface AttachmentRow {
+  attachmentType?: string
+  remark?: string
+  files: AttachmentFile[]
+}
+const form = reactive<Omit<DeclarationSaveDTO, 'attachments'> & { attachments: AttachmentRow[] }>({
   title: '',
   businessCode: '',  // 申报编号（预生成、只读）
   declarationDate: '',  // 申报日期（YYYY-MM-DD；空则后端默认当天）
@@ -1515,30 +1547,56 @@ function addAttachmentRow() {
     ElMessage.warning('附件最多30组')
     return
   }
-  form.attachments.push({})
+  form.attachments.push({ files: [] })
 }
 function removeAttachmentRow(idx: number) {
   form.attachments.splice(idx, 1)
 }
+/** 从某组附件中移除单个文件 */
+function removeAttachmentFile(row: AttachmentRow, idx: number) {
+  row.files.splice(idx, 1)
+}
+/** 选择文件后上传（支持一次选多个文件，逐个上传并追加到当前组） */
 async function handleAttachmentFileChange(file: any, row: AttachmentRow) {
   if (!file?.raw) return
-  // 校验后缀白名单（后端还会再校验）
   const name = file.name as string
+  // 校验后缀白名单（后端还会再校验）
   if (!/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|png|jpg|jpeg|gif|bmp|webp|zip|rar|7z|txt|csv)$/i.test(name)) {
     ElMessage.error('不支持的文件类型')
     return
   }
+  row.files.push({ fileName: name, uploading: true })
+  const idx = row.files.length - 1
+  const item = row.files[idx]
   try {
     const res = await uploadFileToServer(file.raw)
     const up = res.data as any
-    row.fileName = up.fileName || name
-    row.fileKey = up.fileKey
-    row.bucket = up.bucket
-    row.fileSize = up.fileSize
-    ElMessage.success(`上传成功：${row.fileName}`)
+    item.fileName = up.fileName || name
+    item.fileKey = up.fileKey
+    item.bucket = up.bucket
+    item.fileSize = up.fileSize
+    item.uploading = false
+    ElMessage.success(`上传成功：${item.fileName}`)
   } catch {
-    // ElMessage 已拦截
+    // 上传失败移除占位项；ElMessage 已拦截
+    row.files.splice(idx, 1)
   }
+}
+/** 提交时把「分组附件」拍平成后端 AttachmentItem 列表（同组共用附件类型/备注） */
+function buildAttachmentPayload(): DeclarationAttachmentItem[] {
+  return form.attachments.flatMap((row) =>
+    row.files
+      .filter((f) => !!f.fileKey)
+      .map((f) => ({
+        id: f.id,
+        attachmentType: row.attachmentType,
+        fileName: f.fileName,
+        fileKey: f.fileKey,
+        bucket: f.bucket,
+        fileSize: f.fileSize,
+        remark: row.remark
+      }))
+  )
 }
 /** 附件访问：与资金管理一致，统一在新窗口以时效签名URL预览；禁止永久直链 */
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
@@ -1583,13 +1641,20 @@ async function handleSubmit() {
     form.householdIds = []
   }
 
+  // 附件仍在上传时不允许提交，避免丢失文件
+  if (form.attachments.some((r) => r.files.some((f) => f.uploading))) {
+    ElMessage.warning('附件正在上传，请稍候再提交')
+    return
+  }
+  const payload = { ...form, attachments: buildAttachmentPayload() }
+
   submitLoading.value = true
   try {
     if (dialogMode.value === 'add') {
-      await createDeclaration({ ...form } as any)
+      await createDeclaration(payload as any)
       ElMessage.success('新增成功')
     } else {
-      await updateDeclaration({ ...form } as any)
+      await updateDeclaration(payload as any)
       ElMessage.success('编辑成功')
     }
     dialogVisible.value = false
@@ -1738,15 +1803,17 @@ function openEdit(row: DeclarationVO) {
     // 回填结束，恢复拦截
     _suppressSelectGuard.value = false
 
-    // 3) 回填申报单级附件（owner_type=declaration 的那些）
+    // 3) 回填申报单级附件（owner_type=declaration 的那些，每个附件单独成组）
     form.attachments = (d.attachments || []).map((a: any) => ({
-      id: a.id,  // 后端 DeclarationSaveDTO.AttachmentItem.id（已有附件回传原值，新增附件不传）
       attachmentType: a.attachmentType,
-      fileKey: a.fileKey,
-      bucket: a.bucket,
-      fileName: a.fileName,
-      fileSize: a.fileSize,
-      remark: a.remark
+      remark: a.remark,
+      files: [{
+        id: a.id,  // 后端 DeclarationSaveDTO.AttachmentItem.id（已有附件回传原值，新增附件不传）
+        fileKey: a.fileKey,
+        bucket: a.bucket,
+        fileName: a.fileName,
+        fileSize: a.fileSize
+      }]
     }))
   }).catch(() => {
     ElMessage.error('加载编辑数据失败')
@@ -2008,7 +2075,84 @@ onMounted(async () => {
 }
 .upload-trigger:hover { border-color: #22619e; color: #22619e; }
 
-/* 新增/编辑申报弹窗：隐藏 el-row 栅格负边距在底部产生的横向滚动条 */
+/* ============ 申报材料附件：与施工管理一级编辑保持一致的样式 ============ */
+/* 标题分割线：短线 + 标题 + 添加按钮 + 长线 */
+.main-dialog .attach-divider {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 12px;
+}
+.main-dialog .attach-divider__line { flex: 1; height: 1px; background: #ebeef5; }
+.main-dialog .attach-divider__line--short { flex: none; width: 24px; }
+.main-dialog .attach-divider__title {
+  color: #303133; font-size: 14px; line-height: 20px; white-space: nowrap;
+}
+/* 与标题保持同一水平线，去掉按钮默认高度与内边距带来的偏移 */
+.main-dialog .attach-divider .el-button {
+  height: 20px; margin-left: 0; padding: 0; line-height: 20px;
+}
+/* 空状态 */
+.main-dialog .attach-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 40px; border-radius: 4px; background: #f7f8fa;
+  color: #909399; font-size: 13px;
+}
+/* 附件卡片 */
+.main-dialog .attach-card {
+  margin-bottom: 12px; padding: 12px 16px 16px;
+  border: 1px solid #ebeef5; border-radius: 6px; background: #fff;
+}
+.main-dialog .attach-card__head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.main-dialog .attach-card__index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #eef4fb; color: #22619e; font-size: 12px; font-weight: 600;
+}
+.main-dialog .attach-card__name { color: #303133; font-size: 13px; font-weight: 600; }
+.main-dialog .attach-card__remove { margin-left: auto; }
+.main-dialog .attach-card__body {
+  display: grid;
+  /* 附件类型列收窄，上传与备注均分剩余宽度 */
+  grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.main-dialog .attach-field { min-width: 0; }
+.main-dialog .attach-field__label {
+  margin-bottom: 6px; color: #606266; font-size: 13px; line-height: 20px;
+}
+.main-dialog .attach-field .el-select,
+.main-dialog .attach-field .el-input { width: 100%; }
+.main-dialog .attach-field .el-select__wrapper,
+.main-dialog .attach-field .el-input__wrapper { min-height: 32px; box-sizing: border-box; }
+.main-dialog .attach-upload { display: block; width: 100%; }
+.main-dialog .attach-upload .el-upload { display: block; width: 100%; }
+.main-dialog .attach-upload__inner {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; height: 32px; box-sizing: border-box;
+  border: 1px dashed #dcdfe6; border-radius: 4px; background: #fff;
+  color: #909399; font-size: 13px; cursor: pointer;
+}
+.main-dialog .attach-upload__inner:hover { border-color: #22619e; color: #22619e; }
+/* 同一组下多个已上传文件：纵向列表 */
+.main-dialog .attach-file-list {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+}
+.main-dialog .attach-file-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%; padding: 4px 8px; border-radius: 4px; background: #f5f7fa;
+}
+.main-dialog .attach-file-chip__icon { flex: none; color: #909399; font-size: 14px; }
+.main-dialog .attach-file-chip__name {
+  flex: 1; min-width: 0; overflow: hidden;
+  color: #909399; font-size: 12px; white-space: nowrap; text-overflow: ellipsis;
+  cursor: pointer;
+}
+.main-dialog .attach-file-chip__name:hover { color: #22619e; }
+.main-dialog .attach-file-chip__download,
+.main-dialog .attach-file-chip__close { flex: none; font-size: 12px; cursor: pointer; }
+.main-dialog .attach-file-chip__download { color: #22619e; }
+.main-dialog .attach-file-chip__close { color: #909399; }
 .main-dialog .el-dialog__body {
   overflow-x: hidden !important;
 }

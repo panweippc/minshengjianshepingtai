@@ -601,7 +601,8 @@ public class ProjectConstructionServiceImpl implements ProjectConstructionServic
         node.setCode(approval.getApprovalCode());
         node.setName(approval.getProjectName());
         node.setCategory(approval.getProjectCategory());
-        node.setSource(approval.getProjectSource());
+        // 一级节点的「项目类型」列取项目类型字典值（前端按 xiang_mu_lei_xing 翻译）
+        node.setSource(approval.getProjectType());
         if (construction != null) {
             node.setId(construction.getId());
             node.setBuilder(construction.getBuilder());
