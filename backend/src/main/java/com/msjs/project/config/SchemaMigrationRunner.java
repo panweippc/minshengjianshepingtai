@@ -49,6 +49,7 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         migrateApprovalProjectType();
         ensureHomeMenu();
         dropSysFileSha256Unique();
+        ensureMissingPermMenus();
     }
 
     /** 判断指定表是否存在于当前数据库 */
@@ -256,5 +257,113 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("[Migration] 查询 INFORMATION_SCHEMA 失败：{}", e.getMessage());
         }
+    }
+
+    /**
+     * 一次性补全 SQL 初始化脚本里缺失的按钮权限菜单。
+     *
+     * 背景：后端 Controller 的 @RequirePerm 用了以下语义化 key，
+     * 但 V6/V19 等 SQL 脚本按 CRUD 习惯只建了 add/edit/delete，两边完全对不上，
+     * 导致镇级/区级/村级账号登录后"验收""归档""登记""下拨"等按钮全部 403。
+     *
+     * 本次补全清单（必须全部插入，按钮类型 F）：
+     * ┌──────────┬──────────────────────────────────────────────────────┐
+     * │ 父菜单   │ 缺失的 perm key                                      │
+     * ├──────────┼──────────────────────────────────────────────────────┤
+     * │ 验收管理 │ acceptance:accept, acceptance:archive                │
+     * │ 资金管理 │ fund:view, fund:register, fund:allocate               │
+     * │ 施工管理 │ construction:list（菜单级已存在，无需补）              │
+     * │ 档案管理 │ archive:view, archive:edit, archive:export            │
+     * └──────────┴──────────────────────────────────────────────────────┘
+     *
+     * 策略：
+     *   1) 用 JDBC 查现有 perm 集合，缺失才 INSERT；
+     *   2) 找到正确的父菜单（按路径或 perm 匹配），避免 parent_id 硬编码冲突；
+     *   3) 给数据库里**所有现有角色**自动授一遍新菜单（已存在 role_menu 记录跳过）。
+     *      理由：后端已加 region_code 数据权限兜底，多授按钮不会造成跨镇越权，
+     *            反而能让镇级/村级/区级各角色都拿到自己需要的按钮，不用逐个角色手动配。
+     */
+    private void ensureMissingPermMenus() {
+        if (!tableExists("t_sys_menu") || !tableExists("t_sys_role_menu")) {
+            log.info("[Migration] 系统菜单表不存在，跳过权限补全");
+            return;
+        }
+
+        // 现有 perm 集合
+        java.util.Set<String> existingPerms = new java.util.HashSet<>(jdbcTemplate.queryForList(
+                "SELECT perm FROM t_sys_menu WHERE perm IS NOT NULL AND perm <> ''", String.class));
+
+        // 目标补全清单：(perm, 菜单显示名, 父菜单匹配条件)
+        // 用 List.of + Map.of 方便后续处理，避免硬编码 ID
+        java.util.List<String[]> plan = java.util.List.of(
+                // 验收管理（父：path=/project/acceptance 或 perm 含 acceptance）
+                new String[]{"project:acceptance:accept", "验收", "project:acceptance"},
+                new String[]{"project:acceptance:archive", "归档", "project:acceptance"},
+                // 资金管理（父：path=/project/fund）
+                new String[]{"project:fund:view", "资金查看", "project:fund"},
+                new String[]{"project:fund:register", "资金登记", "project:fund"},
+                new String[]{"project:fund:allocate", "资金下拨", "project:fund"},
+                // 档案管理（父：path=/archive 或 path=/project/archive）
+                new String[]{"archive:view", "档案查看", "archive"},
+                new String[]{"archive:edit", "档案编辑", "archive"},
+                new String[]{"archive:export", "档案导出", "archive"}
+        );
+
+        java.util.List<Long> insertedIds = new java.util.ArrayList<>();
+        for (String[] row : plan) {
+            String perm = row[0];
+            String name = row[1];
+            String parentPermLike = row[2];
+            if (existingPerms.contains(perm)) {
+                continue; // 已存在，跳过
+            }
+            // 找父菜单 ID：用 perm LIKE 'parentPermLike%' 匹配（验收父菜单 perm 是 project:acceptance:list）
+            Long parentId = jdbcTemplate.queryForObject(
+                    "SELECT id FROM t_sys_menu WHERE perm LIKE ? LIMIT 1",
+                    Long.class, parentPermLike + "%");
+            if (parentId == null) {
+                // 找不到父菜单就跳过（可能数据库里这个模块都没建）
+                log.warn("[Migration] 找不到父菜单 perm LIKE {}%，跳过 {}", parentPermLike, perm);
+                continue;
+            }
+            // 插入菜单：雪花ID用时间戳+随机（避免硬编码冲突），sort 追加到末尾
+            long newId = System.currentTimeMillis() * 10000 + (long) (Math.random() * 10000);
+            Integer maxSort = jdbcTemplate.queryForObject(
+                    "SELECT COALESCE(MAX(sort),0) FROM t_sys_menu WHERE parent_id = ?",
+                    Integer.class, parentId);
+            int sort = (maxSort == null ? 0 : maxSort) + 1;
+            jdbcTemplate.update(
+                    "INSERT INTO t_sys_menu (id, parent_id, menu_name, menu_type, path, perm, icon, sort, status) " +
+                    "VALUES (?, ?, ?, 'F', NULL, ?, NULL, ?, 1)",
+                    newId, parentId, name, perm, sort);
+            insertedIds.add(newId);
+            existingPerms.add(perm);
+            log.info("[Migration] 已补按钮权限菜单：perm={}（父id={}，新id={}）", perm, parentId, newId);
+        }
+
+        if (insertedIds.isEmpty()) {
+            log.info("[Migration] 所有后端 @RequirePerm 对应的菜单均已存在，无需补全");
+            return;
+        }
+
+        // 批量：给数据库里所有角色授权这些新菜单（幂等）
+        java.util.List<Long> roleIds = jdbcTemplate.queryForList(
+                "SELECT id FROM t_sys_role WHERE status = 1", Long.class);
+        long rmIdBase = System.currentTimeMillis() * 100000;
+        int grantedCount = 0;
+        for (Long rid : roleIds) {
+            for (Long mid : insertedIds) {
+                Integer exists = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM t_sys_role_menu WHERE role_id = ? AND menu_id = ?",
+                        Integer.class, rid, mid);
+                if (exists != null && exists > 0) continue;
+                jdbcTemplate.update(
+                        "INSERT INTO t_sys_role_menu (id, role_id, menu_id) VALUES (?, ?, ?)",
+                        ++rmIdBase, rid, mid);
+                grantedCount++;
+            }
+        }
+        log.info("[Migration] 已为 {} 个角色批量授予 {} 条新菜单（插入 {} 条 role_menu 关联）",
+                roleIds.size(), insertedIds.size(), grantedCount);
     }
 }

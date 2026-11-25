@@ -19,6 +19,7 @@ import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.ProjectApprovalAttachment;
 import com.msjs.project.entity.ProjectApprovalDeclare;
 import com.msjs.project.entity.ProjectApprovalDetail;
+import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.DeclarationHouseholdMapper;
 import com.msjs.project.mapper.DeclarationMapper;
 import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
@@ -27,6 +28,7 @@ import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
 import com.msjs.project.mapper.ProjectApprovalDetailMapper;
 import com.msjs.project.mapper.ProjectApprovalMapper;
+import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ProjectApprovalService;
 import com.msjs.project.vo.ApprovalAttachmentVO;
 import com.msjs.project.vo.ApprovalCountVO;
@@ -73,6 +75,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
     private final DeclarationHouseholdMapper householdMapper;
     private final DeclarationPublicFacilityMapper facilityMapper;
     private final DeclarationAttachmentMapper declarationAttachmentMapper;
+    private final SysRegionMapper regionMapper;
 
     private static final String DEFAULT_BUCKET = "archive-formal";
 
@@ -142,8 +145,10 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
             submitAt = now;
         }
         approval.setSubmitTime(submitAt);
-        approval.setRegionCode(dto.getTownCode());
-        approval.setRegionName(dto.getTownName());
+        // 所属乡镇后端自己从登录人区划解析，前端回传 townCode/townName 仅作展示，不采用，防止篡改
+        SysRegion userTown = resolveUserTown();
+        approval.setRegionCode(userTown == null ? null : userTown.getCode());
+        approval.setRegionName(userTown == null ? null : userTown.getName());
         approval.setCreateBy(username);
         approval.setCreateTime(now);
         approval.setUpdateBy(username);
@@ -723,10 +728,12 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         if (approval == null) {
             throw new BizException("立项信息不存在或已被删除");
         }
+        // 数据权限：只能操作/查看自己乡镇的立项，防止跨镇越权
+        checkApprovalInScope(approval);
         return approval;
     }
 
-    /** 构造列表筛选条件（项目名称/类别/类型/提交时间范围） */
+    /** 构造列表筛选条件（项目名称/类别/类型/提交时间范围）+ 当前登录人区划范围数据权限 */
     private LambdaQueryWrapper<ProjectApproval> buildFilterWrapper(String projectName, String projectCategory,
                                                                    String projectType, String startTime,
                                                                    String endTime) {
@@ -734,12 +741,14 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         LocalDate endDate = parseDate(endTime, "提交结束日期");
         LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
         LocalDateTime end = endDate == null ? null : endDate.atTime(LocalTime.MAX);
-        return new LambdaQueryWrapper<ProjectApproval>()
+        LambdaQueryWrapper<ProjectApproval> wrapper = new LambdaQueryWrapper<ProjectApproval>()
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, trimToNull(projectCategory))
                 .eq(isNotBlank(projectType), ProjectApproval::getProjectType, trimToNull(projectType))
                 .ge(start != null, ProjectApproval::getSubmitTime, start)
                 .le(end != null, ProjectApproval::getSubmitTime, end);
+        applyRegionDataScope(wrapper);
+        return wrapper;
     }
 
     private LocalDate parseDate(String value, String fieldName) {
@@ -968,5 +977,96 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
 
     private String trimToNull(String value) {
         return isNotBlank(value) ? value.trim() : null;
+    }
+
+    // ==================== 数据权限辅助：复用 DeclarationServiceImpl 同款递归策略 ====================
+
+    /**
+     * 向上递归找当前登录人所属乡镇（最多 6 层：省-市-区县-乡镇-村-组）。
+     * 返回命中的乡镇级 SysRegion；没找到返回 null。
+     */
+    private SysRegion resolveUserTown() {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return null;
+        }
+        String currentCode = loginUser.getRegionCode().trim();
+        for (int i = 0; i < 6; i++) {
+            SysRegion r = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getCode, currentCode));
+            if (r == null) {
+                return null;
+            }
+            boolean isTown = ("1".equals(r.getRegionType())
+                    || (r.getLevel() != null && r.getLevel() == Constants.REGION_LEVEL_TOWN));
+            if (isTown) {
+                return r;
+            }
+            if (!isNotBlank(r.getParentCode())) {
+                return null;
+            }
+            currentCode = r.getParentCode();
+        }
+        return null;
+    }
+
+    /**
+     * 收集指定区划 code + 所有下级区划 code
+     */
+    private Set<String> collectAllDescendantCodes(String rootCode) {
+        Set<String> sink = new HashSet<>();
+        sink.add(rootCode);
+        collectChildrenCodes(rootCode, sink);
+        return sink;
+    }
+
+    private void collectChildrenCodes(String parentCode, Set<String> sink) {
+        List<SysRegion> children = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getParentCode, parentCode));
+        for (SysRegion c : children) {
+            sink.add(c.getCode());
+            collectChildrenCodes(c.getCode(), sink);
+        }
+    }
+
+    /**
+     * 给查询 wrapper 追加"立项所属乡镇 region_code ∈ 登录人区划范围"的过滤。
+     * - 未绑定区划 / 管理员：不过滤（返回全部）
+     * - 镇 / 村 / 组级账号：只看自己及子级范围内乡镇的立项
+     * 注：立项主表的 region_code 存的是乡镇 code，所以这里 IN 条件
+     *     要么是登录人自己就是镇级 → 含自己乡镇；要么是村级 → 先找到所属乡镇再过滤
+     */
+    private void applyRegionDataScope(LambdaQueryWrapper<ProjectApproval> wrapper) {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return; // 未绑定区划，不限制（兜底）
+        }
+        // 立项主表存乡镇 code，所以这里按登录人所属乡镇过滤
+        SysRegion town = resolveUserTown();
+        if (town == null) {
+            // 没解析到乡镇（比如管理员绑的是县区级） → 不限制，避免误伤
+            return;
+        }
+        wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
+    }
+
+    /**
+     * 校验某立项是否归属当前登录人，供 detail / edit / audit 等操作前鉴权。
+     */
+    private void checkApprovalInScope(ProjectApproval approval) {
+        if (approval == null) {
+            throw new BizException("立项不存在");
+        }
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return; // 未绑定区划，放行（兜底）
+        }
+        SysRegion town = resolveUserTown();
+        if (town == null) {
+            return; // 解析不到乡镇 → 放行
+        }
+        if (!town.getCode().equals(approval.getRegionCode())) {
+            throw new BizException("该立项不属于您的所属乡镇，无权操作");
+        }
     }
 }

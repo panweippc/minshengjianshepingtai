@@ -238,15 +238,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (isNotBlank(dto.getTownCode()) && !dto.getTownCode().trim().equals(userRegion.getTownCode())) {
             throw new BizException("所属乡镇与当前登录人归属不一致，不允许修改");
         }
-        // 2. 村组校验：必须存在且父级是登录人的乡镇
-        SysRegion vgRegion = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
-                .eq(SysRegion::getCode, dto.getVillageGroupCode().trim()));
-        if (vgRegion == null) {
-            throw new BizException("所属村组不存在");
-        }
-        if (!userRegion.getTownCode().equals(vgRegion.getParentCode())) {
-            throw new BizException("所选村组不在您的所属乡镇下");
-        }
+        // 2. 村组校验：必须存在且在登录人当前区划及子级范围内（村级账号不能跨村选）
+        SysRegion vgRegion = validateVillageGroupBelongToCurrentUser(dto.getVillageGroupCode());
 
         // 3. 明细必填校验
         if ("1".equals(dto.getDeclarationCategory())) {
@@ -318,12 +311,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (!exist.getTownCode().equals(userRegion.getTownCode())) {
             throw new BizException("所属乡镇不可修改");
         }
-        // 村组校验
-        SysRegion vgRegion = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
-                .eq(SysRegion::getCode, dto.getVillageGroupCode().trim()));
-        if (vgRegion == null || !userRegion.getTownCode().equals(vgRegion.getParentCode())) {
-            throw new BizException("所属村组不在您的所属乡镇下");
-        }
+        // 村组校验：必须在登录人当前区划及子级范围内（村级账号不能跨村选）
+        SysRegion vgRegion = validateVillageGroupBelongToCurrentUser(dto.getVillageGroupCode());
 
         // 明细必填
         if ("1".equals(dto.getDeclarationCategory()) &&
@@ -931,10 +920,37 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (!isNotBlank(townCode)) {
             return Collections.emptyList();
         }
-        // 乡镇下的村/组（level >= 5 且 parentCode 以 townCode 开头）
-        List<SysRegion> list = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
-                .eq(SysRegion::getParentCode, townCode.trim())
-                .orderByAsc(SysRegion::getSort));
+        LoginUser loginUser = UserContext.get();
+        String userRegionCode = loginUser == null ? null : loginUser.getRegionCode();
+        SysRegion userRegion = isNotBlank(userRegionCode)
+                ? regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getCode, userRegionCode.trim()))
+                : null;
+
+        // 根据当前登录人区划层级决定下拉范围：
+        // - 镇级(level=4)及以上：返回镇下所有 direct 子级（所有村）
+        // - 村级(level=5)：只返回该村的 direct 子级（村小组）；若该村没有子级则把村本身也作为可选项
+        // - 组级(level=6)：返回组本身（兜底）
+        // - 无区划绑定：返回全镇（兜底）
+        List<SysRegion> list;
+        if (userRegion != null && userRegion.getLevel() != null
+                && userRegion.getLevel() >= Constants.REGION_LEVEL_VILLAGE) {
+            // 村级及以下：从当前用户区划自身找 direct 子级
+            list = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getParentCode, userRegion.getCode())
+                    .orderByAsc(SysRegion::getSort));
+            // 村级账号若没有村小组，则把自己村也作为可选项（让村级至少能申报本村范围）
+            if (list.isEmpty() && Constants.REGION_LEVEL_VILLAGE == userRegion.getLevel()) {
+                list = List.of(userRegion);
+            }
+            // 组级账号无子级：返回空（不允许选）
+        } else {
+            // 镇级及以上 / 未绑定区划：返回镇下所有 direct 子级（所有村）
+            list = regionMapper.selectList(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getParentCode, townCode.trim())
+                    .orderByAsc(SysRegion::getSort));
+        }
+
         return list.stream().map(r -> {
             Map<String, Object> item = new HashMap<>();
             item.put("code", r.getCode());
@@ -1440,6 +1456,38 @@ public class DeclarationServiceImpl implements DeclarationService {
             sink.add(c.getCode());
             collectChildrenCodes(c.getCode(), sink);
         }
+    }
+
+    /**
+     * 校验所选村组是否在当前登录人区划及子级范围内，防止村级账号跨村选村组。
+     * 逻辑：
+     *   镇级账号（regionCode=镇code） → scope 含全镇所有村/组 → 可任选
+     *   村级账号（regionCode=村code） → scope 仅含本村 + 村小组 → 只能选本村范围
+     *   组级账号（regionCode=组code） → scope 仅含自己 → 基本不可用
+     * @param villageGroupCode 前端回传的村组编码
+     * @return 查到的 SysRegion 实体
+     * @throws BizException 不存在 / 超出权限范围
+     */
+    private SysRegion validateVillageGroupBelongToCurrentUser(String villageGroupCode) {
+        if (!isNotBlank(villageGroupCode)) {
+            throw new BizException("所属村组不能为空");
+        }
+        SysRegion vgRegion = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                .eq(SysRegion::getCode, villageGroupCode.trim()));
+        if (vgRegion == null) {
+            throw new BizException("所属村组不存在");
+        }
+        LoginUser loginUser = UserContext.get();
+        String userRegionCode = loginUser == null ? null : loginUser.getRegionCode();
+        if (!isNotBlank(userRegionCode)) {
+            // 管理员未绑定区划，不限制
+            return vgRegion;
+        }
+        Set<String> allowedCodes = collectAllDescendantCodes(userRegionCode.trim());
+        if (!allowedCodes.contains(vgRegion.getCode())) {
+            throw new BizException("所选村组不在您的所属区划范围内，不允许跨村选择");
+        }
+        return vgRegion;
     }
 
     /**

@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
+import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.ArchiveEditDTO;
 import com.msjs.project.entity.Declaration;
 import com.msjs.project.entity.DeclarationAttachment;
@@ -21,6 +23,7 @@ import com.msjs.project.entity.ProjectConstructionAttachment;
 import com.msjs.project.entity.ProjectFund;
 import com.msjs.project.entity.ProjectFundAttachment;
 import com.msjs.project.entity.SysDict;
+import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.DeclarationAttachmentMapper;
 import com.msjs.project.mapper.DeclarationHouseholdMapper;
 import com.msjs.project.mapper.DeclarationMapper;
@@ -36,6 +39,7 @@ import com.msjs.project.mapper.ProjectConstructionAttachmentMapper;
 import com.msjs.project.mapper.ProjectFundAttachmentMapper;
 import com.msjs.project.mapper.ProjectFundMapper;
 import com.msjs.project.mapper.SysDictMapper;
+import com.msjs.project.mapper.SysRegionMapper;
 import com.msjs.project.service.ArchiveService;
 import com.msjs.project.service.ProjectAcceptanceService;
 import com.msjs.project.service.ProjectApprovalService;
@@ -105,6 +109,7 @@ public class ArchiveServiceImpl implements ArchiveService {
     private final ProjectConstructionService constructionService;
     private final ProjectAcceptanceService acceptanceService;
     private final MinioClient minioClient;
+    private final SysRegionMapper regionMapper;
 
     @Override
     public PageVO<ArchiveVO> page(long pageNum, long pageSize, String projectName,
@@ -119,6 +124,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                 .eq(isNotBlank(projectType), ProjectApproval::getProjectType, projectType)
                 .orderByDesc(ProjectApproval::getUpdateTime)
                 .orderByDesc(ProjectApproval::getId);
+        applyApprovalRegionScope(wrapper);
         Page<ProjectApproval> result = approvalMapper.selectPage(page, wrapper);
 
         PageVO<ArchiveVO> vo = new PageVO<>();
@@ -840,5 +846,28 @@ public class ArchiveServiceImpl implements ArchiveService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /** 数据权限：立项所属乡镇 region_code = 当前登录人所属乡镇 */
+    private void applyApprovalRegionScope(LambdaQueryWrapper<ProjectApproval> wrapper) {
+        LoginUser loginUser = UserContext.get();
+        if (loginUser == null || !isNotBlank(loginUser.getRegionCode())) {
+            return;
+        }
+        String currentCode = loginUser.getRegionCode().trim();
+        SysRegion town = null;
+        for (int i = 0; i < 6; i++) {
+            SysRegion r = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
+                    .eq(SysRegion::getCode, currentCode));
+            if (r == null) break;
+            boolean isTown = ("1".equals(r.getRegionType())
+                    || (r.getLevel() != null && r.getLevel() == Constants.REGION_LEVEL_TOWN));
+            if (isTown) { town = r; break; }
+            if (!isNotBlank(r.getParentCode())) break;
+            currentCode = r.getParentCode();
+        }
+        if (town != null) {
+            wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
+        }
     }
 }

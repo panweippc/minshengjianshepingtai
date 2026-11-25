@@ -68,6 +68,7 @@
             class="tab-item"
             :class="{ 'is-active': activeTab === tab.path }"
             @click="handleTabClick(tab)"
+            @contextmenu.prevent="openTabContextMenu(tab, $event)"
           >
             <span class="tab-title">{{ tab.title }}</span>
             <el-icon class="tab-close" title="关闭页签" @click.stop="handleTabClose(tab)">
@@ -108,9 +109,38 @@
         </div>
       </el-header>
       <el-main class="main">
-        <router-view />
+        <!-- 视图 key 叠加刷新标识：右键刷新时重新挂载当前路由组件 -->
+        <router-view :key="`${route.fullPath}-${viewKey}`" />
       </el-main>
     </el-container>
+
+    <!-- 页签右键菜单：刷新页面 / 关闭当前页 / 关闭其他所有 -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.visible"
+        class="tab-context-menu"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        @click.stop
+        @contextmenu.prevent
+      >
+        <div class="tab-context-item" @click="handleRefreshTab">
+          <el-icon><Refresh /></el-icon>
+          <span>刷新页面</span>
+        </div>
+        <div class="tab-context-item" @click="handleCloseContextTab">
+          <el-icon><Close /></el-icon>
+          <span>关闭当前页</span>
+        </div>
+        <div
+          class="tab-context-item"
+          :class="{ 'is-disabled': tabs.length <= 1 }"
+          @click="handleCloseOtherTabs"
+        >
+          <el-icon><CircleClose /></el-icon>
+          <span>关闭其他所有</span>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 个人中心弹窗 -->
     <el-dialog
@@ -345,6 +375,77 @@ const handleTabClose = (tab: TabItem) => {
   router.push('/home')
 }
 
+/** 视图刷新标识：递增后 router-view 的 key 变化，触发当前页面重新挂载 */
+const viewKey = ref(0)
+
+/** 页签右键菜单状态：坐标 + 目标页签 */
+const contextMenu = reactive<{ visible: boolean; x: number; y: number; tab: TabItem | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  tab: null
+})
+
+/** 菜单尺寸常量：用于把菜单限制在视口内，避免贴边溢出 */
+const CONTEXT_MENU_WIDTH = 148
+const CONTEXT_MENU_HEIGHT = 120
+
+/** 关闭右键菜单 */
+const closeTabContextMenu = () => {
+  contextMenu.visible = false
+  contextMenu.tab = null
+}
+
+/** 右键页签：定位菜单，同时把目标页签切换为当前页签 */
+const openTabContextMenu = (tab: TabItem, event: MouseEvent) => {
+  if (activeTab.value !== tab.path) {
+    router.push(tab.path)
+  }
+  contextMenu.tab = tab
+  contextMenu.x = Math.max(4, Math.min(event.clientX, window.innerWidth - CONTEXT_MENU_WIDTH - 8))
+  contextMenu.y = Math.max(4, Math.min(event.clientY, window.innerHeight - CONTEXT_MENU_HEIGHT - 8))
+  contextMenu.visible = true
+}
+
+/** 刷新页面：递增刷新标识重新挂载当前路由组件 */
+const handleRefreshTab = () => {
+  if (!contextMenu.tab) return
+  const { path } = contextMenu.tab
+  closeTabContextMenu()
+  if (activeTab.value !== path) {
+    router.push(path)
+  }
+  nextTick(() => {
+    viewKey.value += 1
+  })
+}
+
+/** 关闭当前页：关闭右键选中的页签 */
+const handleCloseContextTab = () => {
+  const tab = contextMenu.tab
+  closeTabContextMenu()
+  if (tab) handleTabClose(tab)
+}
+
+/** 关闭其他所有：仅保留右键选中的页签 */
+const handleCloseOtherTabs = () => {
+  const keep = contextMenu.tab
+  closeTabContextMenu()
+  if (!keep || tabs.value.length <= 1) return
+  tabs.value = tabs.value.filter((tab) => tab.path === keep.path)
+  if (activeTab.value !== keep.path) {
+    router.push(keep.path)
+  }
+  nextTick(updateScrollState)
+}
+
+/** 点击页面其他区域关闭右键菜单 */
+const handleDocumentClick = () => {
+  if (contextMenu.visible) {
+    closeTabContextMenu()
+  }
+}
+
 /** 路由变化时登记页签 */
 watch(
   () => route.path,
@@ -390,6 +491,7 @@ let tabsResizeObserver: ResizeObserver | undefined
 /** 首次挂载后同步箭头显隐状态，并监听页签区宽度变化 */
 onMounted(() => {
   nextTick(updateScrollState)
+  document.addEventListener('click', handleDocumentClick)
   if (tabsScrollRef.value) {
     tabsResizeObserver = new ResizeObserver(updateScrollState)
     tabsResizeObserver.observe(tabsScrollRef.value)
@@ -401,6 +503,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
   tabsResizeObserver?.disconnect()
 })
 
@@ -964,6 +1067,55 @@ const closeReminder = () => {
 .profile-dialog .el-dialog__body {
   max-height: 62vh;
   overflow-y: auto;
+}
+
+/* ========== 页签右键菜单 ========== */
+/* 菜单 teleport 到 body，需使用全局样式 */
+.tab-context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 136px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e6eef7;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(23, 81, 140, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+  user-select: none;
+}
+.tab-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #303133;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.tab-context-item .el-icon {
+  font-size: 14px;
+  color: #909399;
+}
+.tab-context-item:hover {
+  background-color: #eef3f7;
+  color: #17518c;
+}
+.tab-context-item:hover .el-icon {
+  color: #17518c;
+}
+/* 仅剩一个页签时"关闭其他所有"不可用 */
+.tab-context-item.is-disabled {
+  color: #c0c4cc;
+  cursor: not-allowed;
+}
+.tab-context-item.is-disabled:hover {
+  background-color: transparent;
+  color: #c0c4cc;
+}
+.tab-context-item.is-disabled:hover .el-icon {
+  color: #c0c4cc;
 }
 
 /* ========== 登录提醒右下角气泡卡片 ========== */
