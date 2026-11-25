@@ -68,7 +68,7 @@ export interface ConstructionNodeVO {
   name?: string
   /** 项目类别字典值，或明细类型 */
   category?: string
-  /** 项目来源字典值，或所属区划 */
+  /** 项目类型字典值（一级）、申报类型字典值（二级），或所属区划（三级） */
   source?: string
   /** HOUSEHOLD农户 FACILITY公共基础设施 */
   detailType?: string

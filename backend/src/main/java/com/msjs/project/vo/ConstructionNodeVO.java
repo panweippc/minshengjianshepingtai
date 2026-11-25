@@ -50,7 +50,7 @@ public class ConstructionNodeVO implements Serializable {
     @Schema(description = "项目类别（字典值）或明细类型")
     private String category;
 
-    @Schema(description = "项目来源（字典值）或所属区划")
+    @Schema(description = "项目类型（一级）/申报类型（二级）/所属区划（三级），均为字典值或文本")
     private String source;
 
     @Schema(description = "明细类型：HOUSEHOLD农户 FACILITY公共基础设施（仅三级节点）")
