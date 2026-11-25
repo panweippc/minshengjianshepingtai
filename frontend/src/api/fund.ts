@@ -67,6 +67,8 @@ export interface FundNodeVO {
   declareContent?: string
   /** 附件：一级立项资料附件 / 二级申报材料附件 */
   attachments?: DeclareAttachmentVO[]
+  /** 申报单附件（仅二级：Declaration.attachments，优先展示） */
+  declarationAttachments?: DeclareAttachmentVO[]
   /** 事项说明（仅三级） */
   detailRemark?: string
   /** 拨付说明（仅三级：最近一次下拨说明） */

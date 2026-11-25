@@ -81,6 +81,9 @@ public class FundNodeVO implements Serializable {
     @Schema(description = "立项/申报材料附件（一级/二级）")
     private List<ProjectApprovalAttachment> attachments;
 
+    @Schema(description = "申报单附件（仅二级：Declaration.attachments，优先展示）")
+    private List<FundMaterialAttachmentVO> declarationAttachments;
+
     @Schema(description = "事项说明（仅三级）")
     private String detailRemark;
 

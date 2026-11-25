@@ -495,6 +495,9 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                         .isNotNull(ProjectApprovalAttachment::getDeclareId)
                         .orderByAsc(ProjectApprovalAttachment::getId));
 
+        // 事项说明兜底：历史立项明细的 remark 快照为空时，回查申报侧农户/公建明细的 remark
+        applyDetailRemarkFallback(details);
+
         Map<Long, List<ProjectApprovalDetail>> detailsByDeclare = details.stream()
                 .collect(Collectors.groupingBy(ProjectApprovalDetail::getDeclareId));
         Map<Long, List<ProjectApprovalDeclare>> declaresByApproval = declares.stream()
@@ -502,6 +505,43 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         Map<Long, List<ApprovalAttachmentVO>> attachmentsByDeclare = declareAttachments.stream()
                 .collect(Collectors.groupingBy(ProjectApprovalAttachment::getDeclareId,
                         Collectors.mapping(this::toAttachmentVO, Collectors.toList())));
+        // 申报内容兜底：老立项数据（declareContent 为 null）回查 Declaration 主表的 remark
+        // key = ProjectApprovalDeclare.id，value = Declaration.remark
+        Map<Long, String> declareRemarkByDeclareId = new java.util.HashMap<>();
+        // 申报单附件：按 declarationId 分组后反向映射回 declare.id，挂到 declarationAttachments
+        Map<Long, List<ApprovalAttachmentVO>> declareDeclarationAttachments = new java.util.HashMap<>();
+        Set<Long> declarationIds = declares.stream()
+                .map(ProjectApprovalDeclare::getDeclarationId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!declarationIds.isEmpty()) {
+            Map<Long, String> declarationIdRemarkMap = declarationMapper.selectList(
+                            new LambdaQueryWrapper<Declaration>()
+                                    .in(Declaration::getId, declarationIds)
+                                    .select(Declaration::getId, Declaration::getRemark))
+                    .stream()
+                    .collect(Collectors.toMap(Declaration::getId, Declaration::getRemark, (a, b) -> a));
+            for (ProjectApprovalDeclare dec : declares) {
+                if (dec.getDeclarationId() != null) {
+                    declareRemarkByDeclareId.put(dec.getId(), declarationIdRemarkMap.get(dec.getDeclarationId()));
+                }
+            }
+            Map<Long, List<ApprovalAttachmentVO>> declarationAttachMap = new java.util.HashMap<>();
+            declarationAttachmentMapper.selectList(
+                            new LambdaQueryWrapper<DeclarationAttachment>()
+                                    .eq(DeclarationAttachment::getOwnerType, "declaration")
+                                    .in(DeclarationAttachment::getOwnerId, declarationIds)
+                                    .orderByAsc(DeclarationAttachment::getId))
+                    .forEach(att -> declarationAttachMap
+                            .computeIfAbsent(att.getOwnerId(), k -> new ArrayList<>())
+                            .add(toDeclarationAttachmentVO(att)));
+            for (ProjectApprovalDeclare dec : declares) {
+                if (dec.getDeclarationId() != null) {
+                    declareDeclarationAttachments.put(dec.getId(),
+                            declarationAttachMap.getOrDefault(dec.getDeclarationId(), Collections.emptyList()));
+                }
+            }
+        }
         // 明细自身附件：取申报模块中挂在农户/公建明细行上的附件，而非申报单附件
         Map<String, List<ApprovalAttachmentVO>> detailAttachments = loadDetailAttachments(details);
 
@@ -511,6 +551,14 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
             List<ApprovalDeclareVO> declareNodes = new ArrayList<>();
             for (ProjectApprovalDeclare declare : declaresByApproval.getOrDefault(approval.getId(), Collections.emptyList())) {
                 ApprovalDeclareVO declareNode = toDeclareVO(declare);
+                // 申报内容兜底：新立项已写入 declareContent，老立项（null/空）回查 Declaration 主表 remark
+                String declareContent = declareNode.getDeclareContent();
+                if (declareContent == null || declareContent.isBlank()) {
+                    declareContent = declareRemarkByDeclareId.get(declare.getId());
+                }
+                declareNode.setDeclareContent(declareContent);
+                declareNode.setDeclarationAttachments(
+                        declareDeclarationAttachments.getOrDefault(declare.getId(), Collections.emptyList()));
                 declareNode.setChildren(detailsByDeclare
                         .getOrDefault(declare.getId(), Collections.emptyList())
                         .stream().map(detail -> toDetailVO(detail, detailAttachments)).toList());
@@ -521,6 +569,63 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
             records.add(projectNode);
         }
         return records;
+    }
+
+    /**
+     * 明细事项说明兜底。
+     * 业务约束：历史立项数据的 t_project_approval_detail.remark 快照可能为空，
+     * 此时按 household_id / facility_id 回查申报侧明细表（农户明细/公建明细）的 remark，
+     * 保证施工管理、验收管理、资金管理三级查看的「立项」页签能正常展示事项说明。
+     * 仅在内存中补值，不回写数据库。
+     */
+    private void applyDetailRemarkFallback(List<ProjectApprovalDetail> details) {
+        if (details == null || details.isEmpty()) {
+            return;
+        }
+        Set<Long> householdIds = new HashSet<>();
+        Set<Long> facilityIds = new HashSet<>();
+        for (ProjectApprovalDetail detail : details) {
+            if (detail.getRemark() != null && !detail.getRemark().isBlank()) {
+                continue;
+            }
+            boolean facility = Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(normalizeDetailType(detail.getDetailType()));
+            if (facility) {
+                if (detail.getFacilityId() != null) {
+                    facilityIds.add(detail.getFacilityId());
+                }
+            } else if (detail.getHouseholdId() != null) {
+                householdIds.add(detail.getHouseholdId());
+            }
+        }
+        if (householdIds.isEmpty() && facilityIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> householdRemarks = new java.util.HashMap<>();
+        if (!householdIds.isEmpty()) {
+            householdMapper.selectList(new LambdaQueryWrapper<DeclarationHousehold>()
+                            .in(DeclarationHousehold::getId, householdIds)
+                            .select(DeclarationHousehold::getId, DeclarationHousehold::getRemark))
+                    .forEach(item -> householdRemarks.put(item.getId(), item.getRemark()));
+        }
+        Map<Long, String> facilityRemarks = new java.util.HashMap<>();
+        if (!facilityIds.isEmpty()) {
+            facilityMapper.selectList(new LambdaQueryWrapper<DeclarationPublicFacility>()
+                            .in(DeclarationPublicFacility::getId, facilityIds)
+                            .select(DeclarationPublicFacility::getId, DeclarationPublicFacility::getRemark))
+                    .forEach(item -> facilityRemarks.put(item.getId(), item.getRemark()));
+        }
+        for (ProjectApprovalDetail detail : details) {
+            if (detail.getRemark() != null && !detail.getRemark().isBlank()) {
+                continue;
+            }
+            boolean facility = Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(normalizeDetailType(detail.getDetailType()));
+            String fallback = facility
+                    ? (detail.getFacilityId() == null ? null : facilityRemarks.get(detail.getFacilityId()))
+                    : (detail.getHouseholdId() == null ? null : householdRemarks.get(detail.getHouseholdId()));
+            if (fallback != null && !fallback.isBlank()) {
+                detail.setRemark(fallback);
+            }
+        }
     }
 
     private ApprovalVO toApprovalVO(ProjectApproval approval) {
@@ -637,6 +742,20 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         vo.setId(attachment.getId());
         vo.setApprovalId(attachment.getApprovalId());
         vo.setDeclareId(attachment.getDeclareId());
+        vo.setAttachmentType(attachment.getAttachmentType());
+        vo.setFileName(attachment.getFileName());
+        vo.setFileKey(attachment.getFileKey());
+        vo.setBucket(attachment.getBucket());
+        vo.setFileSize(attachment.getFileSize());
+        vo.setRemark(attachment.getRemark());
+        vo.setCreateTime(attachment.getCreateTime());
+        return vo;
+    }
+
+    /** Declaration 附件 → Approval 附件 VO（同字段结构，仅来源不同） */
+    private ApprovalAttachmentVO toDeclarationAttachmentVO(DeclarationAttachment attachment) {
+        ApprovalAttachmentVO vo = new ApprovalAttachmentVO();
+        vo.setId(attachment.getId());
         vo.setAttachmentType(attachment.getAttachmentType());
         vo.setFileName(attachment.getFileName());
         vo.setFileKey(attachment.getFileKey());
@@ -783,6 +902,7 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         declare.setDeclareType(d.getDeclarationType());
         declare.setTownName(d.getTownName());
         declare.setVillageName(d.getVillageGroupName()); // 拷贝所属村组（之前漏掉，导致 declare.village_name 为空）
+        declare.setDeclareContent(d.getRemark()); // 拷贝申报单备注说明，作为立项后"申报内容"快照
         declare.setBudget(d.getAmount());
         declare.setSort(sort);
         declare.setCreateTime(now);
@@ -926,6 +1046,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         pd.setTargetCode(hh.getSnapshotHouseholdNo());
         pd.setRegionName(hh.getSnapshotRegionName());
         pd.setAmount(hh.getAmount() != null ? hh.getAmount() : BigDecimal.ZERO);
+        // 事项说明：申报时农户填写的备注
+        pd.setRemark(hh.getRemark());
         pd.setCreateTime(LocalDateTime.now());
         return pd;
     }
@@ -940,6 +1062,8 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
         pd.setTargetCode(pf.getSnapshotFacilityCode());
         pd.setRegionName(pf.getSnapshotRegionName());
         pd.setAmount(pf.getAmount() != null ? pf.getAmount() : BigDecimal.ZERO);
+        // 事项说明：申报时公建设施填写的备注
+        pd.setRemark(pf.getRemark());
         pd.setCreateTime(LocalDateTime.now());
         return pd;
     }

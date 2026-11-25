@@ -11,7 +11,10 @@ import com.msjs.project.dto.FundAttachmentDTO;
 import com.msjs.project.dto.FundSaveDTO;
 import com.msjs.project.dto.FundUpdateDTO;
 import com.msjs.project.entity.BaseFacilityAttachment;
+import com.msjs.project.entity.Declaration;
 import com.msjs.project.entity.DeclarationAttachment;
+import com.msjs.project.entity.DeclarationHousehold;
+import com.msjs.project.entity.DeclarationPublicFacility;
 import com.msjs.project.entity.HouseholdAttachment;
 import com.msjs.project.entity.ProjectApproval;
 import com.msjs.project.entity.ProjectApprovalAttachment;
@@ -22,6 +25,9 @@ import com.msjs.project.entity.ProjectFundAttachment;
 import com.msjs.project.entity.SysRegion;
 import com.msjs.project.mapper.BaseFacilityAttachmentMapper;
 import com.msjs.project.mapper.DeclarationAttachmentMapper;
+import com.msjs.project.mapper.DeclarationHouseholdMapper;
+import com.msjs.project.mapper.DeclarationMapper;
+import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
 import com.msjs.project.mapper.HouseholdAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
 import com.msjs.project.mapper.ProjectApprovalDeclareMapper;
@@ -67,6 +73,9 @@ public class ProjectFundServiceImpl implements ProjectFundService {
     private final HouseholdAttachmentMapper householdAttachmentMapper;
     private final BaseFacilityAttachmentMapper facilityAttachmentMapper;
     private final DeclarationAttachmentMapper declarationAttachmentMapper;
+    private final DeclarationHouseholdMapper declarationHouseholdMapper;
+    private final DeclarationMapper declarationMapper;
+    private final DeclarationPublicFacilityMapper declarationPublicFacilityMapper;
     private final SysRegionMapper regionMapper;
 
     @Override
@@ -430,6 +439,48 @@ public class ProjectFundServiceImpl implements ProjectFundService {
 
         Map<Long, List<ProjectApprovalDetail>> detailMap = new HashMap<>();
         Map<Long, List<ProjectApprovalAttachment>> declareAttachMap = new HashMap<>();
+        // 申报单附件：按 declarationId 分组，再反向按 declare.id 挂载到 FundNodeVO.declarationAttachments
+        Map<Long, List<FundMaterialAttachmentVO>> declareDeclarationAttachMap = new HashMap<>();
+        // 申报内容兜底映射：老立项数据（declareContent 为 null）回查 Declaration 主表的 remark
+        // key = ProjectApprovalDeclare.id，value = Declaration.remark
+        Map<Long, String> declareRemarkMap = new HashMap<>();
+        Set<Long> declarationIds = declares.stream()
+                .map(ProjectApprovalDeclare::getDeclarationId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!declarationIds.isEmpty()) {
+            // declarationId → remark 映射，再反向按 declare.id 存入 declareRemarkMap
+            Map<Long, String> declarationIdRemarkMap = declarationMapper.selectList(
+                            new LambdaQueryWrapper<Declaration>()
+                                    .in(Declaration::getId, declarationIds)
+                                    .select(Declaration::getId, Declaration::getRemark))
+                    .stream()
+                    .collect(Collectors.toMap(Declaration::getId, Declaration::getRemark, (a, b) -> a));
+            for (ProjectApprovalDeclare dec : declares) {
+                if (dec.getDeclarationId() != null) {
+                    declareRemarkMap.put(dec.getId(), declarationIdRemarkMap.get(dec.getDeclarationId()));
+                }
+            }
+            // 申报单附件：owner_type=declaration 且 owner_id 命中声明主表 ID；按 ownerId 分组后再反向按 declare.id 挂载
+            Map<Long, List<FundMaterialAttachmentVO>> declarationIdAttachMap = new HashMap<>();
+            declarationAttachmentMapper.selectList(
+                            new LambdaQueryWrapper<DeclarationAttachment>()
+                                    .eq(DeclarationAttachment::getOwnerType, "declaration")
+                                    .in(DeclarationAttachment::getOwnerId, declarationIds)
+                                    .orderByAsc(DeclarationAttachment::getId))
+                    .forEach(att -> declarationIdAttachMap
+                            .computeIfAbsent(att.getOwnerId(), k -> new ArrayList<>())
+                            .add(toMaterial(att)));
+            for (ProjectApprovalDeclare dec : declares) {
+                if (dec.getDeclarationId() != null) {
+                    declareDeclarationAttachMap.put(dec.getId(),
+                            declarationIdAttachMap.getOrDefault(dec.getDeclarationId(), Collections.emptyList()));
+                }
+            }
+        }
+        // 事项说明兜底映射：老立项数据（remark 为 null）回查申报明细的 remark
+        Map<Long, String> householdRemarkMap = new HashMap<>();
+        Map<Long, String> facilityRemarkMap = new HashMap<>();
         // 申报明细材料附件：农户取户附件，公共基础设施取设施附件，按关联对象ID分组
         Map<Long, List<FundMaterialAttachmentVO>> materialAttachMap = new HashMap<>();
         // 立项阶段明细附件：与立项管理三级查看一致，取申报附件表中农户/公建明细行上的附件
@@ -455,6 +506,21 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                     .collect(Collectors.toSet());
             fillApprovalDetailAttachments("household", declHouseholdIds, approvalDetailAttachMap);
             fillApprovalDetailAttachments("public_facility", declFacilityIds, approvalDetailAttachMap);
+            // 事项说明兜底：老立项数据（remark 是 null）需要回查申报明细的备注
+            if (!declHouseholdIds.isEmpty()) {
+                declarationHouseholdMapper.selectList(
+                                new LambdaQueryWrapper<DeclarationHousehold>()
+                                        .in(DeclarationHousehold::getId, declHouseholdIds)
+                                        .select(DeclarationHousehold::getId, DeclarationHousehold::getRemark))
+                        .forEach(h -> householdRemarkMap.put(h.getId(), h.getRemark()));
+            }
+            if (!declFacilityIds.isEmpty()) {
+                declarationPublicFacilityMapper.selectList(
+                                new LambdaQueryWrapper<DeclarationPublicFacility>()
+                                        .in(DeclarationPublicFacility::getId, declFacilityIds)
+                                        .select(DeclarationPublicFacility::getId, DeclarationPublicFacility::getRemark))
+                        .forEach(f -> facilityRemarkMap.put(f.getId(), f.getRemark()));
+            }
             // 农户附件
             List<Long> householdIds = details.stream()
                     .filter(detail -> "HOUSEHOLD".equals(detail.getDetailType()))
@@ -617,7 +683,13 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                 declareNode.setAllocatedAmount(declareAllocated.get(declare.getId()));
                 declareNode.setTownName(declare.getTownName());
                 declareNode.setVillageName(declare.getVillageName());
-                declareNode.setDeclareContent(declare.getDeclareContent());
+                // 申报内容：优先取立项申报节点自身的 declareContent（新立项已写入），为空则回查 Declaration 主表的 remark（老数据兼容）
+                String declareContent = declare.getDeclareContent();
+                if (declareContent == null || declareContent.isBlank()) {
+                    declareContent = declareRemarkMap.get(declare.getId());
+                }
+                declareNode.setDeclareContent(declareContent);
+                declareNode.setDeclarationAttachments(declareDeclarationAttachMap.getOrDefault(declare.getId(), Collections.emptyList()));
                 declareNode.setAttachments(declareAttachMap.getOrDefault(declare.getId(), new ArrayList<>()));
                 declareNode.setFundAttachments(
                         declareFundAttach.getOrDefault(declare.getId(), new ArrayList<>()));
@@ -635,18 +707,28 @@ public class ProjectFundServiceImpl implements ProjectFundService {
                     detailNode.setBudget(detail.getAmount());
                     detailNode.setFundSource(detailSource.get(detail.getId()));
                     detailNode.setAllocatedAmount(detailAllocated.get(detail.getId()));
-                    detailNode.setDetailRemark(detail.getRemark());
+                    // 事项说明：优先取立项明细自身的 remark（新立项已写入），为空则回查申报明细兜底（老数据兼容）
+                    String remark = detail.getRemark();
+                    if (remark == null || remark.isBlank()) {
+                        if (isFacilityDetail(detail.getDetailType()) && detail.getFacilityId() != null) {
+                            remark = facilityRemarkMap.get(detail.getFacilityId());
+                        } else if (detail.getHouseholdId() != null) {
+                            remark = householdRemarkMap.get(detail.getHouseholdId());
+                        }
+                    }
+                    detailNode.setDetailRemark(remark);
                     detailNode.setFundRemark(detailFundRemark.get(detail.getId()));
                     detailNode.setFundAttachments(
                             detailFundAttach.getOrDefault(detail.getId(), new ArrayList<>()));
-                    detailNode.setMaterialAttachments(
-                            materialAttachMap.getOrDefault(detail.getTargetId(), new ArrayList<>()));
-                    // 立项页签附件：与立项管理三级查看一致，展示明细自身的申报材料附件
+                    // 立项/申报明细的材料附件：统一取 Declaration 明细表的上传附件
+                    // （owner_type=household/public_facility），key 与 approvalDetailAttachMap 相同：ownerType#ownerId
                     boolean facilityDetail = isFacilityDetail(detail.getDetailType());
                     Long ownerId = facilityDetail ? detail.getFacilityId() : detail.getHouseholdId();
                     String ownerType = facilityDetail ? "public_facility" : "household";
-                    detailNode.setApprovalAttachments(ownerId == null ? Collections.emptyList()
+                    detailNode.setMaterialAttachments(ownerId == null ? Collections.emptyList()
                             : approvalDetailAttachMap.getOrDefault(ownerType + "#" + ownerId, Collections.emptyList()));
+                    // 立项页签附件：与立项管理三级查看一致，展示明细自身的申报材料附件（同源）
+                    detailNode.setApprovalAttachments(detailNode.getMaterialAttachments());
                     detailNodes.add(detailNode);
                 }
                 declareNode.setChildren(detailNodes);
@@ -680,6 +762,20 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         vo.setFileName(attachment.getFileName());
         vo.setFileKey(attachment.getFilePath());
         vo.setBucket(Constants.BUCKET_ARCHIVE_FORMAL);
+        vo.setFileSize(attachment.getFileSize());
+        vo.setRemark(attachment.getRemark());
+        vo.setCreateTime(attachment.getCreateTime());
+        return vo;
+    }
+
+    /** 通用 Declaration 附件转换为统一材料附件VO（字段 1:1 对齐） */
+    private FundMaterialAttachmentVO toMaterial(DeclarationAttachment attachment) {
+        FundMaterialAttachmentVO vo = new FundMaterialAttachmentVO();
+        vo.setId(attachment.getId());
+        vo.setAttachmentType(attachment.getAttachmentType());
+        vo.setFileName(attachment.getFileName());
+        vo.setFileKey(attachment.getFileKey());
+        vo.setBucket(attachment.getBucket());
         vo.setFileSize(attachment.getFileSize());
         vo.setRemark(attachment.getRemark());
         vo.setCreateTime(attachment.getCreateTime());
