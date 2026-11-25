@@ -79,7 +79,7 @@ public interface DeclarationService {
     void revertDetail(DeclarationDetailRevertDTO dto);
 
     /**
-     * 审核人下拉数据源：返回 status=1 的启用用户（id + 姓名 + 区划名）
+     * 审核人下拉数据源：返回当前账号所属乡镇及本区划内 status=1 的启用用户（排除系统管理员，含 id + 姓名 + 区划名）
      * keyword 支持按姓名/账号模糊搜索
      */
     List<Map<String, Object>> listRecipients(String keyword);

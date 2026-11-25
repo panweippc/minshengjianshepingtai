@@ -397,6 +397,13 @@ public class DeclarationServiceImpl implements DeclarationService {
         if (recipient.getStatus() != null && recipient.getStatus() != 1) {
             throw new BizException("接收审核人已停用，请选择启用中的用户");
         }
+        if ("admin".equals(recipient.getUsername())) {
+            throw new BizException("系统管理员不能作为接收审核人");
+        }
+        // 与下拉数据源保持同一数据权限：仅允许所属乡镇或当前账号所在区划的用户
+        if (!resolveRecipientRegionCodes().contains(recipient.getRegionCode())) {
+            throw new BizException("接收审核人仅可选择所属乡镇或本区划的用户");
+        }
         Declaration update = new Declaration();
         update.setId(dto.getId());
         update.setStatus("submitted");
@@ -726,10 +733,32 @@ public class DeclarationServiceImpl implements DeclarationService {
         // 仍有 pending → 不推进，父保持 submitted
     }
 
+    /**
+     * 接收审核人的可选区划：当前账号所属乡镇 + 当前账号所在区划。
+     * 村级账号不会看到其他村、其他乡镇的用户；乡镇账号的两个编码相同，由 Set 自动去重。
+     */
+    private Set<String> resolveRecipientRegionCodes() {
+        UserRegionVO userRegion = resolveUserTown();
+        Set<String> regionCodes = new HashSet<>();
+        if (isNotBlank(userRegion.getTownCode())) {
+            regionCodes.add(userRegion.getTownCode());
+        }
+        if (isNotBlank(userRegion.getCurrentRegionCode())) {
+            regionCodes.add(userRegion.getCurrentRegionCode());
+        }
+        return regionCodes;
+    }
+
     @Override
     public List<Map<String, Object>> listRecipients(String keyword) {
+        Set<String> allowedRegionCodes = resolveRecipientRegionCodes();
+        if (allowedRegionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getStatus, 1)
+                .ne(SysUser::getUsername, "admin")
+                .in(SysUser::getRegionCode, allowedRegionCodes)
                 .and(isNotBlank(keyword), w -> w
                         .like(SysUser::getRealName, keyword)
                         .or()

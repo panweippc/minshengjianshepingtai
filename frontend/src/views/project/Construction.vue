@@ -1378,7 +1378,7 @@ const canEdit = computed(() => userStore.hasPerm('project:construction:edit'))
 
 /* ============ 字典 ============ */
 const dictMap = ref<Record<string, DictVO[]>>({})
-const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'li_xiang_fu_jian_lei_xing', 'xia_bo_lei_xing', 'zi_jin_lai_yuan', 'zi_jin_lei_xing', 'xun_jian_zhuang_tai', 'yan_shou_jie_guo', 'yan_shou_fu_jian_lei_xing']
+const DICT_TYPES = ['xiang_mu_lei_bie', 'xiang_mu_lei_xing', 'shen_bao_lei_bie', 'shen_bao_lei_xing', 'shi_gong_fu_jian_lei_xing', 'fu_jian_lei_xing', 'li_xiang_fu_jian_lei_xing', 'xia_bo_lei_xing', 'zi_jin_lai_yuan', 'zi_jin_lei_xing', 'zi_jin_fu_jian_lei_xing', 'xun_jian_zhuang_tai', 'yan_shou_jie_guo', 'yan_shou_fu_jian_lei_xing']
 const dictOptions = (type: string): DictVO[] => dictMap.value[type] || []
 const dictLabel = (type: string, value?: string): string => {
   if (!value) return ''
@@ -1886,12 +1886,13 @@ const editRules = computed<FormRules>(() => ({
 }))
 
 const openEdit = async (row: DisplayRow) => {
+  const isProjectEdit = row.nodeType === 'project'
   Object.assign(editForm, {
     approvalId: row.approvalId,
     declareId: row.declareId || '',
     detailId: row.detailId || '',
-    nodeLevel: row.nodeType === 'project' ? 1 : 3,
-    buildStatus: row.buildStatus || CONSTRUCTION_STATUS_NOT_STARTED,
+    nodeLevel: isProjectEdit ? 1 : 3,
+    buildStatus: isProjectEdit ? (row.buildStatus || CONSTRUCTION_STATUS_NOT_STARTED) : '',
     builder: row.builder || '',
     contractorName: row.contractorName || '',
     contractorPhone: row.contractorPhone || '',
@@ -1899,7 +1900,7 @@ const openEdit = async (row: DisplayRow) => {
     leaderPhone: row.leaderPhone || '',
     constructionDate: '',
     inspector: '',
-    inspectionStatus: 'PASS',
+    inspectionStatus: '',
     content: ''
   })
   attachmentRows.value = []
@@ -1930,33 +1931,8 @@ const openEdit = async (row: DisplayRow) => {
       return
     }
   }
-  // 三级编辑回显施工记录：关联项目只读、记录日期/巡检/施工内容/附件
-  if (row.nodeType === 'detail' && row.detailId) {
-    try {
-      const res = await getDetailLog(row.detailId)
-      const log = res.data
-      detailLog.value = log
-      Object.assign(editForm, {
-        buildStatus: log.constructionStatus || CONSTRUCTION_STATUS_NOT_STARTED,
-        constructionDate: log.constructionDate || '',
-        inspector: log.inspector || '',
-        inspectionStatus: log.inspectionStatus || 'PASS',
-        content: log.content || ''
-      })
-      attachmentRows.value = (log.attachments || []).map((item) => ({
-        id: item.id,
-        attachmentType: item.attachmentType || '',
-        remark: item.remark || '',
-        fileName: item.fileName || '',
-        fileKey: item.fileKey || '',
-        bucket: item.bucket || '',
-        fileSize: item.fileSize,
-        uploading: false
-      }))
-    } catch {
-      return
-    }
-  }
+  // 三级巡检：每次打开都是空白表单，不回填历史记录（巡检=新增一条施工日志）
+  // 保留 buildStatus 从列表行取（作为施工状态的初始值），其余字段全空
   editVisible.value = true
 }
 

@@ -199,7 +199,7 @@ public class DeclarationController {
         return Result.ok(declarationService.listFacilitiesByVillageGroup(villageGroupCode));
     }
 
-    @Operation(summary = "审核人下拉（keyword 支持按姓名/账号模糊搜索，最多返回 100 条）")
+    @Operation(summary = "审核人下拉（仅限当前账号所属乡镇及本区划，排除系统管理员，keyword 支持按姓名/账号模糊搜索，最多返回 100 条）")
     @RequirePerm("declaration:edit")
     @GetMapping("/recipients")
     public Result<List<Map<String, Object>>> recipients(

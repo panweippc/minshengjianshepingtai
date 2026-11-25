@@ -642,7 +642,7 @@
               <span class="section-title">— 立项资料附件 —</span>
               <el-button
                 link type="primary" size="small" icon="Plus"
-                @click="approvalDialog.form.attachments.push({ attachmentType: '', fileKey: '', fileName: '', remark: '' })"
+                @click="addApprovalAttachment"
               >+ 添加附件</el-button>
             </div>
             <div v-if="approvalDialog.form.attachments.length === 0" class="section-empty">暂无附件，点击右上角"+ 添加附件"即可</div>
@@ -664,16 +664,23 @@
                     :headers="fileUploadHeaders"
                     :data="{ bizModule: 'approval', bucket: 'archive-formal' }"
                     :show-file-list="false"
-                    :before-upload="(file: File) => beforeApprovalAttUpload(file, idx)"
-                    :on-success="(res: any, _f: any) => onApprovalAttUploadSuccess(res, idx)"
-                    :on-error="onApprovalAttUploadError"
+                    multiple
+                    :before-upload="(file: File) => beforeApprovalAttUpload(file, row)"
+                    :on-success="(res: any) => onApprovalAttUploadSuccess(res, row)"
+                    :on-error="(err: any) => onApprovalAttUploadError(err, row)"
                   >
                     <el-button>
                       <el-icon><UploadFilled /></el-icon>
-                      {{ row.fileName ? '重新上传' : '点击选择文件' }}
+                      {{ row.files.length ? '继续添加文件' : '点击选择文件' }}
                     </el-button>
                   </el-upload>
-                  <span v-if="row.fileName" class="att-fname">✓ {{ row.fileName }}</span>
+                  <span v-if="row.uploading" class="att-uploading">正在上传 {{ row.uploading }} 个文件...</span>
+                  <div v-if="row.files.length" class="att-file-list">
+                    <div v-for="(file, fileIdx) in row.files" :key="`${file.fileKey || file.fileName}_${fileIdx}`" class="att-file-item">
+                      <span class="att-fname" :title="file.fileName">✓ {{ file.fileName }}</span>
+                      <el-icon class="att-file-remove" title="移除文件" @click="removeApprovalAttachmentFile(row, fileIdx)"><Close /></el-icon>
+                    </div>
+                  </div>
                 </el-form-item>
                 <el-form-item label="备注" label-width="72px" class="att-field att-field-remark">
                   <el-input v-model="row.remark" placeholder="选填" maxlength="200" />
@@ -767,7 +774,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UploadFilled, Loading, Paperclip, Delete } from '@element-plus/icons-vue'
+import { UploadFilled, Loading, Paperclip, Delete, Close } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getDictByType } from '@/api/dict'
 import { getPresignUrl } from '@/api/file'
@@ -1234,6 +1241,14 @@ interface ApprovalRowRef {
   detailIds?: string[]
 }
 
+/** 一条立项附件卡片可包含多个文件，提交时展开为后端附件记录 */
+interface ApprovalAttachmentCard {
+  attachmentType: string
+  remark: string
+  files: ApprovalAttachmentItem[]
+  uploading: number
+}
+
 const approvalDialog = reactive({
   visible: false,
   submitting: false,
@@ -1251,7 +1266,7 @@ const approvalDialog = reactive({
     establishDate: '',
     townCode: '',
     townName: '',
-    attachments: [] as ApprovalAttachmentItem[]
+    attachments: [] as ApprovalAttachmentCard[]
   }
 })
 
@@ -1303,6 +1318,10 @@ function openApprovalDialog() {
 
   approvalDialog.visible = true
   nextTick(() => approvalFormRef.value?.clearValidate())
+}
+
+function addApprovalAttachment() {
+  approvalDialog.form.attachments.push({ attachmentType: '', remark: '', files: [], uploading: 0 })
 }
 
 function removeApprovalDecl(idx: number) {
@@ -1423,7 +1442,11 @@ async function doSubmitApproval() {
     ElMessage.warning('至少要有一条关联申报单')
     return
   }
-  if (approvalDialog.form.attachments.some((a) => a.attachmentType && !a.fileKey)) {
+  if (approvalDialog.form.attachments.some((a) => a.uploading > 0)) {
+    ElMessage.warning('附件正在上传，请等待全部文件上传完成')
+    return
+  }
+  if (approvalDialog.form.attachments.some((a) => a.attachmentType && a.files.length === 0)) {
     ElMessage.warning('附件行已选类型但未上传文件，请补传或删除该行')
     return
   }
@@ -1457,7 +1480,13 @@ async function doSubmitApproval() {
         declarationId: r.id,
         detailIds: r.detailIds?.length ? [...r.detailIds] : undefined
       })),
-      attachments: approvalDialog.form.attachments.filter((a) => a.fileKey)
+      attachments: approvalDialog.form.attachments.flatMap((card) =>
+        card.files.map((file) => ({
+          ...file,
+          attachmentType: card.attachmentType,
+          remark: card.remark
+        }))
+      )
     }
     const res = await submitProjectApproval(dto)
     ElMessage.success(
@@ -1472,29 +1501,37 @@ async function doSubmitApproval() {
 }
 
 // ========== 立项附件上传 ==========
-function beforeApprovalAttUpload(file: File, _idx: number) {
+function beforeApprovalAttUpload(file: File, row: ApprovalAttachmentCard) {
   if (file.size > 50 * 1024 * 1024) {
     ElMessage.warning('单个附件不能超过 50MB')
     return false
   }
+  row.uploading += 1
   return true
 }
 
-function onApprovalAttUploadSuccess(res: any, idx: number) {
+function onApprovalAttUploadSuccess(res: any, row: ApprovalAttachmentCard) {
+  row.uploading = Math.max(0, row.uploading - 1)
   if (res?.code !== 200 || !res?.data) {
     ElMessage.error(res?.msg || '上传失败')
     return
   }
-  const item = approvalDialog.form.attachments[idx]
-  item.fileKey = res.data.fileKey
-  item.bucket = res.data.bucket || 'archive-formal'
-  item.fileName = res.data.fileName || res.data.originalName || ''
-  item.fileSize = res.data.fileSize
+  row.files.push({
+    fileKey: res.data.fileKey,
+    bucket: res.data.bucket || 'archive-formal',
+    fileName: res.data.fileName || res.data.originalName || '',
+    fileSize: res.data.fileSize
+  })
   ElMessage.success('上传成功')
 }
 
-function onApprovalAttUploadError(err: any) {
+function onApprovalAttUploadError(err: any, row: ApprovalAttachmentCard) {
+  row.uploading = Math.max(0, row.uploading - 1)
   ElMessage.error('上传失败：' + (err?.message || '请重试'))
+}
+
+function removeApprovalAttachmentFile(row: ApprovalAttachmentCard, fileIdx: number) {
+  row.files.splice(fileIdx, 1)
 }
 
 // ================== 生命周期 ==================
@@ -1640,7 +1677,18 @@ watch(() => query.pageNum, (val, oldVal) => {
 }
 .att-card-body .att-field { margin-bottom: 10px; }
 .att-card-body :deep(.el-form-item__label) { font-size: 13px; }
-.att-fname { margin-left: 8px; font-size: 12px; color: #67c23a; }
+.att-field-upload :deep(.el-form-item__content) { flex-wrap: wrap; }
+.att-uploading { margin-left: 8px; font-size: 12px; color: #909399; }
+.att-file-list {
+  width: 100%; margin-top: 8px; display: flex; flex-direction: column; gap: 4px;
+  max-height: 120px; overflow-y: auto;
+}
+.att-file-item { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.att-fname {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; color: #67c23a;
+}
+.att-file-remove { margin-left: auto; flex: none; color: #f56c6c; cursor: pointer; }
 
 /* ============ 选已通过申报单弹窗 ============ */
 .pick-query-bar {
