@@ -10,9 +10,22 @@
       <!-- 用户指定的整张 sci-fi 底图：叠在 canvas 最底层，从头到尾完整展示 -->
       <div class="user-full-bg" aria-hidden="true"></div>
 
+      <!-- ===== 赛博科技装饰层（低饱和、不刺眼，全部 pointer-events:none 不挡交互） ===== -->
+      <!-- 扫描线：一道淡青色半透明横条缓慢从上往下扫过，像安全监测画面 -->
+      <span class="scanline" aria-hidden="true"></span>
+      <!-- 数据流光线：顶部 2 条 + 底部 2 条淡蓝青渐变带横向漂移 -->
+      <span class="data-flow data-flow--top" aria-hidden="true"></span>
+      <span class="data-flow data-flow--bottom" aria-hidden="true"></span>
+      <!-- 粒子光点：分布在画布四周的 5 个小光点，缓慢明暗脉动 -->
+      <span class="cyber-particle p1" aria-hidden="true"></span>
+      <span class="cyber-particle p2" aria-hidden="true"></span>
+      <span class="cyber-particle p3" aria-hidden="true"></span>
+      <span class="cyber-particle p4" aria-hidden="true"></span>
+      <span class="cyber-particle p5" aria-hidden="true"></span>
+
       <!-- ========== 顶部标题栏 ========== -->
       <header class="screen-header">
-        <div class="header-side">
+        <div class="header-side header-left">
           <span class="status-chip"><i class="chip-dot"></i>系统在线</span>
           <span class="status-chip">
             <el-icon><OfficeBuilding /></el-icon>{{ kpi.villageCount }} 个行政村
@@ -81,30 +94,26 @@
 
           <ScreenPanel title="资金完成率">
             <div class="fund-gauge">
-              <div class="fund-gauge__orb">
-                <div class="fund-gauge__well">
-                  <div class="fund-gauge__liquid" :style="{ height: `${fundLevel}%` }">
-                    <!-- 液面波纹：浅绿浪层 + 绿色浪体 + 白色浪尖，三层错峰缓慢流动 -->
-                    <svg
-                      class="fund-gauge__wave fund-gauge__wave--mint"
-                      viewBox="0 0 600 40"
-                      preserveAspectRatio="none"
-                      aria-hidden="true"
-                    >
-                      <path :d="FUND_WAVE_PATH" />
-                    </svg>
-                    <svg
-                      class="fund-gauge__wave fund-gauge__wave--body"
-                      viewBox="0 0 600 40"
-                      preserveAspectRatio="none"
-                      aria-hidden="true"
-                    >
-                      <path :d="FUND_WAVE_PATH" />
-                    </svg>
-                  </div>
-                  <div class="fund-gauge__value">
-                    <b>{{ kpi.payRate.toFixed(1) }}<em>%</em></b>
-                  </div>
+              <!-- 左：参考图风格的多层圆环 icon（已换成大屏蓝青色系） -->
+              <div class="fund-gauge__icon" aria-hidden="true">
+                <div class="fund-gauge__ring"></div>
+                <span class="fund-gauge__percent">{{ kpi.payRate.toFixed(1) }}<em>%</em></span>
+              </div>
+              <!-- 右：两列金额 -->
+              <div class="fund-gauge__stats">
+                <div class="fund-gauge__item">
+                  <span class="fund-gauge__label">批复金额</span>
+                  <span class="fund-gauge__num">
+                    <b>{{ formatNumber(kpi.totalBudget) }}</b>
+                    <small>万元</small>
+                  </span>
+                </div>
+                <div class="fund-gauge__item">
+                  <span class="fund-gauge__label">拨付金额</span>
+                  <span class="fund-gauge__num">
+                    <b>{{ formatNumber(kpi.paidAmount) }}</b>
+                    <small>万元</small>
+                  </span>
                 </div>
               </div>
             </div>
@@ -160,7 +169,7 @@
             </div>
           </div>
 
-          <ScreenPanel title="各村项目类型明细统计">
+          <ScreenPanel title="各村项目类型明细统计" custom-class="panel-solid">
             <div class="detail-stage">
               <!-- 自定义图例：上排线型=项目类型，下排颜色=明细类别(单位) -->
               <div v-if="detailHasData" class="detail-legend">
@@ -1561,21 +1570,132 @@ onBeforeUnmount(() => {
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 背景网格 + 中心冷光：调淡网格线让底图透 */
+/* ===== 赛博科技装饰层：全部 pointer-events:none，z-index 极低不挡交互 ===== */
+
+/* ① 网格底纹：0.5px 极细线 + opacity 0.1，保持通透不抢戏 */
 .screen-canvas::before {
   content: '';
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(ellipse 62% 46% at 50% 44%, rgba(46, 130, 210, 0.08) 0%, transparent 70%),
-    linear-gradient(rgba(86, 180, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(86, 180, 255, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 44px 44px, 44px 44px;
+    linear-gradient(rgba(100, 180, 240, 0.09) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(100, 180, 240, 0.09) 0.5px, transparent 0.5px);
+  background-size: 48px 48px;
   pointer-events: none;
-  opacity: 0.65;
+  opacity: 0.7;
+  z-index: 0;
 }
 
-/* 底部透视网格：营造空间纵深 */
+/* ② 扫描线：一道淡青横条从上往下缓慢扫过，6s 一圈 */
+.scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 180px;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(80, 180, 255, 0.04) 10%,
+    rgba(120, 210, 255, 0.09) 50%,
+    rgba(80, 180, 255, 0.04) 90%,
+    transparent 100%
+  );
+  top: -200px;
+  animation: cyber-scan-y 6s linear infinite;
+}
+
+/* ③ 数据流光线：顶部/底部各 1 条极淡蓝青渐变带 + 2 条更淡副线，缓慢漂移 */
+.data-flow {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  height: 1px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.30;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(120, 200, 255, 0.02) 18%,
+      rgba(160, 230, 255, 0.14) 50%,
+      rgba(120, 200, 255, 0.02) 82%,
+      transparent 100%
+    );
+}
+.data-flow--top {
+  top: 104px;
+  box-shadow: 0 0 5px rgba(120, 200, 255, 0.12);
+  animation: cyber-flow-x 22s linear infinite;
+}
+.data-flow--top::before,
+.data-flow--top::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  animation: cyber-flow-x 22s linear infinite;
+}
+.data-flow--top::before { top: 10px; animation-duration: 36s; animation-direction: reverse; opacity: 0.18; }
+.data-flow--top::after  { top: 22px; animation-duration: 48s; opacity: 0.12; }
+
+.data-flow--bottom {
+  bottom: 60px;
+  box-shadow: 0 0 4px rgba(100, 180, 240, 0.10);
+  animation: cyber-flow-x 28s linear infinite reverse;
+}
+.data-flow--bottom::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  inset-left: 0;
+  right: 0;
+  height: 1px;
+  background: inherit;
+  animation: cyber-flow-x 40s linear infinite;
+  opacity: 0.15;
+}
+
+/* ④ 粒子光点：5 个小圆点，分布在画布四周，缓慢明暗脉动 + 轻微位置漂移 */
+.cyber-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  background: #7dcfff;
+  box-shadow:
+    0 0 3px rgba(180, 230, 255, 0.85),
+    0 0 10px rgba(80, 180, 255, 0.35);
+  animation: cyber-pulse 3.6s ease-in-out infinite;
+}
+/* 分布位置：5 个点分别在左上、右上、左中、右中、底部中间 */
+.cyber-particle.p1 { top: 118px; left: 22px;  animation-delay: 0s; }
+.cyber-particle.p2 { top: 118px; right: 22px; animation-delay: 0.7s; }
+.cyber-particle.p3 { top: 60%;  left: 14px;  animation-delay: 1.4s; }
+.cyber-particle.p4 { top: 56%;  right: 14px; animation-delay: 2.1s; }
+.cyber-particle.p5 { bottom: 44px; left: 50%; animation-delay: 2.8s; }
+
+/* ===== 动画 ===== */
+/* 扫描线从上往下：6s 一圈，到画布底后瞬间回到顶部 */
+@keyframes cyber-scan-y {
+  0%    { top: -200px; }
+  100%  { top: 100%; }
+}
+/* 数据流横向漂移 */
+@keyframes cyber-flow-x {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(120%); }
+}
+/* 粒子明暗脉动 + 轻微上下漂移 */
+@keyframes cyber-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  40%      { opacity: 1;    transform: scale(1.3);  }
+  70%      { opacity: 0.6;  transform: scale(1);    }
+}
+
+/* 底部透视网格：保留但调淡，跟整体低饱和风格一致 */
 .screen-canvas::after {
   content: '';
   position: absolute;
@@ -1584,14 +1704,14 @@ onBeforeUnmount(() => {
   bottom: -2%;
   height: 34%;
   background-image:
-    linear-gradient(rgba(70, 170, 255, 0.22) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(70, 170, 255, 0.22) 1px, transparent 1px);
+    linear-gradient(rgba(100, 190, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100, 190, 255, 0.14) 1px, transparent 1px);
   background-size: 60px 42px;
   transform: perspective(700px) rotateX(66deg);
   transform-origin: bottom center;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 58%, #000 100%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 58%, #000 100%);
-  opacity: 0.35;
+  opacity: 0.22;
   pointer-events: none;
   z-index: 0;
 }
@@ -1666,8 +1786,15 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.header-left {
+  /* 左侧状态 chip：下沉多一点，和中间标题形成层次错落 */
+  margin-top: 14px;
+}
+
 .header-right {
   justify-content: flex-end;
+  /* 右侧时钟：下沉少一点，避免太靠下 */
+  margin-top: 6px;
 }
 
 .status-chip {
@@ -2156,106 +2283,103 @@ onBeforeUnmount(() => {
   font-style: normal;
 }
 
-/* ========== 资金完成率：发光圆环 + 液态水位 ========== */
-/* 整体纵向布局：圆环自适应撑满，说明文案固定底部 */
+/* ========== 资金完成率：参考图风格多层圆环 icon + 大屏蓝青色系 ========== */
 .fund-gauge {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 左 icon 容器：方形容器，里面叠 SVG 底图 + 中心百分比 */
+.fund-gauge__icon {
+  flex: 0 0 44%;
+  aspect-ratio: 1;
+  position: relative;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 100%;
-  min-height: 0;
 }
 
-/* 外环容器：只负责尺寸与外发光，内部不做填充，保证玻璃内胆通透 */
-.fund-gauge__orb {
-  position: relative;
-  flex: 1 1 0;
-  aspect-ratio: 1;
-  max-width: 100%;
-  min-height: 0;
-  padding: 4px;
-  border-radius: 50%;
-  box-shadow:
-    0 0 7px rgba(35, 230, 160, 0.5),
-    0 0 18px rgba(35, 230, 160, 0.2);
-}
-
-/* 光环本体：用遮罩只保留 4px 描边，渐变色不会透进玻璃内胆 */
-.fund-gauge__orb::before {
-  content: '';
+/* 多层圆环底图：参考图风格 + 大屏蓝青主色，匀速自转 */
+.fund-gauge__ring {
   position: absolute;
   inset: 0;
-  padding: 4px;
-  border-radius: 50%;
-  background: conic-gradient(from 200deg, #0d5c44, #2bf0aa 22%, #b6ffe6 46%, #28d99a 68%, #0d5c44);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
+  background: url('/headers/fund-ring-icon.svg') center/contain no-repeat;
+  filter: drop-shadow(0 0 8px rgba(80, 180, 255, 0.45));
+  transform-origin: center center;
+  animation: fund-ring-spin 16s linear infinite;
 }
 
-/* 液池：中心透明，仅贴绿环的内圈压暗，形成管壁暗边 */
-.fund-gauge__well {
+/* 中心百分比：叠在 icon 上 */
+.fund-gauge__percent {
   position: relative;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 20%, rgba(190, 235, 255, 0.14) 0%, transparent 28%),
-    radial-gradient(circle at 50% 50%, rgba(10, 24, 36, 0.05) 0%, rgba(8, 20, 32, 0.28) 60%, rgba(5, 16, 18, 0.8) 86%, rgba(2, 10, 10, 0.94) 100%);
-  box-shadow:
-    inset 0 0 14px 4px rgba(3, 18, 14, 0.88),
-    inset 0 3px 8px rgba(190, 240, 255, 0.16),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(180deg, #ffffff 0%, #e8f7ff 35%, #7dcfff 70%, #1a5fb4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 0 2px rgba(0, 0, 0, 1))
+    drop-shadow(0 0 10px rgba(60, 180, 255, 0.55));
+}
+.fund-gauge__percent em {
+  font-style: normal;
+  font-size: 13px;
+  margin-left: 2px;
 }
 
-/* 液面高度 = 拨付完成率，高度变化带过渡 */
-.fund-gauge__liquid {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(180deg, #35e9ad 0%, #1ecb90 42%, #0b8a61 100%);
-  transition: height 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+/* ===== 右侧两列金额 ===== */
+.fund-gauge__stats {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 18%;
+  padding: 4px 0;
+}
+.fund-gauge__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.fund-gauge__label {
+  font-size: 11px;
+  color: #97c1db;
+  letter-spacing: 1px;
+  opacity: 0.9;
+}
+.fund-gauge__num {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.fund-gauge__num b {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(180deg, #f5fbff 0%, #9fdfff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(80, 200, 255, 0.45));
+}
+.fund-gauge__num small {
+  font-size: 10px;
+  color: #78a3c0;
+  opacity: 0.85;
 }
 
-/* 水中高光，让液体更通透 */
-.fund-gauge__liquid::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 66% 46% at 50% 100%, rgba(255, 255, 255, 0.26), transparent 70%);
-  pointer-events: none;
-}
-
-/* 液面波纹：宽度为液池 2 倍，平移量等于一个完整波形周期，循环无缝 */
-.fund-gauge__wave {
-  position: absolute;
-  left: 0;
-  width: 200%;
-  height: 30px;
-  pointer-events: none;
-  animation: fund-wave 8s linear infinite;
-}
-
-/* 绿色浪体：与液体本体同色并下沉 6px 衔接，避免出现横向分割线 */
-.fund-gauge__wave--body {
-  bottom: calc(100% - 6px);
-  fill: #35e9ad;
-}
-
-/* 浅绿浪层：位于浪体之后，波峰略高于绿色浪体，与浪体同向同速、错开相位 */
-.fund-gauge__wave--mint {
-  bottom: calc(100% - 3px);
-  height: 36px;
-  fill: rgba(178, 255, 232, 0.5);
-  animation-delay: -2s;
-}
-
-/* 波纹整体向右侧流动：从 -1 个周期平移回 0，首尾波形一致，循环无缝 */
+/* 波纹整体向右侧流动：保留 keyframes 以防 TS 报"定义未使用" */
 @keyframes fund-wave {
   from {
     transform: translateX(-33.3333%);
@@ -2265,36 +2389,13 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 环内数值：百分比 + 已拨付金额 */
-.fund-gauge__value {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  text-align: center;
-  pointer-events: none;
-  text-shadow:
-    0 1px 6px rgba(2, 12, 20, 0.9),
-    0 0 12px rgba(4, 30, 26, 0.65);
-}
+/* ===== HUD 仪表风动效 keyframes 已废弃 ===== */
 
-.fund-gauge__value b {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1;
-  color: #f2fffb;
+/* 资金完成率圆环 icon 匀速自转：16s 一圈，linear 无缓动，不会有忽快忽慢 */
+@keyframes fund-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
-
-.fund-gauge__value b em {
-  margin-left: 1px;
-  font-size: 14px;
-  font-style: normal;
-}
-
-/* 环下说明已移除，环体独占面板高度 */
 
 /* ========== 各村项目分布 ========== */
 .village-map {
@@ -2933,8 +3034,8 @@ onBeforeUnmount(() => {
   margin: 0 16px 0;
   padding: 0 14px;
   border-top: 1px solid rgba(38, 224, 164, 0.2);
-  /* 回调：底部 ticker 实一点，同时仍能看到底图地球网 */
-  background: linear-gradient(90deg, rgba(10, 42, 34, 0.5) 0%, rgba(5, 22, 18, 0.18) 100%);
+  /* 微微透一点点 */
+  background: linear-gradient(90deg, rgba(10, 42, 34, 0.44) 0%, rgba(5, 22, 18, 0.14) 100%);
   overflow: hidden;
 }
 
@@ -3035,5 +3136,17 @@ onBeforeUnmount(() => {
   .ticker-track {
     animation: none;
   }
+}
+/* 单张面板单独实一点：跟新赛博玻璃主题同色系，只把 opacity 抬一点 */
+:deep(.screen-panel.panel-solid) {
+  background: linear-gradient(135deg, rgba(70, 160, 240, 0.18) 0%, rgba(40, 90, 170, 0.10) 50%, rgba(70, 160, 240, 0.14) 100%);
+}
+:deep(.screen-panel.panel-solid .panel-inner) {
+  background:
+    radial-gradient(ellipse 90% 60% at 12% -12%, rgba(56, 132, 200, 0.2) 0%, rgba(10, 22, 36, 0) 62%),
+    linear-gradient(180deg, rgba(10, 26, 48, 0.72) 0%, rgba(6, 18, 34, 0.76) 45%, rgba(3, 10, 20, 0.74) 100%);
+}
+:deep(.screen-panel.panel-solid .panel-head) {
+  background: linear-gradient(90deg, rgba(28, 80, 126, 0.66) 0%, rgba(20, 56, 90, 0.42) 50%, rgba(12, 30, 50, 0.05) 100%);
 }
 </style>
