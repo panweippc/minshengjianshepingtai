@@ -7,6 +7,9 @@
     element-loading-background="rgba(3, 10, 20, 0.72)"
   >
     <div class="screen-canvas" :style="canvasStyle">
+      <!-- 用户指定的整张 sci-fi 底图：叠在 canvas 最底层，从头到尾完整展示 -->
+      <div class="user-full-bg" aria-hidden="true"></div>
+
       <!-- ========== 顶部标题栏 ========== -->
       <header class="screen-header">
         <div class="header-side">
@@ -1550,25 +1553,26 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   transform-origin: top left;
+  /* 回调：让用户 sci-fi 底图作为氛围层，canvas 本身要有足够底色盖实面板 */
   background:
-    radial-gradient(ellipse 75% 50% at 50% -8%, rgba(32, 108, 190, 0.42) 0%, rgba(3, 10, 20, 0) 62%),
-    radial-gradient(ellipse 60% 42% at 50% 106%, rgba(18, 92, 160, 0.24) 0%, rgba(3, 10, 20, 0) 62%),
-    linear-gradient(180deg, #02060e 0%, #071528 46%, #030a14 100%);
+    radial-gradient(ellipse 75% 50% at 50% -8%, rgba(32, 108, 190, 0.24) 0%, rgba(3, 10, 20, 0) 62%),
+    linear-gradient(180deg, rgba(2, 6, 14, 0.7) 0%, rgba(7, 21, 40, 0.6) 46%, rgba(3, 10, 20, 0.7) 100%);
   color: #cfe9ff;
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 背景网格 + 中心冷光 */
+/* 背景网格 + 中心冷光：调淡网格线让底图透 */
 .screen-canvas::before {
   content: '';
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(ellipse 62% 46% at 50% 44%, rgba(46, 130, 210, 0.14) 0%, transparent 70%),
-    linear-gradient(rgba(86, 180, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(86, 180, 255, 0.05) 1px, transparent 1px);
+    radial-gradient(ellipse 62% 46% at 50% 44%, rgba(46, 130, 210, 0.08) 0%, transparent 70%),
+    linear-gradient(rgba(86, 180, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 180, 255, 0.025) 1px, transparent 1px);
   background-size: 100% 100%, 44px 44px, 44px 44px;
   pointer-events: none;
+  opacity: 0.65;
 }
 
 /* 底部透视网格：营造空间纵深 */
@@ -1592,46 +1596,65 @@ onBeforeUnmount(() => {
   z-index: 0;
 }
 
+/* 用户指定的整张 sci-fi 底图：叠在 canvas 最底层，从头到尾完整展示
+   （顶部发光横带 → 中部雷达弧 → 底部地球网 全部露出来） */
+.screen-canvas .user-full-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 裁豆包水印后的版本 */
+  background-image: url('/headers/user-header-bg-cropped.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center top;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.65;   /* 回调：别把面板盖太猛，让它当氛围层 */
+}
+
 /* ========== 顶部标题栏 ========== */
+/* header 标题靠上：内容贴顶部对齐，padding-top 减小把标题压到发光横带附近 */
 .screen-header {
   position: relative;
-  z-index: 1;
+  z-index: 2;                 /* 顶在整张图上面 */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  height: 104px;
-  padding: 0 26px;
+  align-items: flex-start;    /* 改：内容从顶部开始放，自然靠上 */
+  height: 96px;               /* 改：从 148 压到 96，贴顶 */
+  padding-top: 18px;          /* 改：把标题往下推一点点，正好落在发光带上 */
+  padding-left: 36px;
+  padding-right: 36px;
   flex-shrink: 0;
 }
 
-/* 顶部横幅底板：两端斜切的深蓝条带，参考综合校情大屏版式 */
+/* header 不再单独塞底图（底图已经是 canvas 的背景层了）
+   只保留一层极淡的顶部光带呼应 */
 .screen-header::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  bottom: 0;
-  background:
-    radial-gradient(ellipse 46% 130% at 50% 0%, rgba(56, 156, 245, 0.42) 0%, rgba(3, 10, 20, 0) 70%),
-    linear-gradient(180deg, rgba(23, 74, 130, 0.82) 0%, rgba(9, 32, 60, 0.55) 58%, rgba(3, 10, 20, 0) 100%);
-  clip-path: polygon(0 0, 100% 0, 97.5% 100%, 2.5% 100%);
+  height: 2px;
+  background: linear-gradient(90deg, rgba(0,220,255,0) 0%, rgba(0,220,255,0.65) 50%, rgba(0,220,255,0) 100%);
+  filter: blur(0.6px);
   pointer-events: none;
+  z-index: 0;
 }
 
-/* 标题正下方的 V 形光带 */
+/* header 底部加深过渡层：让 header 与中间图表有个层次感 */
 .screen-header::after {
   content: '';
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: 560px;
-  height: 12px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, rgba(64, 172, 255, 0.85), rgba(20, 80, 145, 0));
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
-  opacity: 0.8;
+  height: 80px;
+  background: linear-gradient(180deg, rgba(3, 10, 20, 0) 0%, rgba(3, 10, 20, 0.35) 100%);
   pointer-events: none;
+  z-index: 0;
 }
 
 .header-side {
@@ -2910,7 +2933,8 @@ onBeforeUnmount(() => {
   margin: 0 16px 0;
   padding: 0 14px;
   border-top: 1px solid rgba(38, 224, 164, 0.2);
-  background: linear-gradient(90deg, rgba(10, 42, 34, 0.55) 0%, rgba(5, 22, 18, 0.2) 100%);
+  /* 回调：底部 ticker 实一点，同时仍能看到底图地球网 */
+  background: linear-gradient(90deg, rgba(10, 42, 34, 0.5) 0%, rgba(5, 22, 18, 0.18) 100%);
   overflow: hidden;
 }
 
