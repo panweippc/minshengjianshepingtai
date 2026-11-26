@@ -100,13 +100,15 @@ public class ReportDataInitRunner implements ApplicationRunner {
                 auditor          VARCHAR(32)  NULL COMMENT '审核人',
                 department       VARCHAR(64)  NULL COMMENT '部门',
                 remark           VARCHAR(255) NULL COMMENT '报表备注',
+                region_code      VARCHAR(32)  NULL COMMENT '区划编码（数据隔离）',
                 create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 deleted          TINYINT      NOT NULL DEFAULT 0,
                 PRIMARY KEY (id),
                 KEY idx_report_name (report_name),
                 KEY idx_report_type (report_type),
-                KEY idx_report_date (report_date)
+                KEY idx_report_date (report_date),
+                KEY idx_t_material_report_region (region_code)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统计报表主表'
         """);
         jdbcTemplate.execute("""

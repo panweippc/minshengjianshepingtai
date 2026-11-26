@@ -37,6 +37,9 @@ public class MaterialWarehouse implements Serializable {
     @Schema(description = "联系电话")
     private String phone;
 
+    @Schema(description = "区划编码（数据隔离：所属乡镇）")
+    private String regionCode;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 

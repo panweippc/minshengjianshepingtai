@@ -25,13 +25,14 @@ public interface MaterialReportMapper extends BaseMapper<MaterialReport> {
                MAX(i.unit)      AS unit,
                CAST(SUM(s.net_qty) AS SIGNED) AS bookQty
         FROM (
-            SELECT warehouse_name, item_name, quantity AS net_qty
+            SELECT warehouse_name, item_name, region_code, quantity AS net_qty
             FROM t_material_stock_in_item WHERE deleted = 0
             UNION ALL
-            SELECT warehouse_name, item_name, -quantity AS net_qty
+            SELECT warehouse_name, item_name, region_code, -quantity AS net_qty
             FROM t_material_stock_out_item WHERE deleted = 0
         ) s
         LEFT JOIN t_material_item i ON i.item_name = s.item_name AND i.deleted = 0
+            AND i.region_code = s.region_code
         <where>
             <if test="itemName != null and itemName != ''">
                 AND s.item_name LIKE CONCAT('%', #{itemName}, '%')
@@ -42,6 +43,16 @@ public interface MaterialReportMapper extends BaseMapper<MaterialReport> {
             <if test="itemCategory != null and itemCategory != ''">
                 AND i.item_category = #{itemCategory}
             </if>
+            <if test="scopeRegion != null and scopeRegion != ''">
+                <choose>
+                    <when test="scopeLike">
+                        AND s.region_code LIKE CONCAT(#{scopeRegion}, '%')
+                    </when>
+                    <otherwise>
+                        AND s.region_code = #{scopeRegion}
+                    </otherwise>
+                </choose>
+            </if>
         </where>
         GROUP BY s.warehouse_name, s.item_name
         ORDER BY s.warehouse_name, s.item_name
@@ -49,5 +60,7 @@ public interface MaterialReportMapper extends BaseMapper<MaterialReport> {
         """)
     List<MaterialStockVO> selectStockList(@Param("itemName") String itemName,
                                           @Param("warehouseName") String warehouseName,
-                                          @Param("itemCategory") String itemCategory);
+                                          @Param("itemCategory") String itemCategory,
+                                          @Param("scopeRegion") String scopeRegion,
+                                          @Param("scopeLike") boolean scopeLike);
 }

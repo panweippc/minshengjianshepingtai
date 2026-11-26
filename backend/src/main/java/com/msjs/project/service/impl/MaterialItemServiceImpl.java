@@ -3,7 +3,10 @@ package com.msjs.project.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.DataScopeUtils;
+import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.MaterialItemSaveDTO;
 import com.msjs.project.entity.MaterialItem;
 import com.msjs.project.mapper.MaterialItemMapper;
@@ -34,6 +37,8 @@ public class MaterialItemServiceImpl implements MaterialItemService {
                 .apply(Boolean.TRUE.equals(lowWarning), "stock_qty < warning_qty")
                 .orderByDesc(MaterialItem::getCreateTime)
                 .orderByAsc(MaterialItem::getId);
+        // 数据隔离：物资按录入乡镇隔离，本级账号只能看到本级及以下的物资
+        DataScopeUtils.applyRegionScope(wrapper, MaterialItem::getRegionCode);
         return PageVO.of(itemMapper.selectPage(page, wrapper));
     }
 
@@ -42,7 +47,11 @@ public class MaterialItemServiceImpl implements MaterialItemService {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        return itemMapper.selectBatchIds(ids);
+        // 数据隔离：导出按 ID 批量取详情时同样限制区划范围，避免通过 ID 越权读取
+        LambdaQueryWrapper<MaterialItem> wrapper = new LambdaQueryWrapper<MaterialItem>()
+                .in(MaterialItem::getId, ids);
+        DataScopeUtils.applyRegionScope(wrapper, MaterialItem::getRegionCode);
+        return itemMapper.selectList(wrapper);
     }
 
     @Override
@@ -55,6 +64,9 @@ public class MaterialItemServiceImpl implements MaterialItemService {
         if (item.getWarningQty() == null) {
             item.setWarningQty(0);
         }
+        // 归属区划取当前登录用户所在区划，保证物资按乡镇隔离
+        LoginUser user = UserContext.get();
+        item.setRegionCode(user == null ? null : user.getRegionCode());
         itemMapper.insert(item);
         return item.getId();
     }
@@ -65,10 +77,17 @@ public class MaterialItemServiceImpl implements MaterialItemService {
         if (exist == null) {
             throw new BizException("物品不存在");
         }
+        // 数据隔离校验：禁止跨乡镇编辑他人物资
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该物资");
+        }
         // 库存数量不通过编辑接口修改，保留原值
         Integer stockQty = exist.getStockQty();
+        String regionCode = exist.getRegionCode();
         BeanUtils.copyProperties(dto, exist);
         exist.setStockQty(stockQty);
+        // 区划归属不随编辑变更
+        exist.setRegionCode(regionCode);
         if (exist.getWarningQty() == null) {
             exist.setWarningQty(0);
         }
@@ -80,6 +99,10 @@ public class MaterialItemServiceImpl implements MaterialItemService {
         MaterialItem exist = itemMapper.selectById(id);
         if (exist == null) {
             throw new BizException("物品不存在");
+        }
+        // 数据隔离校验：禁止跨乡镇删除他人物资
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该物资");
         }
         itemMapper.deleteById(id);
     }

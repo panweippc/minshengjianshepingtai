@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.common.UserContext;
@@ -60,6 +61,8 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
                 .orderByDesc(MaterialStockOut::getOutDate)
                 .orderByDesc(MaterialStockOut::getCreateTime)
                 .orderByAsc(MaterialStockOut::getId);
+        // 数据隔离：仅可查看当前登录人所属乡镇及以下的出库单
+        DataScopeUtils.applyRegionScope(wrapper, MaterialStockOut::getRegionCode);
         IPage<MaterialStockOut> orderPage = orderMapper.selectPage(page, wrapper);
 
         List<MaterialStockOutVO> records = orderPage.getRecords().stream()
@@ -86,6 +89,8 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
                 .orderByDesc(MaterialStockOutItem::getOutTime)
                 .orderByDesc(MaterialStockOutItem::getCreateTime)
                 .orderByAsc(MaterialStockOutItem::getId);
+        // 数据隔离：明细表同样带 region_code，直接查询时按区划过滤
+        DataScopeUtils.applyRegionScope(wrapper, MaterialStockOutItem::getRegionCode);
         IPage<MaterialStockOutItem> itemPage = itemMapper.selectPage(page, wrapper);
 
         Map<Long, MaterialStockOut> orderMap = loadOrderMap(itemPage.getRecords());
@@ -106,7 +111,11 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
-        List<MaterialStockOutItem> items = itemMapper.selectBatchIds(ids);
+        // 数据隔离：按 ID 批量查询时追加区划条件，避免通过明细ID越权读取
+        LambdaQueryWrapper<MaterialStockOutItem> wrapper = new LambdaQueryWrapper<MaterialStockOutItem>()
+                .in(MaterialStockOutItem::getId, ids);
+        DataScopeUtils.applyRegionScope(wrapper, MaterialStockOutItem::getRegionCode);
+        List<MaterialStockOutItem> items = itemMapper.selectList(wrapper);
         Map<Long, MaterialStockOut> orderMap = loadOrderMap(items);
         return items.stream()
                 .map(item -> toItemVO(item, orderMap.get(item.getOrderId())))
@@ -118,6 +127,10 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         MaterialStockOut order = orderMapper.selectById(id);
         if (order == null) {
             throw new BizException("出库单不存在或已删除");
+        }
+        // 数据隔离：禁止跨乡镇查看出库单详情
+        if (!DataScopeUtils.canAccessRegion(order.getRegionCode())) {
+            throw new BizException("无权查看该出库单");
         }
         List<MaterialStockOutItem> items = itemMapper.selectList(new LambdaQueryWrapper<MaterialStockOutItem>()
                 .eq(MaterialStockOutItem::getOrderId, id)
@@ -144,6 +157,9 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         // 主表经办人优先取明细中非空的，全部为空取当前登录人；出库日期取明细最早的出库时间
         order.setHandler(resolveHandler(dto.getItems()));
         order.setOutDate(earliestOutDate(dto.getItems()));
+        // 数据隔离：单据归属当前登录人所在区划
+        LoginUser user = UserContext.get();
+        order.setRegionCode(user == null ? null : user.getRegionCode());
         orderMapper.insert(order);
         saveItems(order.getId(), dto.getItems());
         // 出库成功同步扣减物品库存，与明细写入同事务，库存不足时整单回滚
@@ -157,6 +173,10 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         MaterialStockOut exist = orderMapper.selectById(dto.getId());
         if (exist == null) {
             throw new BizException("出库单不存在或已删除");
+        }
+        // 数据隔离：禁止跨乡镇编辑出库单
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该出库单");
         }
         exist.setOrderName(dto.getOrderName());
         exist.setRemark(dto.getRemark());
@@ -179,6 +199,10 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         MaterialStockOut exist = orderMapper.selectById(id);
         if (exist == null) {
             throw new BizException("出库单不存在或已删除");
+        }
+        // 数据隔离：禁止跨乡镇删除出库单
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该出库单");
         }
         // 删除出库单前先把已扣减的库存加回
         applyStock(id, -1);
@@ -209,8 +233,11 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
                 .collect(Collectors.toSet());
         Map<String, Long> nameToId = new HashMap<>();
         if (!names.isEmpty()) {
-            List<MaterialItem> matched = materialItemMapper.selectList(
-                    new LambdaQueryWrapper<MaterialItem>().in(MaterialItem::getItemName, names));
+            // 数据隔离：按名称匹配物资时同样限制区划范围，避免匹配到其它乡镇的同名物资
+            LambdaQueryWrapper<MaterialItem> miWrapper = new LambdaQueryWrapper<MaterialItem>()
+                    .in(MaterialItem::getItemName, names);
+            DataScopeUtils.applyRegionScope(miWrapper, MaterialItem::getRegionCode);
+            List<MaterialItem> matched = materialItemMapper.selectList(miWrapper);
             matched.forEach(mi -> nameToId.putIfAbsent(mi.getItemName(), mi.getId()));
         }
         for (MaterialStockOutItem item : items) {
@@ -233,17 +260,21 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
     /** 写入出库单明细，仓库名称以仓库表为准，防止前端传入不一致的名称 */
     private void saveItems(Long orderId, List<MaterialStockOutItemSaveDTO> items) {
         Map<Long, String> warehouseNames = loadWarehouseNames(items);
+        // 数据隔离：明细归属当前登录人所在区划，统计时可独立过滤
+        LoginUser user = UserContext.get();
+        String regionCode = user == null ? null : user.getRegionCode();
         for (MaterialStockOutItemSaveDTO dto : items) {
             MaterialStockOutItem item = new MaterialStockOutItem();
             BeanUtils.copyProperties(dto, item);
             item.setId(null);
             item.setOrderId(orderId);
             item.setWarehouseName(warehouseNames.get(dto.getWarehouseId()));
+            item.setRegionCode(regionCode);
             itemMapper.insert(item);
         }
     }
 
-    /** 批量校验并查询仓库名称 */
+    /** 批量校验并查询仓库名称（仅限当前登录人所属区划，跨乡镇仓库视为不存在） */
     private Map<Long, String> loadWarehouseNames(List<MaterialStockOutItemSaveDTO> items) {
         List<Long> warehouseIds = items.stream()
                 .map(MaterialStockOutItemSaveDTO::getWarehouseId)
@@ -253,7 +284,10 @@ public class MaterialStockOutServiceImpl implements MaterialStockOutService {
         if (warehouseIds.isEmpty()) {
             throw new BizException("请选择仓库");
         }
-        List<MaterialWarehouse> warehouses = warehouseMapper.selectBatchIds(warehouseIds);
+        LambdaQueryWrapper<MaterialWarehouse> whWrapper = new LambdaQueryWrapper<MaterialWarehouse>()
+                .in(MaterialWarehouse::getId, warehouseIds);
+        DataScopeUtils.applyRegionScope(whWrapper, MaterialWarehouse::getRegionCode);
+        List<MaterialWarehouse> warehouses = warehouseMapper.selectList(whWrapper);
         Map<Long, String> nameMap = warehouses.stream()
                 .collect(Collectors.toMap(MaterialWarehouse::getId, MaterialWarehouse::getWarehouseName));
         for (Long warehouseId : warehouseIds) {

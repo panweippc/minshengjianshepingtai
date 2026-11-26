@@ -50,6 +50,56 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         ensureHomeMenu();
         dropSysFileSha256Unique();
         ensureMissingPermMenus();
+        ensureMaterialRegion();
+    }
+
+    /**
+     * 物资管理相关表补 region_code 列：物资信息、库房、入库单、出库单、统计报表及明细
+     * 均按乡镇做数据隔离，城关镇录入的数据不能被青山镇等其它乡镇看到。
+     * 存量数据统一归属城关镇（系统历史数据均由城关镇维护）。
+     */
+    private void ensureMaterialRegion() {
+        String[] tables = {
+                "t_material_item",
+                "t_material_warehouse",
+                "t_material_stock_in",
+                "t_material_stock_in_item",
+                "t_material_stock_out",
+                "t_material_stock_out_item",
+                "t_material_report"
+        };
+        for (String table : tables) {
+            ensureMaterialRegionColumn(table);
+        }
+    }
+
+    /** 单表补 region_code 列并回填存量数据（幂等，可重复执行） */
+    private void ensureMaterialRegionColumn(String table) {
+        if (!tableExists(table)) {
+            log.info("[Migration] {} 不存在，跳过物资区划迁移", table);
+            return;
+        }
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'region_code'",
+                Integer.class, table);
+        if (count != null && count > 0) {
+            log.info("[Migration] {}.region_code 列已存在，跳过", table);
+            return;
+        }
+        try {
+            jdbcTemplate.update(
+                    "ALTER TABLE " + table +
+                    " ADD COLUMN region_code VARCHAR(32) NULL COMMENT '区划编码（数据隔离）'");
+            jdbcTemplate.update("CREATE INDEX idx_" + table + "_region ON " + table + " (region_code)");
+            log.info("[Migration] 已为 {} 新增 region_code 列", table);
+        } catch (Exception e) {
+            log.warn("[Migration] {} 加 region_code 失败：{}", table, e.getMessage());
+            return;
+        }
+        int affected = jdbcTemplate.update(
+                "UPDATE " + table + " SET region_code = '110101100' WHERE region_code IS NULL");
+        log.info("[Migration] {} 存量数据回填 region_code=110101100，共 {} 条", table, affected);
     }
 
     /** 判断指定表是否存在于当前数据库 */
