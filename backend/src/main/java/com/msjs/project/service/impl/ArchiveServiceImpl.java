@@ -201,7 +201,7 @@ public class ArchiveServiceImpl implements ArchiveService {
 
         // 已使用文件路径集合，避免同名附件覆盖
         Set<String> usedEntries = new HashSet<>();
-        // 一次性加载四个附件类型字典，用于将 attachmentType(数字) 转成中文目录名
+        // 一次性加载附件类型、资金类型字典，用于将字典值(数字) 转成中文目录名
         Map<String, Map<String, String>> attachTypeDict = loadAttachmentTypeDict();
         try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
             exportApprovalFiles(approval, zos, usedEntries, attachTypeDict);
@@ -217,12 +217,13 @@ public class ArchiveServiceImpl implements ArchiveService {
     }
 
     /**
-     * 加载附件类型字典：一次性查四个字典，返回 Map<dictType, Map<dictValue, dictLabel>>
+     * 加载导出目录所需字典：一次性查七个字典，返回 Map<dictType, Map<dictValue, dictLabel>>
      * 字典值是数字编码（如 "1"），导出时需要对应到中文标签（如 "拨款凭证"）作为目录名
      */
     private Map<String, Map<String, String>> loadAttachmentTypeDict() {
         List<String> dictTypes = List.of("li_xiang_fu_jian_lei_xing", "zi_jin_fu_jian_lei_xing",
-                "shi_gong_fu_jian_lei_xing", "yan_shou_fu_jian_lei_xing");
+                "shi_gong_fu_jian_lei_xing", "yan_shou_fu_jian_lei_xing",
+                "fu_jian_lei_xing", "zi_jin_lei_xing", "xia_bo_lei_xing");
         Map<String, Map<String, String>> result = new HashMap<>();
         sysDictMapper.selectList(new LambdaQueryWrapper<SysDict>()
                         .in(SysDict::getDictType, dictTypes))
@@ -499,7 +500,7 @@ public class ArchiveServiceImpl implements ArchiveService {
         }
     }
 
-    /** 事项申报附件：按申报单 → 申报材料 / 明细（农户 / 公建） 分层（DeclarationAttachment 无 attachmentType 字段） */
+    /** 事项申报附件：按申报单 → 申报材料 / 明细（农户 / 公建） → 附件类型分目录 */
     private void exportDeclarationFiles(ProjectApproval approval, ZipOutputStream zos, Set<String> usedEntries,
                                         Map<String, Map<String, String>> attachTypeDict) {
         List<ProjectApprovalDeclare> declares = declareMapper.selectList(
@@ -547,9 +548,11 @@ public class ArchiveServiceImpl implements ArchiveService {
                     + (isNotBlank(declare.getDeclareName()) ? declare.getDeclareName() : "未命名");
             String declareFolder = "02-事项申报/" + sanitizeFileName(declareLabel);
 
-            // 申报单原始材料附件
+            // 申报单原始材料附件：申报材料/{附件类型}/文件
             for (DeclarationAttachment item : declareAttachMap.getOrDefault(declare.getDeclarationId(), Collections.emptyList())) {
-                addZipEntry(zos, usedEntries, declareFolder + "/申报材料", item.getFileName(),
+                String typeFolder = sanitizeFileName(dictLabel(attachTypeDict, "fu_jian_lei_xing",
+                        item.getAttachmentType(), "未分类"));
+                addZipEntry(zos, usedEntries, declareFolder + "/申报材料/" + typeFolder, item.getFileName(),
                         item.getBucket(), item.getFileKey());
             }
 
@@ -559,7 +562,9 @@ public class ArchiveServiceImpl implements ArchiveService {
                 String key = "household_" + hh.getId();
                 String hhLabel = "农户-" + (isNotBlank(hh.getSnapshotHeadName()) ? hh.getSnapshotHeadName() : "未知");
                 for (DeclarationAttachment item : detailAttachMap.getOrDefault(key, Collections.emptyList())) {
-                    addZipEntry(zos, usedEntries, declareFolder + "/明细/" + sanitizeFileName(hhLabel),
+                    String typeFolder = sanitizeFileName(dictLabel(attachTypeDict, "fu_jian_lei_xing",
+                            item.getAttachmentType(), "未分类"));
+                    addZipEntry(zos, usedEntries, declareFolder + "/明细/" + sanitizeFileName(hhLabel) + "/" + typeFolder,
                             item.getFileName(), item.getBucket(), item.getFileKey());
                 }
             }
@@ -569,19 +574,28 @@ public class ArchiveServiceImpl implements ArchiveService {
                 String key = "public_facility_" + pf.getId();
                 String pfLabel = "公建-" + (isNotBlank(pf.getSnapshotFacilityName()) ? pf.getSnapshotFacilityName() : "未知");
                 for (DeclarationAttachment item : detailAttachMap.getOrDefault(key, Collections.emptyList())) {
-                    addZipEntry(zos, usedEntries, declareFolder + "/明细/" + sanitizeFileName(pfLabel),
+                    String typeFolder = sanitizeFileName(dictLabel(attachTypeDict, "fu_jian_lei_xing",
+                            item.getAttachmentType(), "未分类"));
+                    addZipEntry(zos, usedEntries, declareFolder + "/明细/" + sanitizeFileName(pfLabel) + "/" + typeFolder,
                             item.getFileName(), item.getBucket(), item.getFileKey());
                 }
             }
         }
     }
 
-    /** 资金凭证附件：按资金流水分目录 */
+    /**
+     * 资金凭证附件：按资金层级分目录
+     * 目录结构：03-资金凭证/项目资金/{资金流水}/{附件类型}
+     *          03-资金凭证/申报资金/{申报}/资金流水/{附件类型}
+     *          03-资金凭证/申报资金/{申报}/明细资金/{明细}/{资金流水}/{附件类型}
+     */
     private void exportFundFiles(ProjectApproval approval, ZipOutputStream zos, Set<String> usedEntries,
                                  Map<String, Map<String, String>> attachTypeDict) {
         List<ProjectFund> funds = fundMapper.selectList(
                 new LambdaQueryWrapper<ProjectFund>()
                         .eq(ProjectFund::getApprovalId, approval.getId())
+                        .orderByAsc(ProjectFund::getNodeLevel)
+                        .orderByAsc(ProjectFund::getCreateTime)
                         .orderByAsc(ProjectFund::getId));
         if (funds.isEmpty()) {
             log.debug("档案导出: approvalId={} 无资金记录，跳过资金附件", approval.getId());
@@ -592,18 +606,88 @@ public class ArchiveServiceImpl implements ArchiveService {
                                 .in(ProjectFundAttachment::getFundId, funds.stream().map(ProjectFund::getId).toList()))
                 .stream().collect(Collectors.groupingBy(ProjectFundAttachment::getFundId));
 
+        // 预加载申报、明细节点，用于还原“项目 → 申报 → 明细”的资金层级目录
+        Map<Long, ProjectApprovalDeclare> declareMap = declareMapper.selectList(
+                        new LambdaQueryWrapper<ProjectApprovalDeclare>()
+                                .eq(ProjectApprovalDeclare::getApprovalId, approval.getId())
+                                .orderByAsc(ProjectApprovalDeclare::getSort)
+                                .orderByAsc(ProjectApprovalDeclare::getId))
+                .stream().collect(Collectors.toMap(ProjectApprovalDeclare::getId, Function.identity(), (a, b) -> a));
+        List<Long> declareIds = new ArrayList<>(declareMap.keySet());
+        Map<Long, ProjectApprovalDetail> detailMap = declareIds.isEmpty()
+                ? Collections.emptyMap()
+                : approvalDetailMapper.selectList(new LambdaQueryWrapper<ProjectApprovalDetail>()
+                                .in(ProjectApprovalDetail::getDeclareId, declareIds)
+                                .orderByAsc(ProjectApprovalDetail::getSort)
+                                .orderByAsc(ProjectApprovalDetail::getId))
+                        .stream().collect(Collectors.toMap(ProjectApprovalDetail::getId, Function.identity(), (a, b) -> a));
+
         for (ProjectFund fund : funds) {
-            String label = "资金流水" + (isNotBlank(fund.getFundType()) ? "-" + fund.getFundType() : "")
-                    + (isNotBlank(fund.getRemark()) ? "-" + fund.getRemark() : "");
-            String subFolder = sanitizeFileName(label);
-            for (ProjectFundAttachment item : attachMap.getOrDefault(fund.getId(), Collections.emptyList())) {
-                // 第三层：附件类型字典中文（zi_jin_fu_jian_lei_xing）
+            List<ProjectFundAttachment> attachments = attachMap.getOrDefault(fund.getId(), Collections.emptyList());
+            if (attachments.isEmpty()) {
+                continue;
+            }
+            String fundFolder = buildFundFolder(fund, declareMap, detailMap, attachTypeDict);
+            for (ProjectFundAttachment item : attachments) {
+                // 最内层：附件类型字典中文（zi_jin_fu_jian_lei_xing）
                 String typeFolder = sanitizeFileName(dictLabel(attachTypeDict, "zi_jin_fu_jian_lei_xing",
                         item.getAttachmentType(), "未分类"));
-                addZipEntry(zos, usedEntries, "03-资金凭证/" + subFolder + "/" + typeFolder, item.getFileName(),
+                addZipEntry(zos, usedEntries, fundFolder + "/" + typeFolder, item.getFileName(),
                         item.getBucket(), item.getFileKey());
             }
         }
+    }
+
+    /** 组装单条资金流水所在层级目录，层级缺失时按关联字段兜底 */
+    private String buildFundFolder(ProjectFund fund, Map<Long, ProjectApprovalDeclare> declareMap,
+                                   Map<Long, ProjectApprovalDetail> detailMap,
+                                   Map<String, Map<String, String>> attachTypeDict) {
+        int nodeLevel = resolveFundLevel(fund);
+        // 资金类型转中文：一级用资金类型字典，二三级用下拨类型字典；字典缺失时保留原值
+        String fundTypeLabel = isNotBlank(fund.getFundType())
+                ? dictLabel(attachTypeDict,
+                        nodeLevel == Constants.FUND_LEVEL_APPROVAL ? "zi_jin_lei_xing" : "xia_bo_lei_xing",
+                        fund.getFundType(), fund.getFundType())
+                : null;
+        String recordLabel = sanitizeFileName("资金流水" + (fundTypeLabel != null ? "-" + fundTypeLabel : "")
+                + (isNotBlank(fund.getRemark()) ? "-" + fund.getRemark() : ""));
+        if (nodeLevel == Constants.FUND_LEVEL_DETAIL) {
+            ProjectApprovalDetail detail = fund.getDetailId() == null ? null : detailMap.get(fund.getDetailId());
+            Long declareId = detail != null ? detail.getDeclareId() : fund.getDeclareId();
+            ProjectApprovalDeclare declare = declareId == null ? null : declareMap.get(declareId);
+            String detailLabel = detail != null && isNotBlank(detail.getTargetName())
+                    ? "明细-" + detail.getTargetName() : "未关联明细";
+            return "03-资金凭证/申报资金/" + declareFolderName(declare) + "/明细资金/"
+                    + sanitizeFileName(detailLabel) + "/" + recordLabel;
+        }
+        if (nodeLevel == Constants.FUND_LEVEL_DECLARE) {
+            ProjectApprovalDeclare declare = fund.getDeclareId() == null ? null : declareMap.get(fund.getDeclareId());
+            return "03-资金凭证/申报资金/" + declareFolderName(declare) + "/" + recordLabel;
+        }
+        return "03-资金凭证/项目资金/" + recordLabel;
+    }
+
+    /** 资金流水层级：节点层级为空时按申报/明细关联字段推断 */
+    private int resolveFundLevel(ProjectFund fund) {
+        if (fund.getNodeLevel() != null) {
+            return fund.getNodeLevel();
+        }
+        if (fund.getDetailId() != null) {
+            return Constants.FUND_LEVEL_DETAIL;
+        }
+        if (fund.getDeclareId() != null) {
+            return Constants.FUND_LEVEL_DECLARE;
+        }
+        return Constants.FUND_LEVEL_APPROVAL;
+    }
+
+    /** 申报节点目录名：申报编号-申报名称 */
+    private String declareFolderName(ProjectApprovalDeclare declare) {
+        if (declare == null) {
+            return "未关联申报";
+        }
+        return sanitizeFileName("申报" + (isNotBlank(declare.getDeclareCode()) ? declare.getDeclareCode() : "")
+                + "-" + (isNotBlank(declare.getDeclareName()) ? declare.getDeclareName() : "未命名"));
     }
 
     /** 施工资料附件：项目级 / 明细（按明细名称分目录） */
