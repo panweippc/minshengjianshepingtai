@@ -169,6 +169,20 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: 'DataScreen',
         component: () => import('@/views/screen/DataScreen.vue'),
         meta: { title: '数据大屏', icon: 'DataBoard' }
+      },
+      {
+        // 数据大屏2：参考图风格版
+        path: 'screen2',
+        name: 'DataScreen2',
+        component: () => import('@/views/screen/DataScreen2.vue'),
+        meta: { title: '数据大屏2', icon: 'DataBoard' }
+      },
+      {
+        // 数据大屏3：与参考图一比一还原版
+        path: 'screen3',
+        name: 'DataScreen3',
+        component: () => import('@/views/screen/DataScreen3.vue'),
+        meta: { title: '数据大屏3', icon: 'DataBoard' }
       }
     ]
   },
@@ -178,6 +192,20 @@ export const dynamicRoutes: RouteRecordRaw[] = [
     name: 'DataScreenCast',
     component: () => import('@/views/screen/DataScreen.vue'),
     meta: { title: '数据大屏投屏', icon: 'Monitor', standalone: true }
+  },
+  {
+    // 数据大屏2 投屏
+    path: '/screen2/cast',
+    name: 'DataScreen2Cast',
+    component: () => import('@/views/screen/DataScreen2.vue'),
+    meta: { title: '数据大屏2投屏', icon: 'Monitor', standalone: true }
+  },
+  {
+    // 数据大屏3 投屏
+    path: '/screen3/cast',
+    name: 'DataScreen3Cast',
+    component: () => import('@/views/screen/DataScreen3.vue'),
+    meta: { title: '数据大屏3投屏', icon: 'Monitor', standalone: true }
   }
 ]
 
