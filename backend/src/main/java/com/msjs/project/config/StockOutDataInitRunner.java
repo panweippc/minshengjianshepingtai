@@ -56,12 +56,14 @@ public class StockOutDataInitRunner implements ApplicationRunner {
                     handler     VARCHAR(32)  NULL COMMENT '经办人',
                     out_date    DATE         NULL COMMENT '出库日期',
                     remark      VARCHAR(255) NULL COMMENT '备注',
+                    region_code VARCHAR(32)  NULL COMMENT '区划编码（数据隔离）',
                     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                     update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
                     deleted     TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除：0正常 1删除',
                     PRIMARY KEY (id),
                     KEY idx_stock_out_order_name (order_name),
-                    KEY idx_stock_out_handler (handler)
+                    KEY idx_stock_out_handler (handler),
+                    KEY idx_stock_out_region (region_code)
                 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '出库单主表'
                 """);
         // 出库单明细表
@@ -79,13 +81,15 @@ public class StockOutDataInitRunner implements ApplicationRunner {
                     out_time       DATE         NULL COMMENT '出库时间',
                     handler        VARCHAR(32)  NULL COMMENT '经办人',
                     remark         VARCHAR(255) NULL COMMENT '备注',
+                    region_code    VARCHAR(32)  NULL COMMENT '区划编码（数据隔离）',
                     create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                     update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
                     deleted        TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除：0正常 1删除',
                     PRIMARY KEY (id),
                     KEY idx_stock_out_item_order (order_id),
                     KEY idx_stock_out_item_warehouse (warehouse_id),
-                    KEY idx_stock_out_item_name (item_name)
+                    KEY idx_stock_out_item_name (item_name),
+                    KEY idx_stock_out_item_region (region_code)
                 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '出库单明细表'
                 """);
         log.info("出库单模块数据表初始化完成");

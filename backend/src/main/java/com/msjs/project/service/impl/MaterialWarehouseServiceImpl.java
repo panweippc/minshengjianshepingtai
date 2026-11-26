@@ -3,7 +3,10 @@ package com.msjs.project.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.DataScopeUtils;
+import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
+import com.msjs.project.common.UserContext;
 import com.msjs.project.dto.MaterialWarehouseSaveDTO;
 import com.msjs.project.entity.MaterialWarehouse;
 import com.msjs.project.mapper.MaterialWarehouseMapper;
@@ -33,6 +36,8 @@ public class MaterialWarehouseServiceImpl implements MaterialWarehouseService {
                 .like(phone != null && !phone.isBlank(), MaterialWarehouse::getPhone, phone)
                 .orderByDesc(MaterialWarehouse::getCreateTime)
                 .orderByAsc(MaterialWarehouse::getId);
+        // 数据隔离：仅可查看当前登录人所属乡镇及以下的库房
+        DataScopeUtils.applyRegionScope(wrapper, MaterialWarehouse::getRegionCode);
         return PageVO.of(warehouseMapper.selectPage(page, wrapper));
     }
 
@@ -41,6 +46,9 @@ public class MaterialWarehouseServiceImpl implements MaterialWarehouseService {
         MaterialWarehouse warehouse = new MaterialWarehouse();
         BeanUtils.copyProperties(dto, warehouse);
         warehouse.setId(null);
+        // 数据隔离：新增库房归属当前登录人所在区划
+        LoginUser user = UserContext.get();
+        warehouse.setRegionCode(user == null ? null : user.getRegionCode());
         warehouseMapper.insert(warehouse);
         return warehouse.getId();
     }
@@ -51,6 +59,10 @@ public class MaterialWarehouseServiceImpl implements MaterialWarehouseService {
         if (exist == null) {
             throw new BizException("库房不存在");
         }
+        // 数据隔离：禁止跨乡镇修改库房
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该库房");
+        }
         BeanUtils.copyProperties(dto, exist);
         warehouseMapper.updateById(exist);
     }
@@ -60,6 +72,10 @@ public class MaterialWarehouseServiceImpl implements MaterialWarehouseService {
         MaterialWarehouse exist = warehouseMapper.selectById(id);
         if (exist == null) {
             throw new BizException("库房不存在");
+        }
+        // 数据隔离：禁止跨乡镇删除库房
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该库房");
         }
         warehouseMapper.deleteById(id);
     }

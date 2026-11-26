@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
+import com.msjs.project.common.Constants;
+import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
 import com.msjs.project.common.UserContext;
@@ -56,6 +58,8 @@ public class MaterialReportServiceImpl implements MaterialReportService {
                 .orderByDesc(MaterialReport::getReportDate)
                 .orderByDesc(MaterialReport::getCreateTime)
                 .orderByAsc(MaterialReport::getId);
+        // 数据隔离：仅可查看当前登录人所属乡镇及以下的统计报表
+        DataScopeUtils.applyRegionScope(wrapper, MaterialReport::getRegionCode);
         IPage<MaterialReport> reportPage = reportMapper.selectPage(page, wrapper);
 
         List<MaterialReportVO> records = reportPage.getRecords().stream()
@@ -75,6 +79,10 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport report = reportMapper.selectById(id);
         if (report == null) {
             throw new BizException("统计报表不存在或已删除");
+        }
+        // 数据隔离：禁止跨乡镇查看报表详情
+        if (!DataScopeUtils.canAccessRegion(report.getRegionCode())) {
+            throw new BizException("无权查看该统计报表");
         }
         List<MaterialReportItem> items = reportItemMapper.selectList(new LambdaQueryWrapper<MaterialReportItem>()
                 .eq(MaterialReportItem::getReportId, id)
@@ -159,6 +167,10 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         if (exist == null) {
             throw new BizException("统计报表不存在或已删除");
         }
+        // 数据隔离：禁止跨乡镇删除报表
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该统计报表");
+        }
         // 先逻辑删除明细，再删除主表
         reportItemMapper.delete(new LambdaQueryWrapper<MaterialReportItem>()
                 .eq(MaterialReportItem::getReportId, id));
@@ -169,7 +181,21 @@ public class MaterialReportServiceImpl implements MaterialReportService {
 
     @Override
     public List<MaterialStockVO> listStock(String itemName, String warehouseName, String itemCategory) {
-        return reportMapper.selectStockList(itemName, warehouseName, itemCategory);
+        // 数据隔离：库存统计直接聚合明细表，按当前登录人区划范围过滤
+        LoginUser user = UserContext.get();
+        String scopeRegion = null;
+        boolean scopeLike = false;
+        if (user != null && user.getDataScope() != null && user.getDataScope() != Constants.DATA_SCOPE_ALL) {
+            String code = user.getRegionCode();
+            if (code == null || code.isBlank()) {
+                // 未绑定区划的非全部范围用户，使用不可匹配值，避免越权读取全量数据
+                scopeRegion = Constants.DATA_SCOPE_NO_MATCH_CODE;
+            } else {
+                scopeRegion = code.trim();
+                scopeLike = user.getDataScope() == Constants.DATA_SCOPE_REGION_AND_CHILDREN;
+            }
+        }
+        return reportMapper.selectStockList(itemName, warehouseName, itemCategory, scopeRegion, scopeLike);
     }
 
     /** 构建主表实体（新增时使用） */
@@ -185,6 +211,9 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         report.setHandoverPerson(handoverPerson);
         report.setAuditor(auditor);
         report.setDepartment(department);
+        // 数据隔离：报表归属当前登录人所在区划
+        LoginUser user = UserContext.get();
+        report.setRegionCode(user == null ? null : user.getRegionCode());
         return report;
     }
 
@@ -229,6 +258,10 @@ public class MaterialReportServiceImpl implements MaterialReportService {
         MaterialReport exist = reportMapper.selectById(id);
         if (exist == null) {
             throw new BizException("统计报表不存在或已删除");
+        }
+        // 数据隔离：禁止跨乡镇编辑报表
+        if (!DataScopeUtils.canAccessRegion(exist.getRegionCode())) {
+            throw new BizException("无权操作该统计报表");
         }
         return exist;
     }

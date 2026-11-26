@@ -108,9 +108,9 @@ public class DeclarationServiceImpl implements DeclarationService {
         else if ("rejected".equals(status)) targetAuditStatuses = Collections.singletonList("rejected");
         else if ("established".equals(status)) targetAuditStatuses = Collections.singletonList("established");
 
-        String me = currentUser();
+        // 不再限制 create_by：申报管理按数据权限范围（本级及以下）展示，
+        // 否则镇级账号（本人未建单）会看不到本乡镇的申报数据
         LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<Declaration>()
-                .eq(Declaration::getCreateBy, me)
                 .like(isNotBlank(title), Declaration::getTitle, isNotBlank(title) ? title.trim() : null)
                 .eq(isNotBlank(declarationType), Declaration::getDeclarationType, declarationType)
                 .eq(isNotBlank(declarationCategory), Declaration::getDeclarationCategory, declarationCategory)
@@ -1771,27 +1771,6 @@ public class DeclarationServiceImpl implements DeclarationService {
         FIXED_STATUS_LABELS.put("established", "已立项");
     }
 
-    /**
-     * 两个明细级审批状态合并为申报单整体状态。
-     * 优先级（最"严重"→最"好"）：rejected > pending > approved > established。
-     * 任意明细有 rejected → 整体 rejected；有 pending → pending；有 approved → approved；全 established → established。
-     */
-    private static int statusRank(String s) {
-        if (s == null) return 99;
-        switch (s) {
-            case "rejected": return 0;
-            case "pending": return 1;
-            case "approved": return 2;
-            case "established": return 3;
-            default: return 99;
-        }
-    }
-    private static String resolveOverallStatus(String prev, String cur) {
-        if (prev == null || prev.isBlank()) return cur;
-        if (cur == null || cur.isBlank()) return prev;
-        return statusRank(prev) <= statusRank(cur) ? prev : cur;
-    }
-
     /** 审批状态值 → 中文标签（固定口径） */
     private String mapAuditStatusLabel(String auditStatus) {
         if (auditStatus == null) return "";
@@ -1984,6 +1963,10 @@ public class DeclarationServiceImpl implements DeclarationService {
                     .collect(Collectors.toList());
         }
 
+        // 侧边栏"按审批状态统计"基准：取明细状态筛选前的全量明细，
+        // 保证左侧数字在勾选/取消勾选前后保持稳定（不随顶部状态筛选变化）
+        List<FlatItem> sidebarBaseItems = flatItems;
+
         // 顶部状态筛选：按申报单明细审批状态全局过滤（与分组维度无关，作用于所有统计视图）
         if (detailStatus != null && !detailStatus.isBlank()) {
             String ds = detailStatus.trim();
@@ -2113,24 +2096,22 @@ public class DeclarationServiceImpl implements DeclarationService {
         }
         sidebar.setByCategory(byCategory);
 
-        // 按审批状态 —— 固定四项输出。口径：申报单级去重后，每个申报单反推出一个整体状态。
-        // 状态优先级（最"严重"→最"好"）：rejected > pending > approved > established
-        // 这样保证 status 侧边栏 count 加起来 = 申报单总数，不会因明细级多状态重复计算。
+        // 按审批状态 —— 固定四项输出。
+        // 口径与"点击选中该状态后表格显示的申报单数"完全一致：
+        //   统计每个明细状态涉及的 distinct 申报单数（同一申报单不同明细可分属不同状态，允许重复计入）
+        // 且基于明细状态筛选前的全量明细，保证勾选前后左侧数字稳定不变。
         List<DeclarationStatisticsVO.StatItem> byStatus = new ArrayList<>();
-        Map<Long, String> declOverallStatus = new HashMap<>();
-        for (FlatItem f : flatItems) {
-            if (f.declarationId == null) continue;
-            String cur = f.auditStatus == null ? "" : f.auditStatus;
-            String prev = declOverallStatus.get(f.declarationId);
-            declOverallStatus.put(f.declarationId, resolveOverallStatus(prev, cur));
+        Map<String, Set<Long>> statusDecl = new HashMap<>();
+        for (FlatItem f : sidebarBaseItems) {
+            String s = f.auditStatus == null ? "" : f.auditStatus;
+            statusDecl.computeIfAbsent(s, k -> new HashSet<>());
+            if (f.declarationId != null) statusDecl.get(s).add(f.declarationId);
         }
-        Map<String, Long> statusCount = declOverallStatus.values().stream()
-                .collect(Collectors.groupingBy(s -> s == null ? "" : s, Collectors.counting()));
         for (Map.Entry<String, String> e : FIXED_STATUS_LABELS.entrySet()) {
             DeclarationStatisticsVO.StatItem it = new DeclarationStatisticsVO.StatItem();
             it.setValue(e.getKey());
             it.setLabel(e.getValue());
-            it.setCount(statusCount.getOrDefault(e.getKey(), 0L).intValue());
+            it.setCount(statusDecl.getOrDefault(e.getKey(), Collections.emptySet()).size());
             byStatus.add(it);
         }
         sidebar.setByStatus(byStatus);

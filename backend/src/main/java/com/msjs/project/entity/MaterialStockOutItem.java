@@ -63,6 +63,9 @@ public class MaterialStockOutItem implements Serializable {
     @Schema(description = "备注")
     private String remark;
 
+    @Schema(description = "区划编码（数据隔离：所属乡镇）")
+    private String regionCode;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 
