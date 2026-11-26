@@ -515,12 +515,13 @@ public class ProjectApprovalServiceImpl implements ProjectApprovalService {
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
         if (!declarationIds.isEmpty()) {
-            Map<Long, String> declarationIdRemarkMap = declarationMapper.selectList(
+            // 注意：remark 允许为空，Collectors.toMap 不接受 null 值（会抛 NPE），这里手工装载
+            Map<Long, String> declarationIdRemarkMap = new java.util.HashMap<>();
+            declarationMapper.selectList(
                             new LambdaQueryWrapper<Declaration>()
                                     .in(Declaration::getId, declarationIds)
                                     .select(Declaration::getId, Declaration::getRemark))
-                    .stream()
-                    .collect(Collectors.toMap(Declaration::getId, Declaration::getRemark, (a, b) -> a));
+                    .forEach(item -> declarationIdRemarkMap.put(item.getId(), item.getRemark()));
             for (ProjectApprovalDeclare dec : declares) {
                 if (dec.getDeclarationId() != null) {
                     declareRemarkByDeclareId.put(dec.getId(), declarationIdRemarkMap.get(dec.getDeclarationId()));

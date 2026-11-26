@@ -64,10 +64,10 @@
                 v-if="row.hasChildren"
                 class="tree-toggle"
                 :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
-                :title="collapsedKeys.has(row.nodeKey) ? '展开' : '收起'"
+                :title="expandedKeys.has(row.nodeKey) ? '收起' : '展开'"
                 @click.stop="toggleRow(row.nodeKey)"
               >
-                <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.nodeKey) }">
+                <el-icon :class="{ 'is-expanded': expandedKeys.has(row.nodeKey) }">
                   <ArrowRight />
                 </el-icon>
               </span>
@@ -1451,20 +1451,20 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
-/** 已收起的节点集合（默认全部收起，列表仅展示一级项目） */
-const collapsedKeys = ref<Set<string>>(new Set())
+/** 已展开的节点集合（默认全部收起，列表仅展示一级项目），刷新数据后保留展开状态 */
+const expandedKeys = ref<Set<string>>(new Set())
 
 const toggleRow = (key: string) => {
-  const next = new Set(collapsedKeys.value)
+  const next = new Set(expandedKeys.value)
   if (next.has(key)) {
     next.delete(key)
   } else {
     next.add(key)
   }
-  collapsedKeys.value = next
+  expandedKeys.value = next
 }
 
-/** 收集所有含子节点的行标识，用于默认收起 */
+/** 收集所有含子节点的行标识，用于校验刷新后仍存在的节点 */
 const collectCollapsibleKeys = (list: ConstructionNodeVO[]): Set<string> => {
   const keys = new Set<string>()
   const walk = (nodes: ConstructionNodeVO[]) => {
@@ -1486,7 +1486,7 @@ const visibleRows = computed<DisplayRow[]>(() => {
     list.forEach((node) => {
       const { children, ...rest } = node
       rows.push({ ...rest, hasChildren: !!children?.length, raw: node })
-      if (children?.length && !collapsedKeys.value.has(node.nodeKey)) {
+      if (children?.length && expandedKeys.value.has(node.nodeKey)) {
         walk(children)
       }
     })
@@ -1510,8 +1510,9 @@ const loadData = async () => {
       projectType: queryForm.projectType || undefined
     })
     tableData.value = res.data.records || []
-    // 默认收起全部下级，仅展示一级项目
-    collapsedKeys.value = collectCollapsibleKeys(tableData.value)
+    // 保留用户已展开的层级：仅清理本次数据中不存在的节点标识，操作后刷新不再自动收起
+    const validKeys = collectCollapsibleKeys(tableData.value)
+    expandedKeys.value = new Set([...expandedKeys.value].filter((key) => validKeys.has(key)))
     total.value = res.data.total
   } finally {
     loading.value = false

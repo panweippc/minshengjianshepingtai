@@ -56,10 +56,10 @@
                 v-if="row.hasChildren"
                 class="tree-toggle"
                 :class="{ 'tree-toggle--declare': row.nodeType === 'declare' }"
-                :title="collapsedKeys.has(row.rowKey) ? '展开' : '收起'"
+                :title="expandedKeys.has(row.rowKey) ? '收起' : '展开'"
                 @click.stop="toggleRow(row.rowKey)"
               >
-                <el-icon :class="{ 'is-expanded': !collapsedKeys.has(row.rowKey) }">
+                <el-icon :class="{ 'is-expanded': expandedKeys.has(row.rowKey) }">
                   <ArrowRight />
                 </el-icon>
               </span>
@@ -1592,10 +1592,10 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
-/** 已收起的节点集合（默认全部收起） */
-const collapsedKeys = ref<Set<string>>(new Set())
+/** 已展开的节点集合（默认全部收起），刷新数据后保留展开状态，避免操作后层级自动收起 */
+const expandedKeys = ref<Set<string>>(new Set())
 
-/** 收集所有含子节点的行标识，用于默认收起全部树节点 */
+/** 收集所有含子节点的行标识，用于校验刷新后仍存在的节点 */
 const collectExpandableKeys = (rows: DisplayRow[]): Set<string> => {
   const keys = new Set<string>()
   const walk = (list: DisplayRow[]) => {
@@ -1612,13 +1612,13 @@ const collectExpandableKeys = (rows: DisplayRow[]): Set<string> => {
 
 /** 手写展开/收起，保证三个层级的缩进与资金管理、立项管理完全一致 */
 const toggleRow = (key: string) => {
-  const next = new Set(collapsedKeys.value)
+  const next = new Set(expandedKeys.value)
   if (next.has(key)) {
     next.delete(key)
   } else {
     next.add(key)
   }
-  collapsedKeys.value = next
+  expandedKeys.value = next
 }
 
 const visibleRows = computed(() => {
@@ -1626,7 +1626,7 @@ const visibleRows = computed(() => {
   const walk = (list: DisplayRow[]) => {
     list.forEach((row) => {
       rows.push({ ...row, children: undefined })
-      if (row.children?.length && !collapsedKeys.value.has(row.rowKey)) {
+      if (row.children?.length && expandedKeys.value.has(row.rowKey)) {
         walk(row.children)
       }
     })
@@ -1699,8 +1699,9 @@ const loadData = async () => {
       projectSource: queryForm.projectSource || undefined
     })
     tableData.value = (res.data.records || []).map((node) => toDisplay(node, node.id))
-    // 默认全部收起：仅展示一级项目行，展开后再逐级查看
-    collapsedKeys.value = collectExpandableKeys(tableData.value)
+    // 保留用户已展开的层级：仅清理本次数据中不存在的节点标识，操作后刷新不再自动收起
+    const validKeys = collectExpandableKeys(tableData.value)
+    expandedKeys.value = new Set([...expandedKeys.value].filter((key) => validKeys.has(key)))
     total.value = res.data.total
   } finally {
     loading.value = false

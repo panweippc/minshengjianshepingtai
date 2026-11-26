@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msjs.project.common.BizException;
 import com.msjs.project.common.Constants;
-import com.msjs.project.common.DataScopeUtils;
 import com.msjs.project.entity.SysDict;
 import com.msjs.project.common.LoginUser;
 import com.msjs.project.common.PageVO;
@@ -119,7 +118,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .eq(isNotBlank(townCode), Declaration::getTownCode, townCode)
                 .eq(isNotBlank(villageGroupCode), Declaration::getVillageGroupCode, villageGroupCode);
         // 数据隔离：按当前登录用户区划权限过滤（本区/本区及以下/全部）
-        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
+        applyDeclarationRegionScope(wrapper);
         // tab 分类逻辑（audit_status 匹配）：搬到 Java 层，避免 .apply() 占位符坑
         if (targetAuditStatuses != null) {
             Set<Long> matchingDeclIds = collectDeclIdsByAuditStatus(targetAuditStatuses);
@@ -465,8 +464,8 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .eq(isNotBlank(declarationType), Declaration::getDeclarationType, declarationType)
                 .eq(isNotBlank(declarationCategory), Declaration::getDeclarationCategory, declarationCategory)
                 .eq(targetAuditStatuses == null && isNotBlank(status), Declaration::getStatus, status);
-        // 数据隔离：审核人也只能看到自己权限范围内乡镇的待审核申报
-        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
+        // 数据隔离：审核人也只能看到自己权限范围内的待审核申报
+        applyDeclarationRegionScope(wrapper);
         // tab 分类逻辑（audit_status 匹配）：搬到 Java 层，统一走 collectDeclIdsByAuditStatus 工具方法
         if (targetAuditStatuses != null) {
             Set<Long> matchingDeclIds = collectDeclIdsByAuditStatus(targetAuditStatuses);
@@ -788,6 +787,34 @@ public class DeclarationServiceImpl implements DeclarationService {
             out.add(m);
         }
         return out;
+    }
+
+    /**
+     * 申报单数据权限过滤。
+     * 业务约束：申报单同时冗余 town_code（所属乡镇）与 village_group_code（所属村组），
+     * 村级/组级账号的区划编码只会命中 village_group_code，不能只按 town_code 过滤，
+     * 否则村级账号（区划码为村/组）会因 town_code 永不等值而查不到任何申报单。
+     * 安全要求：无区划绑定的非全部范围账号按空结果查询，避免越权读取全量数据。
+     */
+    private void applyDeclarationRegionScope(LambdaQueryWrapper<Declaration> wrapper) {
+        LoginUser user = UserContext.get();
+        if (user == null || user.getDataScope() == null
+                || user.getDataScope() == Constants.DATA_SCOPE_ALL) {
+            return;
+        }
+        String regionCode = user.getRegionCode();
+        if (regionCode == null || regionCode.isBlank()) {
+            wrapper.eq(Declaration::getTownCode, "");
+            return;
+        }
+        String code = regionCode.trim();
+        if (user.getDataScope() == Constants.DATA_SCOPE_REGION_AND_CHILDREN) {
+            wrapper.and(w -> w.likeRight(Declaration::getTownCode, code)
+                    .or().likeRight(Declaration::getVillageGroupCode, code));
+        } else {
+            wrapper.and(w -> w.eq(Declaration::getTownCode, code)
+                    .or().eq(Declaration::getVillageGroupCode, code));
+        }
     }
 
     /**
@@ -1845,7 +1872,7 @@ public class DeclarationServiceImpl implements DeclarationService {
         // 1) 前置过滤：按顶部条件过滤 declaration 主表
         LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<>();
         // 数据隔离：按当前登录用户区划权限过滤（本区/本区及以下/全部）
-        DataScopeUtils.applyRegionScope(wrapper, Declaration::getTownCode);
+        applyDeclarationRegionScope(wrapper);
         if (year != null && !year.isBlank()) {
             try {
                 int y = Integer.parseInt(year.trim());
