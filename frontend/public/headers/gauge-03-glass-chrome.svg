@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- G3 · 金属铬合金：抛光金属外环 + 玻璃内胆反光 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="g3-bg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#0a1828"/>
+      <stop offset="100%" stop-color="#020610"/>
+    </radialGradient>
+    <!-- 金属外环纵向高光：顶部偏亮 -->
+    <linearGradient id="g3-metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cde4f5"/>
+      <stop offset="20%" stop-color="#7fa0be"/>
+      <stop offset="50%" stop-color="#2a4462"/>
+      <stop offset="80%" stop-color="#7fa0be"/>
+      <stop offset="100%" stop-color="#cde4f5"/>
+    </linearGradient>
+    <linearGradient id="g3-inner-shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(200,240,255,0.35)"/>
+      <stop offset="15%" stop-color="rgba(100,200,255,0.08)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.25)"/>
+    </linearGradient>
+    <filter id="g3-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="150" cy="150" r="150" fill="url(#g3-bg)"/>
+
+  <!-- 金属外框厚环：用两层圆做 3D 切面 -->
+  <circle cx="150" cy="150" r="146" fill="url(#g3-metal)"/>
+  <circle cx="150" cy="150" r="140" fill="#0a1a2a" stroke="rgba(100,180,255,0.3)" stroke-width="0.8"/>
+
+  <!-- 金属高光：顶部斜条 -->
+  <path d="M 150 6 A 145 145 0 0 1 245 40" stroke="rgba(230,250,255,0.55)" stroke-width="2.5" fill="none" filter="url(#g3-glow)"/>
+  <path d="M 150 6 A 145 145 0 0 0 55 40" stroke="rgba(230,250,255,0.35)" stroke-width="1.6" fill="none"/>
+
+  <!-- 玻璃内圈 -->
+  <circle cx="150" cy="150" r="132" fill="url(#g3-inner-shine)" stroke="rgba(60,140,220,0.25)" stroke-width="0.8"/>
+
+  <!-- 金属内环（第二切面） -->
+  <circle cx="150" cy="150" r="126" fill="none" stroke="url(#g3-metal)" stroke-width="2.5"/>
+
+  <!-- 玻璃内胆顶部反光（3D 感关键） -->
+  <ellipse cx="150" cy="72" rx="66" ry="10" fill="rgba(180,240,255,0.35)" opacity="0.8" filter="url(#g3-glow)"/>
+  <ellipse cx="150" cy="82" rx="50" ry="4" fill="rgba(220,250,255,0.55)" opacity="0.7"/>
+
+  <!-- 底部暗弧（3D 切面） -->
+  <path d="M 26 150 A 128 128 0 0 0 274 150" stroke="rgba(0,0,0,0.55)" stroke-width="4" fill="none"/>
+
+  <!-- 金属外环刻度（12 个均匀分布的小圆点） -->
+  <g fill="rgba(180,230,255,0.85)">
+    <circle cx="150" cy="14" r="2.2"/>
+    <circle cx="252" cy="55" r="2"/>
+    <circle cx="286" cy="150" r="2.2"/>
+    <circle cx="252" cy="245" r="2"/>
+    <circle cx="150" cy="286" r="2.2"/>
+    <circle cx="48" cy="245" r="2"/>
+    <circle cx="14" cy="150" r="2.2"/>
+    <circle cx="48" cy="55" r="2"/>
+  </g>
+</svg>

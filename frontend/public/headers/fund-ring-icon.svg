@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 资金完成率圆环 icon：参考用户图片的多段环形切割风格 + 大屏蓝青科技色系 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <defs>
+    <!-- 主进度色：大屏一致蓝青渐变 -->
+    <linearGradient id="ringMain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a5fb4"/>
+      <stop offset="40%" stop-color="#3ea8e0"/>
+      <stop offset="70%" stop-color="#7dcfff"/>
+      <stop offset="100%" stop-color="#e8f7ff"/>
+    </linearGradient>
+    <!-- 暗底环：低调深灰蓝 -->
+    <linearGradient id="ringTrack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(40,80,120,0.22)"/>
+      <stop offset="100%" stop-color="rgba(20,40,60,0.12)"/>
+    </linearGradient>
+    <filter id="ringGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="ringGlowSoft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景大圆（纯装饰极暗，不抢戏） -->
+  <circle cx="120" cy="120" r="90" fill="none" stroke="rgba(60,120,180,0.08)" stroke-width="1"/>
+
+  <!-- ========== 外圈暗底环（整圈暗线） ========== -->
+  <circle cx="120" cy="120" r="82" fill="none" stroke="url(#ringTrack)" stroke-width="6"/>
+
+  <!-- ========== 外圈主环（进度 78.5%，约 283° 弧段，从 12 点方向起） ========== -->
+  <!-- 参考图多段切割风格：分成 3 段长弧 + 1 段短弧 -->
+  <!-- 用 path 的 stroke-dasharray 做切割，这样不用写复杂 arc -->
+  <circle cx="120" cy="120" r="82" fill="none" stroke="url(#ringMain)" stroke-width="6"
+          stroke-linecap="round"
+          stroke-dasharray="181 36 75 12 120 45"
+          stroke-dashoffset="-35"
+          transform="rotate(-90 120 120)"
+          filter="url(#ringGlow)"/>
+  <!-- 外层描边（让环有厚度感） -->
+  <circle cx="120" cy="120" r="82" fill="none" stroke="url(#ringMain)" stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-dasharray="181 36 75 12 120 45"
+          stroke-dashoffset="-35"
+          transform="rotate(-90 120 120)"/>
+
+  <!-- ========== 内层副环（更细、更亮，短切割弧段） ========== -->
+  <!-- 右上弧段 -->
+  <path d="M158.5 58.5 A 58 58 0 0 1 180 90" fill="none"
+        stroke="#7dcfff" stroke-width="3" stroke-linecap="round"
+        filter="url(#ringGlowSoft)"/>
+  <!-- 右下弧段 -->
+  <path d="M165 160 A 58 58 0 0 1 135 179" fill="none"
+        stroke="#3ea8e0" stroke-width="3" stroke-linecap="round"/>
+  <!-- 左上弧段 -->
+  <path d="M85 65 A 58 58 0 0 0 58 92" fill="none"
+        stroke="#7dcfff" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- ========== 装饰小亮点（参考图上的小切点） ========== -->
+  <circle cx="120" cy="38" r="2.5" fill="#e8f7ff" filter="url(#ringGlowSoft)"/>
+  <circle cx="202" cy="120" r="2" fill="#7dcfff"/>
+  <circle cx="120" cy="202" r="2" fill="#3ea8e0"/>
+  <circle cx="38" cy="120" r="2" fill="#7dcfff"/>
+</svg>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- G2 · 霓虹发光环：蓝紫霓虹 + 外环切口 + 光晕 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="g2-bg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#0a1230"/>
+      <stop offset="100%" stop-color="#020412"/>
+    </radialGradient>
+    <filter id="g2-neon" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="g2-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="g2-ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7d5fff"/>
+      <stop offset="50%" stop-color="#27e5ff"/>
+      <stop offset="100%" stop-color="#7d5fff"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="150" cy="150" r="150" fill="url(#g2-bg)"/>
+
+  <!-- 外圈：紫蓝霓虹粗环 -->
+  <circle cx="150" cy="150" r="138" fill="none" stroke="url(#g2-ring)" stroke-width="5" filter="url(#g2-neon)"/>
+  <circle cx="150" cy="150" r="138" fill="none" stroke="url(#g2-ring)" stroke-width="2" filter="url(#g2-soft)"/>
+
+  <!-- 顶部光弧：3D 高光感 -->
+  <path d="M 70 35 A 135 135 0 0 1 230 35" stroke="rgba(220,250,255,0.55)" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#g2-soft)"/>
+
+  <!-- 两个小切口（赛博感） -->
+  <g stroke="#020412" stroke-width="6" stroke-linecap="round">
+    <line x1="50" y1="65" x2="70" y2="55"/>
+    <line x1="250" y1="65" x2="230" y2="55"/>
+    <line x1="40" y1="245" x2="65" y2="240" stroke-width="4"/>
+    <line x1="260" y1="245" x2="235" y2="240" stroke-width="4"/>
+  </g>
+
+  <!-- 内环 1 -->
+  <circle cx="150" cy="150" r="122" fill="none" stroke="rgba(180,120,255,0.3)" stroke-width="1"/>
+  <!-- 内环 2 -->
+  <circle cx="150" cy="150" r="114" fill="none" stroke="rgba(80,220,255,0.3)" stroke-width="0.8"/>
+
+  <!-- 底部弧段（3D 切面） -->
+  <path d="M 34 150 A 115 115 0 0 0 266 150" stroke="rgba(0,0,0,0.5)" stroke-width="4" fill="none"/>
+
+  <!-- 中心冷光点 -->
+  <circle cx="150" cy="150" r="3" fill="rgba(200,255,255,0.9)" filter="url(#g2-neon)"/>
+
+  <!-- 小装饰点 -->
+  <g fill="rgba(180,120,255,0.8)">
+    <circle cx="150" cy="14" r="2"/>
+    <circle cx="286" cy="150" r="2"/>
+    <circle cx="14" cy="150" r="2"/>
+  </g>
+</svg>

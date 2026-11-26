@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 风格01：深蓝商务风（稳重正式，适合政务/民生） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 140" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#061e3c"/>
+      <stop offset="50%" stop-color="#0a2f58"/>
+      <stop offset="100%" stop-color="#041628"/>
+    </linearGradient>
+    <linearGradient id="edge1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,200,255,0)"/>
+      <stop offset="50%" stop-color="rgba(0,220,255,0.9)"/>
+      <stop offset="100%" stop-color="rgba(0,200,255,0)"/>
+    </linearGradient>
+    <radialGradient id="halo1" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="rgba(60,180,255,0.4)"/>
+      <stop offset="60%" stop-color="rgba(30,120,220,0.1)"/>
+      <stop offset="100%" stop-color="rgba(0,40,100,0)"/>
+    </radialGradient>
+    <filter id="g1" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="140" fill="url(#bg1)"/>
+
+  <!-- 中心光晕 -->
+  <ellipse cx="960" cy="70" rx="600" ry="60" fill="url(#halo1)"/>
+
+  <!-- 左右斜切面板 -->
+  <polygon points="0,18 380,18 430,50 430,90 380,122 0,122" fill="rgba(12,60,110,0.3)" stroke="rgba(0,200,255,0.55)" stroke-width="1"/>
+  <polygon points="1920,18 1540,18 1490,50 1490,90 1540,122 1920,122" fill="rgba(12,60,110,0.3)" stroke="rgba(0,200,255,0.55)" stroke-width="1"/>
+
+  <!-- 标题左右尖角 -->
+  <g filter="url(#g1)">
+    <polygon points="720,70 760,50 760,90" fill="rgba(0,220,255,0.85)"/>
+    <polygon points="1200,70 1160,50 1160,90" fill="rgba(0,220,255,0.85)"/>
+    <!-- 装饰横线 -->
+    <line x1="680" y1="58" x2="756" y2="58" stroke="rgba(0,220,255,0.8)" stroke-width="1.2"/>
+    <line x1="1164" y1="58" x2="1240" y2="58" stroke="rgba(0,220,255,0.8)" stroke-width="1.2"/>
+    <line x1="680" y1="82" x2="756" y2="82" stroke="rgba(0,220,255,0.5)" stroke-width="0.8"/>
+    <line x1="1164" y1="82" x2="1240" y2="82" stroke="rgba(0,220,255,0.5)" stroke-width="0.8"/>
+  </g>
+
+  <!-- 顶部高亮线 -->
+  <line x1="0" y1="1" x2="1920" y2="1" stroke="url(#edge1)" stroke-width="1.5" filter="url(#g1)"/>
+  <!-- 底部V光 -->
+  <line x1="600" y1="128" x2="1320" y2="128" stroke="url(#edge1)" stroke-width="1.2" opacity="0.7"/>
+
+  <!-- 四角 bracket -->
+  <g stroke="rgba(0,220,255,0.85)" stroke-width="1.4" fill="none" filter="url(#g1)">
+    <polyline points="10,10 10,28 30,28"/>
+    <polyline points="1910,10 1910,28 1890,28"/>
+    <polyline points="10,130 10,112 30,112"/>
+    <polyline points="1910,130 1910,112 1890,112"/>
+  </g>
+</svg>

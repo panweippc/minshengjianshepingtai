@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 风格04：HUD雷达风（军事仪表刻度感，数据密集） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 140" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#001420"/>
+      <stop offset="50%" stop-color="#002438"/>
+      <stop offset="100%" stop-color="#001a28"/>
+    </linearGradient>
+    <filter id="g4" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="140" fill="url(#bg4)"/>
+
+  <!-- 顶部扫描线 -->
+  <rect x="0" y="0" width="1920" height="1" fill="rgba(0,255,200,0.8)" filter="url(#g4)"/>
+
+  <!-- 左侧：雷达刻度弧 -->
+  <g fill="none" stroke="rgba(0,255,200,0.7)" stroke-width="0.8">
+    <path d="M 60 130 A 70 70 0 0 1 60 60"/>
+    <path d="M 60 130 A 55 55 0 0 1 60 75" stroke-opacity="0.5"/>
+    <path d="M 60 130 A 40 40 0 0 1 60 90" stroke-opacity="0.35"/>
+    <!-- 刻度线 -->
+    <line x1="60" y1="130" x2="60" y2="40" stroke-opacity="0.3"/>
+    <line x1="60" y1="130" x2="10" y2="110" stroke-opacity="0.3"/>
+    <line x1="60" y1="130" x2="110" y2="110" stroke-opacity="0.3"/>
+  </g>
+  <!-- 右侧：镜像雷达刻度弧 -->
+  <g fill="none" stroke="rgba(0,255,200,0.7)" stroke-width="0.8">
+    <path d="M 1860 130 A 70 70 0 0 0 1860 60"/>
+    <path d="M 1860 130 A 55 55 0 0 0 1860 75" stroke-opacity="0.5"/>
+    <path d="M 1860 130 A 40 40 0 0 0 1860 90" stroke-opacity="0.35"/>
+    <line x1="1860" y1="130" x2="1860" y2="40" stroke-opacity="0.3"/>
+    <line x1="1860" y1="130" x2="1810" y2="110" stroke-opacity="0.3"/>
+    <line x1="1860" y1="130" x2="1910" y2="110" stroke-opacity="0.3"/>
+  </g>
+
+  <!-- 中心 HUD 菱形框 -->
+  <g fill="none" stroke="rgba(0,255,200,0.85)" stroke-width="1.2" filter="url(#g4)">
+    <polygon points="960,24 1040,70 960,116 880,70"/>
+    <polygon points="960,38 1026,70 960,102 894,70" stroke-opacity="0.6" stroke-width="0.8"/>
+  </g>
+
+  <!-- 中心两侧数据刻度（像仪表盘） -->
+  <g stroke="rgba(0,255,200,0.5)" stroke-width="0.6">
+    <!-- 左刻度条 -->
+    <line x1="640" y1="50" x2="680" y2="50"/>
+    <line x1="645" y1="62" x2="675" y2="62" stroke-opacity="0.7"/>
+    <line x1="640" y1="74" x2="680" y2="74"/>
+    <line x1="645" y1="86" x2="675" y2="86" stroke-opacity="0.7"/>
+    <line x1="640" y1="98" x2="680" y2="98"/>
+    <!-- 右刻度条 -->
+    <line x1="1240" y1="50" x2="1280" y2="50"/>
+    <line x1="1245" y1="62" x2="1275" y2="62" stroke-opacity="0.7"/>
+    <line x1="1240" y1="74" x2="1280" y2="74"/>
+    <line x1="1245" y1="86" x2="1275" y2="86" stroke-opacity="0.7"/>
+    <line x1="1240" y1="98" x2="1280" y2="98"/>
+  </g>
+
+  <!-- 底部流动数据流 -->
+  <g fill="rgba(0,255,200,0.4)">
+    <rect x="400" y="124" width="24" height="2"/>
+    <rect x="440" y="124" width="8" height="2"/>
+    <rect x="460" y="124" width="16" height="2"/>
+    <rect x="1450" y="124" width="16" height="2"/>
+    <rect x="1480" y="124" width="24" height="2"/>
+    <rect x="1520" y="124" width="8" height="2"/>
+  </g>
+
+  <!-- 四角 bracket -->
+  <g stroke="rgba(0,255,200,0.9)" stroke-width="1.4" fill="none" filter="url(#g4)">
+    <polyline points="14,14 14,34 36,34"/>
+    <polyline points="1906,14 1906,34 1884,34"/>
+    <polyline points="14,126 14,106 36,106"/>
+    <polyline points="1906,126 1906,106 1884,106"/>
+  </g>
+</svg>

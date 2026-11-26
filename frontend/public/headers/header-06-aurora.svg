@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 风格06：极光渐变风（紫蓝青渐变+流动感光弧） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 140" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg6" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#120634"/>
+      <stop offset="25%" stop-color="#0a1a4a"/>
+      <stop offset="50%" stop-color="#042858"/>
+      <stop offset="75%" stop-color="#0a1a4a"/>
+      <stop offset="100%" stop-color="#120634"/>
+    </linearGradient>
+    <linearGradient id="aurora6" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(200,80,255,0)"/>
+      <stop offset="20%" stop-color="rgba(80,100,255,0.5)"/>
+      <stop offset="45%" stop-color="rgba(0,220,255,0.7)"/>
+      <stop offset="55%" stop-color="rgba(0,220,255,0.7)"/>
+      <stop offset="80%" stop-color="rgba(80,100,255,0.5)"/>
+      <stop offset="100%" stop-color="rgba(200,80,255,0)"/>
+    </linearGradient>
+    <linearGradient id="aurora6b" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,220,255,0)"/>
+      <stop offset="30%" stop-color="rgba(255,80,200,0.35)"/>
+      <stop offset="50%" stop-color="rgba(0,220,255,0.4)"/>
+      <stop offset="70%" stop-color="rgba(255,80,200,0.35)"/>
+      <stop offset="100%" stop-color="rgba(0,220,255,0)"/>
+    </linearGradient>
+    <filter id="g6" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="g6soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="7"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="140" fill="url(#bg6)"/>
+
+  <!-- 极光光弧层（柔和） -->
+  <g filter="url(#g6soft)" opacity="0.9">
+    <path d="M 0 60 Q 480 20 960 50 Q 1440 80 1920 40 L 1920 80 Q 1440 50 960 80 Q 480 110 0 70 Z" fill="url(#aurora6)" opacity="0.6"/>
+    <path d="M 0 80 Q 480 60 960 90 Q 1440 110 1920 70 L 1920 110 Q 1440 80 960 110 Q 480 130 0 90 Z" fill="url(#aurora6b)" opacity="0.5"/>
+  </g>
+
+  <!-- 标题区半透明浮窗 -->
+  <g filter="url(#g6)">
+    <rect x="740" y="32" width="440" height="76" rx="6" fill="rgba(10,30,70,0.35)" stroke="rgba(180,220,255,0.5)" stroke-width="1"/>
+    <!-- 上缘高亮 -->
+    <rect x="740" y="32" width="440" height="3" rx="1.5" fill="rgba(200,250,255,0.7)"/>
+  </g>
+
+  <!-- 标题两侧流光箭头 -->
+  <g filter="url(#g6)" opacity="0.95">
+    <polygon points="728,70 748,54 748,86" fill="rgba(100,220,255,0.8)"/>
+    <polygon points="1192,70 1172,54 1172,86" fill="rgba(200,100,255,0.8)"/>
+  </g>
+
+  <!-- 顶部高光线 -->
+  <line x1="0" y1="1" x2="1920" y2="1" stroke="rgba(180,220,255,0.55)" stroke-width="1"/>
+  <!-- 底部柔和光带 -->
+  <rect x="0" y="132" width="1920" height="6" fill="url(#aurora6)" opacity="0.6"/>
+
+  <!-- 四角 bracket -->
+  <g stroke="rgba(180,220,255,0.8)" stroke-width="1.2" fill="none" filter="url(#g6)">
+    <polyline points="10,10 10,28 28,28"/>
+    <polyline points="1910,10 1910,28 1892,28"/>
+    <polyline points="10,130 10,112 28,112"/>
+    <polyline points="1910,130 1910,112 1892,112"/>
+  </g>
+</svg>
