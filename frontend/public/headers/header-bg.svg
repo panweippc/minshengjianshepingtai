@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 160" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <!-- 底色渐变：深蓝 → 稍亮 → 深蓝 -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#04122a"/>
+      <stop offset="50%" stop-color="#072a4a"/>
+      <stop offset="100%" stop-color="#04122a"/>
+    </linearGradient>
+    <!-- 顶部高光线 -->
+    <linearGradient id="topLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,255,255,0)"/>
+      <stop offset="20%" stop-color="rgba(0,230,255,0.5)"/>
+      <stop offset="50%" stop-color="rgba(0,230,255,0.85)"/>
+      <stop offset="80%" stop-color="rgba(0,230,255,0.5)"/>
+      <stop offset="100%" stop-color="rgba(0,255,255,0)"/>
+    </linearGradient>
+    <!-- 底部装饰光带 -->
+    <linearGradient id="bottomGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,210,255,0)"/>
+      <stop offset="100%" stop-color="rgba(0,210,255,0.35)"/>
+    </linearGradient>
+    <!-- 中心光晕（给标题做底衬） -->
+    <radialGradient id="centerHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(50,180,255,0.35)"/>
+      <stop offset="45%" stop-color="rgba(30,140,230,0.12)"/>
+      <stop offset="100%" stop-color="rgba(0,80,160,0)"/>
+    </radialGradient>
+    <!-- 标题下方光条 -->
+    <linearGradient id="titleBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,230,255,0)"/>
+      <stop offset="30%" stop-color="rgba(0,230,255,0.7)"/>
+      <stop offset="50%" stop-color="rgba(180,250,255,1)"/>
+      <stop offset="70%" stop-color="rgba(0,230,255,0.7)"/>
+      <stop offset="100%" stop-color="rgba(0,230,255,0)"/>
+    </linearGradient>
+    <!-- 装饰线条发光 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowStrong" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- 底色 -->
+  <rect width="1920" height="160" fill="url(#bg)"/>
+
+  <!-- 左侧装饰：斜切面板 -->
+  <g opacity="0.9">
+    <!-- 左侧面板斜切轮廓 -->
+    <polygon points="0,24 420,24 460,56 460,104 420,136 0,136" fill="rgba(10,60,110,0.25)" stroke="rgba(0,210,255,0.6)" stroke-width="1.2"/>
+    <!-- 左侧面板高光边框 -->
+    <polygon points="0,24 420,24 460,56 460,104 420,136 0,136" fill="none" stroke="rgba(120,230,255,0.3)" stroke-width="0.6"/>
+    <!-- 左上装饰角 -->
+    <polyline points="16,40 16,28 28,28" fill="none" stroke="rgba(0,230,255,0.9)" stroke-width="1.5" filter="url(#glow)"/>
+    <!-- 左下装饰角 -->
+    <polyline points="16,132 16,120 28,120" fill="none" stroke="rgba(0,230,255,0.9)" stroke-width="1.5" filter="url(#glow)"/>
+  </g>
+
+  <!-- 右侧装饰：斜切面板 -->
+  <g opacity="0.9">
+    <polygon points="1920,24 1500,24 1460,56 1460,104 1500,136 1920,136" fill="rgba(10,60,110,0.25)" stroke="rgba(0,210,255,0.6)" stroke-width="1.2"/>
+    <polygon points="1920,24 1500,24 1460,56 1460,104 1500,136 1920,136" fill="none" stroke="rgba(120,230,255,0.3)" stroke-width="0.6"/>
+    <!-- 右上装饰角 -->
+    <polyline points="1904,40 1904,28 1892,28" fill="none" stroke="rgba(0,230,255,0.9)" stroke-width="1.5" filter="url(#glow)"/>
+    <!-- 右下装饰角 -->
+    <polyline points="1904,132 1904,120 1892,120" fill="none" stroke="rgba(0,230,255,0.9)" stroke-width="1.5" filter="url(#glow)"/>
+  </g>
+
+  <!-- 中心光晕 -->
+  <ellipse cx="960" cy="80" rx="520" ry="70" fill="url(#centerHalo)"/>
+
+  <!-- 标题左装饰斜线 -->
+  <g filter="url(#glow)">
+    <line x1="700" y1="62" x2="790" y2="62" stroke="rgba(0,230,255,0.9)" stroke-width="1.5"/>
+    <line x1="710" y1="72" x2="780" y2="72" stroke="rgba(0,230,255,0.5)" stroke-width="1"/>
+    <line x1="700" y1="88" x2="790" y2="88" stroke="rgba(0,230,255,0.5)" stroke-width="1"/>
+    <line x1="710" y1="98" x2="780" y2="98" stroke="rgba(0,230,255,0.3)" stroke-width="0.8"/>
+    <!-- 左尖角 -->
+    <polygon points="688,75 700,60 700,90" fill="rgba(0,230,255,0.85)"/>
+    <polygon points="688,75 700,60 700,90" fill="none" stroke="rgba(180,250,255,1)" stroke-width="0.6"/>
+  </g>
+
+  <!-- 标题右装饰斜线（镜像） -->
+  <g filter="url(#glow)">
+    <line x1="1130" y1="62" x2="1220" y2="62" stroke="rgba(0,230,255,0.9)" stroke-width="1.5"/>
+    <line x1="1140" y1="72" x2="1210" y2="72" stroke="rgba(0,230,255,0.5)" stroke-width="1"/>
+    <line x1="1130" y1="88" x2="1220" y2="88" stroke="rgba(0,230,255,0.5)" stroke-width="1"/>
+    <line x1="1140" y1="98" x2="1210" y2="98" stroke="rgba(0,230,255,0.3)" stroke-width="0.8"/>
+    <!-- 右尖角 -->
+    <polygon points="1232,75 1220,60 1220,90" fill="rgba(0,230,255,0.85)"/>
+    <polygon points="1232,75 1220,60 1220,90" fill="none" stroke="rgba(180,250,255,1)" stroke-width="0.6"/>
+  </g>
+
+  <!-- 标题下方光条 -->
+  <line x1="720" y1="112" x2="1200" y2="112" stroke="url(#titleBar)" stroke-width="2" filter="url(#glowStrong)"/>
+  <line x1="760" y1="120" x2="1160" y2="120" stroke="rgba(0,230,255,0.25)" stroke-width="0.8"/>
+
+  <!-- 顶部高光线 -->
+  <line x1="0" y1="2" x2="1920" y2="2" stroke="url(#topLine)" stroke-width="1.5" filter="url(#glow)"/>
+  <!-- 底部光带 -->
+  <rect x="0" y="140" width="1920" height="20" fill="url(#bottomGlow)"/>
+
+  <!-- 左侧标签分隔线（竖线装饰） -->
+  <g opacity="0.6">
+    <line x1="160" y1="40" x2="160" y2="120" stroke="rgba(0,210,255,0.4)" stroke-width="0.8"/>
+    <line x1="300" y1="40" x2="300" y2="120" stroke="rgba(0,210,255,0.4)" stroke-width="0.8"/>
+  </g>
+
+  <!-- 右侧时钟分隔竖线 -->
+  <g opacity="0.6">
+    <line x1="1620" y1="40" x2="1620" y2="120" stroke="rgba(0,210,255,0.4)" stroke-width="0.8"/>
+    <line x1="1760" y1="40" x2="1760" y2="120" stroke="rgba(0,210,255,0.4)" stroke-width="0.8"/>
+  </g>
+
+  <!-- 散布粒子装饰 -->
+  <g fill="rgba(120,230,255,0.5)">
+    <circle cx="120" cy="36" r="1.2"/>
+    <circle cx="240" cy="128" r="0.9"/>
+    <circle cx="380" cy="44" r="1"/>
+    <circle cx="520" cy="120" r="0.8"/>
+    <circle cx="1380" cy="38" r="1"/>
+    <circle cx="1540" cy="124" r="1.1"/>
+    <circle cx="1680" cy="48" r="0.9"/>
+    <circle cx="1820" cy="118" r="1"/>
+  </g>
+  <g fill="rgba(180,250,255,0.8)">
+    <circle cx="200" cy="72" r="1.5"/>
+    <circle cx="340" cy="88" r="1.2"/>
+    <circle cx="1580" cy="70" r="1.5"/>
+    <circle cx="1720" cy="86" r="1.2"/>
+  </g>
+
+  <!-- 四角装饰 L 型 -->
+  <g stroke="rgba(0,230,255,0.7)" stroke-width="1.2" fill="none" filter="url(#glow)">
+    <polyline points="8,8 8,24 24,24"/>
+    <polyline points="1912,8 1912,24 1896,24"/>
+    <polyline points="8,152 8,136 24,136"/>
+    <polyline points="1912,152 1912,136 1896,136"/>
+  </g>
+</svg>

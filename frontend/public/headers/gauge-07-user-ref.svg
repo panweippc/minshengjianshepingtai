@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- G7 · 参考图精确还原：双倾斜椭圆轨道 + 外侧一圈刻度条 + 中空 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="g7-bg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#071a2a"/>
+      <stop offset="100%" stop-color="#020610"/>
+    </radialGradient>
+    <!-- 外环蓝青渐变 -->
+    <linearGradient id="g7-outer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1a4070"/>
+      <stop offset="30%" stop-color="#4fb8ea"/>
+      <stop offset="50%" stop-color="#dff7ff"/>
+      <stop offset="70%" stop-color="#4fb8ea"/>
+      <stop offset="100%" stop-color="#1a4070"/>
+    </linearGradient>
+    <!-- 内环紫蓝渐变 -->
+    <linearGradient id="g7-inner" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2a1a60"/>
+      <stop offset="35%" stop-color="#6f40d0"/>
+      <stop offset="50%" stop-color="#e0c8ff"/>
+      <stop offset="65%" stop-color="#6f40d0"/>
+      <stop offset="100%" stop-color="#2a1a60"/>
+    </linearGradient>
+    <filter id="g7-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="g7-glow2" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="150" cy="150" r="150" fill="url(#g7-bg)"/>
+
+  <!-- 外侧轨道刻度条：沿外圈椭圆分布 60 条短竖线 -->
+  <!-- 用一个父 <g transform="rotate(-20)"> 让所有刻度整体跟参考图一样斜着 -->
+  <g transform="rotate(-20 150 150)" stroke="rgba(120,220,240,0.75)" stroke-width="2.2" stroke-linecap="round" filter="url(#g7-glow2)">
+    <!-- 每 6° 一条，用 rotate 围绕中心画 -->
+    <g id="g7-ticks">
+      <!-- 批量画 60 条：60 次 rotate(6deg) 循环 -->
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(0 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(6 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(12 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(18 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(24 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(30 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(36 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(42 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(48 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(54 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(60 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(66 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(72 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(78 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(84 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(90 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(96 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(102 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(108 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(114 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(120 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(126 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(132 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(138 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(144 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(150 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(156 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(162 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(168 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(174 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(180 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(186 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(192 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(198 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(204 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(210 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(216 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(222 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(228 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(234 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(240 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(246 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(252 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(258 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(264 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(270 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(276 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(282 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(288 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(294 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(300 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(306 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(312 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(318 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(324 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(330 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(336 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(342 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(348 150 150)"/>
+      <line x1="150" y1="18" x2="150" y2="28" transform="rotate(354 150 150)"/>
+    </g>
+  </g>
+
+  <!-- 外侧椭圆轨道（蓝青）+ 内侧椭圆轨道（紫蓝）：两个倾斜同心椭圆，制造 3D 行星光环感 -->
+  <g transform="rotate(-20 150 150)">
+    <!-- 外环（较大） -->
+    <ellipse cx="150" cy="150" rx="138" ry="32" fill="none" stroke="url(#g7-outer)" stroke-width="4" filter="url(#g7-glow)"/>
+    <ellipse cx="150" cy="150" rx="138" ry="32" fill="none" stroke="url(#g7-outer)" stroke-width="1.8"/>
+    <!-- 内环（较小，紫） -->
+    <ellipse cx="150" cy="150" rx="120" ry="24" fill="none" stroke="url(#g7-inner)" stroke-width="2.8" filter="url(#g7-glow)"/>
+    <ellipse cx="150" cy="150" rx="120" ry="24" fill="none" stroke="url(#g7-inner)" stroke-width="1.1"/>
+    <!-- 中心暗盘 -->
+    <circle cx="150" cy="150" r="108" fill="url(#g7-bg)" stroke="rgba(30,60,100,0.45)" stroke-width="2"/>
+    <!-- 底部暗弧（3D 切面） -->
+    <ellipse cx="150" cy="150" rx="138" ry="32" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="5"/>
+  </g>
+</svg>

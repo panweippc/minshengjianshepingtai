@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- G5 · 轨道环：两个倾斜同心环模拟 3D 行星光环 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="g5-bg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#061220"/>
+      <stop offset="100%" stop-color="#020412"/>
+    </radialGradient>
+    <linearGradient id="g5-ring1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1a4070"/>
+      <stop offset="20%" stop-color="#3b8fe0"/>
+      <stop offset="50%" stop-color="#c0f0ff"/>
+      <stop offset="80%" stop-color="#3b8fe0"/>
+      <stop offset="100%" stop-color="#1a4070"/>
+    </linearGradient>
+    <linearGradient id="g5-ring2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2a1a60"/>
+      <stop offset="30%" stop-color="#6f40d0"/>
+      <stop offset="50%" stop-color="#e0c8ff"/>
+      <stop offset="70%" stop-color="#6f40d0"/>
+      <stop offset="100%" stop-color="#2a1a60"/>
+    </linearGradient>
+    <filter id="g5-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="150" cy="150" r="150" fill="url(#g5-bg)"/>
+
+  <!-- 主轨道环（倾斜 -18°）：用椭圆做透视感 -->
+  <g transform="rotate(-18 150 150)">
+    <!-- 外圈蓝青 -->
+    <ellipse cx="150" cy="150" rx="140" ry="34" fill="none" stroke="url(#g5-ring1)" stroke-width="5" filter="url(#g5-glow)"/>
+    <ellipse cx="150" cy="150" rx="140" ry="34" fill="none" stroke="url(#g5-ring1)" stroke-width="2" opacity="0.9"/>
+  </g>
+
+  <!-- 第二轨道环（倾斜 +14°，小一圈，紫） -->
+  <g transform="rotate(14 150 150)">
+    <ellipse cx="150" cy="150" rx="124" ry="26" fill="none" stroke="url(#g5-ring2)" stroke-width="3.5" filter="url(#g5-glow)" opacity="0.85"/>
+    <ellipse cx="150" cy="150" rx="124" ry="26" fill="none" stroke="url(#g5-ring2)" stroke-width="1.2" opacity="0.95"/>
+  </g>
+
+  <!-- 内圈：暗金属圆（底盘） -->
+  <circle cx="150" cy="150" r="106" fill="none" stroke="rgba(40,80,130,0.45)" stroke-width="3"/>
+  <circle cx="150" cy="150" r="102" fill="none" stroke="rgba(30,60,100,0.3)" stroke-width="0.8"/>
+
+  <!-- 中心冷光 -->
+  <circle cx="150" cy="150" r="50" fill="url(#g5-bg)" stroke="rgba(60,140,220,0.15)" stroke-width="0.6"/>
+
+  <!-- 底部暗弧 -->
+  <path d="M 40 150 A 120 120 0 0 0 260 150" stroke="rgba(0,0,0,0.5)" stroke-width="4" fill="none"/>
+</svg>

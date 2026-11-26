@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 参考图还原：智慧交通数据大屏 标题栏风格 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 80" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg01" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1f3d"/>
+      <stop offset="50%" stop-color="#0e2d55"/>
+      <stop offset="100%" stop-color="#0a1f3d"/>
+    </linearGradient>
+    <linearGradient id="top01" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,230,255,0)"/>
+      <stop offset="30%" stop-color="rgba(0,230,255,0.9)"/>
+      <stop offset="50%" stop-color="rgba(180,250,255,1)"/>
+      <stop offset="70%" stop-color="rgba(0,230,255,0.9)"/>
+      <stop offset="100%" stop-color="rgba(0,230,255,0)"/>
+    </linearGradient>
+    <filter id="f01" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="f01b" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="0.6"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- 底底色 -->
+  <rect width="1920" height="80" fill="url(#bg01)"/>
+
+  <!-- 顶部发光贯穿线（参考图最明显的元素） -->
+  <line x1="0" y1="1" x2="1920" y2="1" stroke="url(#top01)" stroke-width="1.2" filter="url(#f01)"/>
+
+  <!-- 左侧状态条（参考图"南京 · 2025-10-28"的位置） -->
+  <g>
+    <!-- 左侧小胶囊 -->
+    <rect x="90" y="18" width="24" height="14" rx="3" fill="rgba(0,220,255,0.15)" stroke="rgba(0,220,255,0.6)" stroke-width="0.6"/>
+    <rect x="120" y="18" width="24" height="14" rx="3" fill="rgba(0,220,255,0.1)" stroke="rgba(0,220,255,0.45)" stroke-width="0.5"/>
+  </g>
+
+  <!-- 左侧分隔发光线（竖线，参考图里有 2 条） -->
+  <line x1="200" y1="10" x2="200" y2="70" stroke="rgba(0,220,255,0.4)" stroke-width="0.8"/>
+  <line x1="201" y1="10" x2="201" y2="70" stroke="rgba(0,220,255,0.15)" stroke-width="2.2"/>
+
+  <!-- 左侧"交通数据"小装饰块（参考图最左边那个标签） -->
+  <g>
+    <rect x="215" y="28" width="96" height="22" rx="2" fill="rgba(10,40,80,0.6)" stroke="rgba(0,220,255,0.35)" stroke-width="0.6"/>
+    <rect x="215" y="28" width="6" height="22" fill="rgba(0,220,255,0.7)"/>
+  </g>
+
+  <!-- 标题左装饰框（参考图左侧尖角+横线+斜线） -->
+  <g filter="url(#f01)">
+    <!-- 左尖角 -->
+    <polygon points="770,40 795,22 795,58" fill="rgba(0,230,255,0.9)" stroke="rgba(180,250,255,1)" stroke-width="0.5"/>
+    <!-- 外高光 -->
+    <polygon points="770,40 795,22 795,58" fill="none" stroke="rgba(220,255,255,0.7)" stroke-width="1" filter="url(#f01)"/>
+    <!-- 四条装饰横线（参考图有 4 条由近到远的横线） -->
+    <line x1="800" y1="28" x2="910" y2="28" stroke="rgba(0,230,255,0.75)" stroke-width="1.2"/>
+    <line x1="810" y1="38" x2="900" y2="38" stroke="rgba(0,230,255,0.55)" stroke-width="0.9"/>
+    <line x1="810" y1="48" x2="900" y2="48" stroke="rgba(0,230,255,0.45)" stroke-width="0.7"/>
+    <line x1="800" y1="58" x2="910" y2="58" stroke="rgba(0,230,255,0.3)" stroke-width="0.5"/>
+  </g>
+
+  <!-- 标题右装饰框（镜像） -->
+  <g filter="url(#f01)">
+    <polygon points="1150,40 1125,22 1125,58" fill="rgba(0,230,255,0.9)" stroke="rgba(180,250,255,1)" stroke-width="0.5"/>
+    <polygon points="1150,40 1125,22 1125,58" fill="none" stroke="rgba(220,255,255,0.7)" stroke-width="1" filter="url(#f01)"/>
+    <line x1="1120" y1="28" x2="1010" y2="28" stroke="rgba(0,230,255,0.75)" stroke-width="1.2"/>
+    <line x1="1110" y1="38" x2="1020" y2="38" stroke="rgba(0,230,255,0.55)" stroke-width="0.9"/>
+    <line x1="1110" y1="48" x2="1020" y2="48" stroke="rgba(0,230,255,0.45)" stroke-width="0.7"/>
+    <line x1="1120" y1="58" x2="1010" y2="58" stroke="rgba(0,230,255,0.3)" stroke-width="0.5"/>
+  </g>
+
+  <!-- 标题下方发光横条（参考图"标题"字底下那条） -->
+  <line x1="860" y1="66" x2="1060" y2="66" stroke="rgba(180,250,255,0.8)" stroke-width="1.2" filter="url(#f01)"/>
+  <line x1="890" y1="70" x2="1030" y2="70" stroke="rgba(0,230,255,0.35)" stroke-width="0.6"/>
+
+  <!-- 右侧分隔发光竖线（参考图右侧有 2 条） -->
+  <line x1="1620" y1="10" x2="1620" y2="70" stroke="rgba(0,220,255,0.4)" stroke-width="0.8"/>
+  <line x1="1621" y1="10" x2="1621" y2="70" stroke="rgba(0,220,255,0.15)" stroke-width="2.2"/>
+
+  <!-- 右侧"星期提醒"标签块 -->
+  <g>
+    <rect x="1490" y="28" width="100" height="22" rx="2" fill="rgba(10,40,80,0.6)" stroke="rgba(0,220,255,0.35)" stroke-width="0.6"/>
+    <rect x="1490" y="28" width="6" height="22" fill="rgba(0,220,255,0.7)"/>
+  </g>
+
+  <!-- 四角 bracket（参考图其实没有，但加强下） -->
+  <g stroke="rgba(0,220,255,0.55)" stroke-width="0.8" fill="none">
+    <polyline points="8,8 8,20 20,20"/>
+    <polyline points="1912,8 1912,20 1900,20"/>
+    <polyline points="8,72 8,60 20,60"/>
+    <polyline points="1912,72 1912,60 1900,60"/>
+  </g>
+
+  <!-- 散布极小光点 -->
+  <g fill="rgba(0,220,255,0.5)">
+    <circle cx="320" cy="14" r="1"/>
+    <circle cx="500" cy="66" r="0.8"/>
+    <circle cx="1420" cy="14" r="1"/>
+    <circle cx="1550" cy="66" r="0.8"/>
+    <circle cx="400" cy="50" r="0.6"/>
+    <circle cx="1500" cy="40" r="0.6"/>
+  </g>
+</svg>

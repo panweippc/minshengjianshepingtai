@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 风格D：HUD军事雷达风（参考图那种仪表刻度感） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 76" preserveAspectRatio="none" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#001a28"/>
+      <stop offset="50%" stop-color="#00283c"/>
+      <stop offset="100%" stop-color="#001a28"/>
+    </linearGradient>
+    <filter id="fD" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.6"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="76" fill="url(#bgD)"/>
+
+  <!-- 顶部扫描线 -->
+  <rect x="0" y="0" width="1920" height="1" fill="rgba(0,255,200,0.85)" filter="url(#fD)"/>
+
+  <!-- 左侧雷达扇形（参考图左侧那种弧形刻度） -->
+  <g fill="none" stroke="rgba(0,255,200,0.65)" stroke-width="0.7">
+    <path d="M 70 74 A 60 60 0 0 1 70 20"/>
+    <path d="M 70 74 A 46 46 0 0 1 70 34" stroke-opacity="0.45"/>
+    <path d="M 70 74 A 32 32 0 0 1 70 48" stroke-opacity="0.3"/>
+    <line x1="70" y1="74" x2="70" y2="10" stroke-opacity="0.28"/>
+    <line x1="70" y1="74" x2="10" y2="50" stroke-opacity="0.22"/>
+    <line x1="70" y1="74" x2="130" y2="50" stroke-opacity="0.22"/>
+  </g>
+  <!-- 右侧镜像 -->
+  <g fill="none" stroke="rgba(0,255,200,0.65)" stroke-width="0.7">
+    <path d="M 1850 74 A 60 60 0 0 0 1850 20"/>
+    <path d="M 1850 74 A 46 46 0 0 0 1850 34" stroke-opacity="0.45"/>
+    <path d="M 1850 74 A 32 32 0 0 0 1850 48" stroke-opacity="0.3"/>
+    <line x1="1850" y1="74" x2="1850" y2="10" stroke-opacity="0.28"/>
+    <line x1="1850" y1="74" x2="1790" y2="50" stroke-opacity="0.22"/>
+    <line x1="1850" y1="74" x2="1910" y2="50" stroke-opacity="0.22"/>
+  </g>
+
+  <!-- 中心 HUD 菱形框（参考图标题区） -->
+  <g fill="none" stroke="rgba(0,255,200,0.85)" stroke-width="1" filter="url(#fD)">
+    <polygon points="960,14 1030,38 960,62 890,38"/>
+    <polygon points="960,22 1018,38 960,54 902,38" stroke-opacity="0.55" stroke-width="0.7"/>
+  </g>
+
+  <!-- 菱形两侧仪表盘刻度条 -->
+  <g stroke="rgba(0,255,200,0.5)" stroke-width="0.6">
+    <line x1="720" y1="26" x2="770" y2="26"/>
+    <line x1="728" y1="36" x2="762" y2="36" stroke-opacity="0.7"/>
+    <line x1="720" y1="46" x2="770" y2="46"/>
+    <line x1="728" y1="56" x2="762" y2="56" stroke-opacity="0.7"/>
+    <!-- 右镜像 -->
+    <line x1="1150" y1="26" x2="1200" y2="26"/>
+    <line x1="1158" y1="36" x2="1192" y2="36" stroke-opacity="0.7"/>
+    <line x1="1150" y1="46" x2="1200" y2="46"/>
+    <line x1="1158" y1="56" x2="1192" y2="56" stroke-opacity="0.7"/>
+  </g>
+
+  <!-- 数据块（左右两侧小胶囊） -->
+  <g fill="rgba(0,40,50,0.7)" stroke="rgba(0,255,200,0.4)" stroke-width="0.5">
+    <rect x="220" y="22" width="72" height="18" rx="2"/>
+    <rect x="300" y="36" width="60" height="14" rx="2" stroke-opacity="0.25"/>
+    <rect x="1620" y="22" width="72" height="18" rx="2"/>
+    <rect x="1560" y="36" width="60" height="14" rx="2" stroke-opacity="0.25"/>
+  </g>
+
+  <!-- 四角 bracket -->
+  <g stroke="rgba(0,255,200,0.75)" stroke-width="1" fill="none" filter="url(#fD)">
+    <polyline points="12,12 12,26 28,26"/>
+    <polyline points="1908,12 1908,26 1892,26"/>
+    <polyline points="12,64 12,50 28,50"/>
+    <polyline points="1908,64 1908,50 1892,50"/>
+  </g>
+</svg>
