@@ -34,6 +34,9 @@ public class UserInfoVO {
     @Schema(description = "所属行政区划名称")
     private String regionName;
 
+    @Schema(description = "所属行政区划层级：1省 3区县 4乡镇 5行政村 6村民小组")
+    private Integer regionLevel;
+
     @Schema(description = "手机号")
     private String phone;
 

@@ -161,6 +161,7 @@ public class AuthServiceImpl implements AuthService {
             SysRegion region = regionMapper.selectOne(new LambdaQueryWrapper<SysRegion>()
                     .eq(SysRegion::getCode, user.getRegionCode()));
             vo.setRegionName(region == null ? null : region.getName());
+            vo.setRegionLevel(region == null ? null : region.getLevel());
         }
 
         // 可见菜单树：admin 全量，其余按角色关联

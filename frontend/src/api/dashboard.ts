@@ -23,6 +23,14 @@ export interface DashboardOverviewVO {
   facilityCount: number
   /** 在库物资总数 */
   materialStockTotal: number
+  /** 申报单：待审核数量（已提交待审） */
+  declarationPendingCount: number
+  /** 申报单：已通过数量 */
+  declarationApprovedCount: number
+  /** 申报单：已驳回数量 */
+  declarationRejectedCount: number
+  /** 申报单：已立项数量（立项单已通过） */
+  declarationEstablishedCount: number
   /** 项目进度概览（一个项目一条记录） */
   projectProgress: ProjectProgressVO[]
 }

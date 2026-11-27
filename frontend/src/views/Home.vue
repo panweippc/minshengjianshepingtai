@@ -8,54 +8,96 @@
           <span class="welcome-wave">👋</span>
         </div>
         <div class="welcome-meta">
-          <span class="meta-chip">{{ regionText }}</span>
-          <span class="meta-chip">{{ roleText }}</span>
           <span class="meta-date">{{ dateText }}</span>
         </div>
       </div>
     </section>
 
-    <!-- 第一行：核心指标卡片 -->
-    <div v-loading="statsLoading" class="stat-row">
-      <el-row :gutter="16">
-        <el-col
-          v-for="(item, index) in statCards"
-          :key="item.key"
-          class="stat-col"
-          :xs="24"
-          :sm="12"
-          :lg="6"
-          :style="{ animationDelay: `${index * 70 + 60}ms` }"
-        >
-          <el-card
-            class="stat-card"
-            shadow="never"
-            :style="{ background: item.tint, borderColor: item.border }"
+    <!-- 村级：2 张指标卡左右并排 -->
+    <template v-if="isVillageUser">
+      <div v-loading="statsLoading" class="stat-row">
+        <el-row :gutter="16">
+          <el-col
+            v-for="(item, index) in statCards"
+            :key="item.key"
+            class="stat-col"
+            :xs="24"
+            :sm="12"
+            :lg="12"
+            :style="{ animationDelay: `${index * 70 + 60}ms` }"
           >
-            <div class="stat-body">
-              <div
-                class="stat-icon"
-                :style="{ background: item.gradient, boxShadow: `0 6px 14px ${item.shadow}` }"
-              >
-                <el-icon :size="26"><component :is="item.icon" /></el-icon>
-              </div>
-              <div class="stat-text">
-                <div class="stat-label">{{ item.label }}</div>
-                <div class="stat-value">
-                  {{ formatNumber(item.value) }}<span class="stat-unit">{{ item.unit }}</span>
+            <el-card
+              class="stat-card"
+              shadow="never"
+              :style="{ background: item.tint, borderColor: item.border }"
+            >
+              <div class="stat-body">
+                <div
+                  class="stat-icon"
+                  :style="{ background: item.gradient, boxShadow: `0 6px 14px ${item.shadow}` }"
+                >
+                  <el-icon :size="26"><component :is="item.icon" /></el-icon>
                 </div>
+                <div class="stat-text">
+                  <div class="stat-label">{{ item.label }}</div>
+                  <div class="stat-value">
+                    {{ formatNumber(item.value) }}<span class="stat-unit">{{ item.unit }}</span>
+                  </div>
+                </div>
+                <el-icon class="stat-watermark" :size="80" :style="{ color: item.color }">
+                  <component :is="item.icon" />
+                </el-icon>
               </div>
-              <el-icon class="stat-watermark" :size="80" :style="{ color: item.color }">
-                <component :is="item.icon" />
-              </el-icon>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-    </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+    </template>
 
-    <!-- 项目进度概览：一个项目一条记录，展示当前阶段 -->
-    <el-card v-loading="statsLoading" class="progress-card" shadow="never">
+    <!-- 非村级：保持最初样子——只有 4 张指标卡 + 项目进度，不要申报卡 -->
+    <template v-else>
+      <!-- 核心指标卡片 -->
+      <div v-loading="statsLoading" class="stat-row">
+        <el-row :gutter="16">
+          <el-col
+            v-for="(item, index) in statCards"
+            :key="item.key"
+            class="stat-col"
+            :xs="24"
+            :sm="12"
+            :lg="6"
+            :style="{ animationDelay: `${index * 70 + 60}ms` }"
+          >
+            <el-card
+              class="stat-card"
+              shadow="never"
+              :style="{ background: item.tint, borderColor: item.border }"
+            >
+              <div class="stat-body">
+                <div
+                  class="stat-icon"
+                  :style="{ background: item.gradient, boxShadow: `0 6px 14px ${item.shadow}` }"
+                >
+                  <el-icon :size="26"><component :is="item.icon" /></el-icon>
+                </div>
+                <div class="stat-text">
+                  <div class="stat-label">{{ item.label }}</div>
+                  <div class="stat-value">
+                    {{ formatNumber(item.value) }}<span class="stat-unit">{{ item.unit }}</span>
+                  </div>
+                </div>
+                <el-icon class="stat-watermark" :size="80" :style="{ color: item.color }">
+                  <component :is="item.icon" />
+                </el-icon>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+    </template>
+
+    <!-- 项目进度概览：村级用户隐藏（村级视角只有本村项目，暂无多项目对比） -->
+    <el-card v-if="!isVillageUser" v-loading="statsLoading" class="progress-card" shadow="never">
       <template #header>
         <div class="progress-header">
           <div class="progress-heading">
@@ -113,6 +155,12 @@ import { storeToRefs } from 'pinia'
 const store = useUserStore()
 const { userInfo } = storeToRefs(store)
 
+/** 村级区划层级（后端 REGION_LEVEL_VILLAGE=5） */
+const REGION_LEVEL_VILLAGE = 5
+
+/** 是否村级用户（村级用户首页隐藏部分区级汇总内容） */
+const isVillageUser = computed(() => userInfo.value?.regionLevel === REGION_LEVEL_VILLAGE)
+
 const statsLoading = ref(false)
 const overview = ref<DashboardOverviewVO | null>(null)
 
@@ -129,12 +177,6 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
-/** 所属区划 */
-const regionText = computed(() => userInfo.value?.regionName || userInfo.value?.regionCode || '未分配区划')
-
-/** 当前角色 */
-const roleText = computed(() => userInfo.value?.roles?.join('、') || '无角色')
-
 /** 当前日期（周几） */
 const dateText = computed(() => {
   const now = new Date()
@@ -142,57 +184,63 @@ const dateText = computed(() => {
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`
 })
 
-/** 第一行指标卡片配置 */
-const statCards = computed(() => [
-  {
-    key: 'village',
-    label: '行政村总数',
-    value: overview.value?.villageCount ?? 0,
-    unit: '个',
-    icon: 'OfficeBuilding',
-    color: '#22619e',
-    gradient: 'linear-gradient(135deg, #22619e 0%, #17518c 100%)',
-    shadow: 'rgba(23, 81, 140, 0.32)',
-    tint: 'linear-gradient(135deg, #eef5fd 0%, #ffffff 72%)',
-    border: '#dbe8f7'
-  },
-  {
-    key: 'household',
-    label: '农户总数',
-    value: overview.value?.householdCount ?? 0,
-    unit: '户',
-    icon: 'House',
-    color: '#0f9d6c',
-    gradient: 'linear-gradient(135deg, #0f9d6c 0%, #3ecf92 100%)',
-    shadow: 'rgba(15, 157, 108, 0.32)',
-    tint: 'linear-gradient(135deg, #edfaf4 0%, #ffffff 72%)',
-    border: '#d5efe4'
-  },
-  {
-    key: 'facility',
-    label: '公共基础设施总数',
-    value: overview.value?.facilityCount ?? 0,
-    unit: '处',
-    icon: 'Connection',
-    color: '#e59114',
-    gradient: 'linear-gradient(135deg, #e59114 0%, #ffc247 100%)',
-    shadow: 'rgba(229, 145, 20, 0.32)',
-    tint: 'linear-gradient(135deg, #fff8ec 0%, #ffffff 72%)',
-    border: '#f6e6c9'
-  },
-  {
-    key: 'material',
-    label: '在库物资总数',
-    value: overview.value?.materialStockTotal ?? 0,
-    unit: '件',
-    icon: 'Box',
-    color: '#e35353',
-    gradient: 'linear-gradient(135deg, #e35353 0%, #ff8a6e 100%)',
-    shadow: 'rgba(227, 83, 83, 0.32)',
-    tint: 'linear-gradient(135deg, #fef2f2 0%, #ffffff 72%)',
-    border: '#f8dcdc'
+/** 第一行指标卡片配置（村级用户隐藏行政村总数、在库物资总数） */
+const statCards = computed(() => {
+  const cards = [
+    {
+      key: 'village',
+      label: '行政村总数',
+      value: overview.value?.villageCount ?? 0,
+      unit: '个',
+      icon: 'OfficeBuilding',
+      color: '#22619e',
+      gradient: 'linear-gradient(135deg, #22619e 0%, #17518c 100%)',
+      shadow: 'rgba(23, 81, 140, 0.32)',
+      tint: 'linear-gradient(135deg, #eef5fd 0%, #ffffff 72%)',
+      border: '#dbe8f7'
+    },
+    {
+      key: 'household',
+      label: '农户总数',
+      value: overview.value?.householdCount ?? 0,
+      unit: '户',
+      icon: 'House',
+      color: '#0f9d6c',
+      gradient: 'linear-gradient(135deg, #0f9d6c 0%, #3ecf92 100%)',
+      shadow: 'rgba(15, 157, 108, 0.32)',
+      tint: 'linear-gradient(135deg, #edfaf4 0%, #ffffff 72%)',
+      border: '#d5efe4'
+    },
+    {
+      key: 'facility',
+      label: '公共基础设施总数',
+      value: overview.value?.facilityCount ?? 0,
+      unit: '处',
+      icon: 'Connection',
+      color: '#e59114',
+      gradient: 'linear-gradient(135deg, #e59114 0%, #ffc247 100%)',
+      shadow: 'rgba(229, 145, 20, 0.32)',
+      tint: 'linear-gradient(135deg, #fff8ec 0%, #ffffff 72%)',
+      border: '#f6e6c9'
+    },
+    {
+      key: 'material',
+      label: '在库物资总数',
+      value: overview.value?.materialStockTotal ?? 0,
+      unit: '件',
+      icon: 'Box',
+      color: '#e35353',
+      gradient: 'linear-gradient(135deg, #e35353 0%, #ff8a6e 100%)',
+      shadow: 'rgba(227, 83, 83, 0.32)',
+      tint: 'linear-gradient(135deg, #fef2f2 0%, #ffffff 72%)',
+      border: '#f8dcdc'
+    }
+  ]
+  if (isVillageUser.value) {
+    return cards.filter((c) => c.key !== 'village' && c.key !== 'material')
   }
-])
+  return cards
+})
 
 /** 数字千分位展示 */
 function formatNumber(value: number) {
@@ -299,15 +347,6 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
-}
-
-.meta-chip {
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid #d3e2f2;
-  background: #eef4fb;
-  font-size: 12px;
-  color: #17518c;
 }
 
 .meta-date {

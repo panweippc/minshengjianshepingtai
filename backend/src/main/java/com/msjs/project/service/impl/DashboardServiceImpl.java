@@ -129,6 +129,32 @@ public class DashboardServiceImpl implements DashboardService {
         vo.setFacilityCount(facilityMapper.selectCount(facilityWrapper));
         // 在库物资总数：全部物品库存数量之和
         vo.setMaterialStockTotal(materialItemMapper.sumStockQty());
+
+        // ========== 申报单四状态计数（口径与申报管理页面 tab 对齐） ==========
+        // 待审核：父单 status=submitted（已提交待审）
+        LambdaQueryWrapper<Declaration> pendingWrapper = new LambdaQueryWrapper<Declaration>()
+                .eq(Declaration::getStatus, "submitted");
+        applyDeclarationRegionScope(pendingWrapper);
+        vo.setDeclarationPendingCount(declarationMapper.selectCount(pendingWrapper));
+
+        // 已通过：父单 status=approved（不含已立项子集，已立项单独计数）
+        LambdaQueryWrapper<Declaration> approvedWrapper = new LambdaQueryWrapper<Declaration>()
+                .eq(Declaration::getStatus, "approved");
+        applyDeclarationRegionScope(approvedWrapper);
+        vo.setDeclarationApprovedCount(declarationMapper.selectCount(approvedWrapper));
+
+        // 已驳回：父单 status=rejected
+        LambdaQueryWrapper<Declaration> rejectedWrapper = new LambdaQueryWrapper<Declaration>()
+                .eq(Declaration::getStatus, "rejected");
+        applyDeclarationRegionScope(rejectedWrapper);
+        vo.setDeclarationRejectedCount(declarationMapper.selectCount(rejectedWrapper));
+
+        // 已立项：立项单 status=APPROVED（立项通过），按 ProjectApproval.regionCode 过滤
+        LambdaQueryWrapper<ProjectApproval> establishedWrapper = new LambdaQueryWrapper<ProjectApproval>()
+                .eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED);
+        DataScopeUtils.applyRegionScope(establishedWrapper, ProjectApproval::getRegionCode);
+        vo.setDeclarationEstablishedCount(projectApprovalMapper.selectCount(establishedWrapper));
+
         // 项目进度概览：一个项目一条记录，可同时处于多个阶段；按申报单所属村组过滤数据范围
         List<ProjectProgressVO> progressList = projectApprovalMapper.selectProjectProgress(regionPrefix);
         for (ProjectProgressVO item : progressList) {
@@ -836,5 +862,31 @@ public class DashboardServiceImpl implements DashboardService {
             return (v.isBlank() || "null".equals(v)) ? null : v;
         }
         return null;
+    }
+
+    /**
+     * 申报单数据权限过滤（与 DeclarationServiceImpl 口径一致）。
+     * 业务约束：申报单同时冗余 town_code（所属乡镇）与 village_group_code（所属村组），
+     * 村级/组级账号的区划编码只会命中 village_group_code，不能只按 town_code 过滤。
+     */
+    private void applyDeclarationRegionScope(LambdaQueryWrapper<Declaration> wrapper) {
+        LoginUser user = UserContext.get();
+        if (user == null || user.getDataScope() == null
+                || user.getDataScope() == Constants.DATA_SCOPE_ALL) {
+            return;
+        }
+        String regionCode = user.getRegionCode();
+        if (regionCode == null || regionCode.isBlank()) {
+            wrapper.eq(Declaration::getTownCode, "");
+            return;
+        }
+        String code = regionCode.trim();
+        if (user.getDataScope() == Constants.DATA_SCOPE_REGION_AND_CHILDREN) {
+            wrapper.and(w -> w.likeRight(Declaration::getTownCode, code)
+                    .or().likeRight(Declaration::getVillageGroupCode, code));
+        } else {
+            wrapper.and(w -> w.eq(Declaration::getTownCode, code)
+                    .or().eq(Declaration::getVillageGroupCode, code));
+        }
     }
 }

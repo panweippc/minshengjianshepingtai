@@ -200,14 +200,14 @@
             <el-descriptions :column="2" border>
               <el-descriptions-item label="申报编号">{{ detailData.businessCode || '—' }}</el-descriptions-item>
               <el-descriptions-item label="申报日期">{{ detailData.declarationDate || '—' }}</el-descriptions-item>
-              <el-descriptions-item label="申报标题" :span="2">{{ detailData.title || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="申报标题">{{ detailData.title || '—' }}</el-descriptions-item>
               <el-descriptions-item label="所属乡镇">{{ detailData.townName || '—' }}</el-descriptions-item>
               <el-descriptions-item label="所属村组">{{ detailData.villageGroupName || '—' }}</el-descriptions-item>
               <el-descriptions-item label="申报类型">{{ dictLabel('shen_bao_lei_xing', detailData.declarationType) }}</el-descriptions-item>
               <el-descriptions-item label="申报类别">{{ dictLabel('shen_bao_lei_bie', detailData.declarationCategory) }}</el-descriptions-item>
               <el-descriptions-item label="申报金额">¥ {{ formatAmount(detailData.amount) }}</el-descriptions-item>
-              <el-descriptions-item label="备注说明" :span="2">{{ detailData.remark || '—' }}</el-descriptions-item>
-              <el-descriptions-item label="附件" :span="2">
+              <el-descriptions-item label="备注说明">{{ detailData.remark || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="附件">
                 <el-button v-if="detailData.attachments?.length" link type="primary" @click="openAttachmentDialog">附件（{{ detailData.attachments.length }}）</el-button>
                 <span v-else class="attachment-empty">无</span>
               </el-descriptions-item>
@@ -394,19 +394,19 @@
     </el-dialog>
 
     <!-- 公建设施明细查看弹窗（只读） -->
-    <el-dialog v-model="facilityViewDialog.visible" title="公建设施申报详情" width="560px">
+    <el-dialog v-model="facilityViewDialog.visible" title="公建设施申报详情" width="720px">
       <template v-if="facilityViewDialog.data">
         <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="设施名称" :span="2">{{ facilityViewDialog.data.snapshotFacilityName }}</el-descriptions-item>
+          <el-descriptions-item label="设施名称">{{ facilityViewDialog.data.snapshotFacilityName }}</el-descriptions-item>
           <el-descriptions-item label="设施编号">{{ facilityViewDialog.data.snapshotFacilityCode }}</el-descriptions-item>
           <el-descriptions-item label="设施类型">{{ dictLabel('she_shi_lei_xing', facilityViewDialog.data.snapshotFacilityType) }}</el-descriptions-item>
-          <el-descriptions-item label="所在位置" :span="2">{{ facilityViewDialog.data.snapshotLocation }}</el-descriptions-item>
+          <el-descriptions-item label="所在位置">{{ facilityViewDialog.data.snapshotLocation }}</el-descriptions-item>
           <el-descriptions-item label="所属村组">{{ facilityViewDialog.data.snapshotRegionName }}</el-descriptions-item>
           <el-descriptions-item label="单设施申报金额">
             <span v-if="facilityViewDialog.data.amount != null" style="color:#d4380d;font-weight:600">¥ {{ formatAmount(facilityViewDialog.data.amount) }}</span>
             <span v-else class="detail-empty">—</span>
           </el-descriptions-item>
-          <el-descriptions-item label="事项说明" :span="2">{{ facilityViewDialog.data.remark || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="事项说明">{{ facilityViewDialog.data.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
         <div style="margin-top: 16px">
           <div class="detail-attach-header">公建设施级附件（{{ facilityViewDialog.data.attachments?.length || 0 }}）</div>

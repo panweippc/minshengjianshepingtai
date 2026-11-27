@@ -22,10 +22,15 @@ export interface LoginVO {
 /** 当前用户信息 */
 export interface UserInfoVO {
   id: string
+  userId?: string
   username: string
   realName: string
   regionCode: string
   regionName: string
+  /** 所属行政区划层级：1省 3区县 4乡镇 5行政村 6村民小组 */
+  regionLevel?: number
+  /** 数据权限范围：1全部 2本区及以下 3仅本区 */
+  dataScope?: number
   phone?: string
   status?: number
   createTime?: string
