@@ -99,6 +99,11 @@ public class DeclarationServiceImpl implements DeclarationService {
     public PageVO<DeclarationDetailVO> page(long pageNum, long pageSize, String title,
                                             String declarationType, String declarationCategory,
                                             String status, String townCode, String villageGroupCode) {
+        // 申报管理模块：谁创建的申报单，只能在自己的账号里看到——强制以当前登录用户名过滤 create_by
+        LoginUser me = UserContext.get();
+        if (me == null || me.getUsername() == null) {
+            throw new BizException("登录已过期");
+        }
         Page<Declaration> page = new Page<>(pageNum, pageSize);
         // tab → 明细 auditStatus 匹配集合
         // 注意：approved 只放 auditStatus=approved（已立项 established 归已立项 tab），tab 语义必须严格互斥
@@ -108,9 +113,8 @@ public class DeclarationServiceImpl implements DeclarationService {
         else if ("rejected".equals(status)) targetAuditStatuses = Collections.singletonList("rejected");
         else if ("established".equals(status)) targetAuditStatuses = Collections.singletonList("established");
 
-        // 不再限制 create_by：申报管理按数据权限范围（本级及以下）展示，
-        // 否则镇级账号（本人未建单）会看不到本乡镇的申报数据
         LambdaQueryWrapper<Declaration> wrapper = new LambdaQueryWrapper<Declaration>()
+                .eq(Declaration::getCreateBy, me.getUsername())
                 .like(isNotBlank(title), Declaration::getTitle, isNotBlank(title) ? title.trim() : null)
                 .eq(isNotBlank(declarationType), Declaration::getDeclarationType, declarationType)
                 .eq(isNotBlank(declarationCategory), Declaration::getDeclarationCategory, declarationCategory)
@@ -369,6 +373,17 @@ public class DeclarationServiceImpl implements DeclarationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void submit(DeclarationSubmitDTO dto) {
+        //region debug-point batch-submit
+        // 排查批量重提"勾 2 走 3"问题：直接把 DTO 字段打到 Spring Boot 控制台
+        System.err.println("[DEBUG-DECL-SUBMIT] dto.id=" + dto.getId()
+                + ", recipientUserId=" + dto.getRecipientUserId()
+                + ", householdDetailIds=" + dto.getHouseholdDetailIds()
+                + ", facilityDetailIds=" + dto.getFacilityDetailIds());
+        boolean _batchMode = (dto.getHouseholdDetailIds() != null && !dto.getHouseholdDetailIds().isEmpty())
+                || (dto.getFacilityDetailIds() != null && !dto.getFacilityDetailIds().isEmpty());
+        System.err.println("[DEBUG-DECL-SUBMIT] _batchMode=" + _batchMode);
+        //endregion
+
         Declaration exist = declarationMapper.selectById(dto.getId());
         if (exist == null) {
             throw new BizException("申报单不存在或已被删除");
@@ -410,10 +425,32 @@ public class DeclarationServiceImpl implements DeclarationService {
         // 提交/重提：日志 action 按 beforeAuditStatus 区分：
         //   before = unsubmitted → SUBMIT_FIRST          首次提交审核
         //   before = rejected   → SUBMIT_RESUBMITTED    重新提交审核（驳回后重提）
-        List<DeclarationHousehold> pendingHouseholds = householdMapper.selectList(
-                new LambdaQueryWrapper<DeclarationHousehold>()
-                        .eq(DeclarationHousehold::getDeclarationId, exist.getId())
-                        .in(DeclarationHousehold::getAuditStatus, "unsubmitted", "rejected"));
+        //
+        // 若 dto 里带了 householdDetailIds / facilityDetailIds 任意一个 → 批量指定明细模式：
+        //   - 农户表：有 householdDetailIds 就只处理这些；没有就 0 条
+        //   - 公建表：有 facilityDetailIds 就只处理这些；没有就 0 条
+        //   （已驳回页签：申报人勾选部分被驳回的明细，批量重新提交的场景）
+        // 否则沿用旧逻辑：该申报单下所有 unsubmitted + rejected 的明细全部 reset
+        boolean batchMode = (dto.getHouseholdDetailIds() != null && !dto.getHouseholdDetailIds().isEmpty())
+                        || (dto.getFacilityDetailIds() != null && !dto.getFacilityDetailIds().isEmpty());
+
+        List<DeclarationHousehold> pendingHouseholds;
+        if (batchMode) {
+            if (dto.getHouseholdDetailIds() != null && !dto.getHouseholdDetailIds().isEmpty()) {
+                pendingHouseholds = householdMapper.selectList(
+                        new LambdaQueryWrapper<DeclarationHousehold>()
+                                .eq(DeclarationHousehold::getDeclarationId, exist.getId())
+                                .in(DeclarationHousehold::getId, dto.getHouseholdDetailIds())
+                                .in(DeclarationHousehold::getAuditStatus, "unsubmitted", "rejected"));
+            } else {
+                pendingHouseholds = new java.util.ArrayList<>();
+            }
+        } else {
+            pendingHouseholds = householdMapper.selectList(
+                    new LambdaQueryWrapper<DeclarationHousehold>()
+                            .eq(DeclarationHousehold::getDeclarationId, exist.getId())
+                            .in(DeclarationHousehold::getAuditStatus, "unsubmitted", "rejected"));
+        }
         for (DeclarationHousehold hh : pendingHouseholds) {
             String before = hh.getAuditStatus();
             hh.setAuditStatus("pending");
@@ -424,10 +461,23 @@ public class DeclarationServiceImpl implements DeclarationService {
                     null, me2 == null ? null : me2.getUserId(), submitterName);
         }
 
-        List<DeclarationPublicFacility> pendingFacilities = facilityMapper.selectList(
-                new LambdaQueryWrapper<DeclarationPublicFacility>()
-                        .eq(DeclarationPublicFacility::getDeclarationId, exist.getId())
-                        .in(DeclarationPublicFacility::getAuditStatus, "unsubmitted", "rejected"));
+        List<DeclarationPublicFacility> pendingFacilities;
+        if (batchMode) {
+            if (dto.getFacilityDetailIds() != null && !dto.getFacilityDetailIds().isEmpty()) {
+                pendingFacilities = facilityMapper.selectList(
+                        new LambdaQueryWrapper<DeclarationPublicFacility>()
+                                .eq(DeclarationPublicFacility::getDeclarationId, exist.getId())
+                                .in(DeclarationPublicFacility::getId, dto.getFacilityDetailIds())
+                                .in(DeclarationPublicFacility::getAuditStatus, "unsubmitted", "rejected"));
+            } else {
+                pendingFacilities = new java.util.ArrayList<>();
+            }
+        } else {
+            pendingFacilities = facilityMapper.selectList(
+                    new LambdaQueryWrapper<DeclarationPublicFacility>()
+                            .eq(DeclarationPublicFacility::getDeclarationId, exist.getId())
+                            .in(DeclarationPublicFacility::getAuditStatus, "unsubmitted", "rejected"));
+        }
         for (DeclarationPublicFacility pf : pendingFacilities) {
             String before = pf.getAuditStatus();
             pf.setAuditStatus("pending");
@@ -436,6 +486,11 @@ public class DeclarationServiceImpl implements DeclarationService {
             writeAuditLog(action, exist.getId(), "public_facility", pf.getId(),
                     pf.getSnapshotFacilityName(), before, "pending",
                     null, me2 == null ? null : me2.getUserId(), submitterName);
+        }
+
+        // 批量模式兜底：两张表都没找到可提交的明细（可能是前端传了已通过 id、或不属于当前申报单）
+        if (batchMode && pendingHouseholds.isEmpty() && pendingFacilities.isEmpty()) {
+            throw new BizException("未找到可重新提交的明细（仅支持已驳回或未提交的明细），请刷新列表后重试");
         }
     }
 

@@ -34,11 +34,26 @@
             :name="t.name"
           />
         </el-tabs>
-        <el-button v-if="store.hasPerm('declaration:add')" type="primary" icon="Plus" @click="openAdd">
-          新建申报
-        </el-button>
+        <div class="tab-bar__actions">
+          <!-- 已驳回页签 + 有选中明细 → 显示批量重新提交按钮 -->
+          <template v-if="activeStatusTab === 'rejected' && selectedBatchDetails.length > 0">
+            <span class="batch-tip">
+              已勾选 <strong>{{ selectedBatchDetails.length }}</strong> 条被驳回明细
+              <span v-if="selectedBatchParentCode">（来自：{{ selectedBatchParentCode }}）</span>
+            </span>
+            <el-button
+              type="primary"
+              @click="openBatchSubmitDialog"
+            >批量重新提交</el-button>
+            <el-button @click="clearBatchSelection">清空勾选</el-button>
+          </template>
+          <el-button v-if="store.hasPerm('declaration:add')" type="primary" icon="Plus" @click="openAdd">
+            新建申报
+          </el-button>
+        </div>
       </div>
       <el-table
+        ref="listTableRef"
         v-loading="loading"
         :data="treeTableData"
         border stripe
@@ -46,8 +61,16 @@
         :tree-props="{ children: '_children', hasChildren: '_hasChildren' }"
         :span-method="detailMergeMethod"
         :row-class-name="isDetailRowClass"
+        @selection-change="onBatchSelectionChange"
       >
-        <!-- 第 0 列：树形展开箭头列（空 label），Element Plus 自动把箭头放这 -->
+        <!-- ===== 仅「已驳回」页签才显示复选框列：只允许勾选 auditStatus='rejected' 的明细行 ===== -->
+        <el-table-column
+          v-if="activeStatusTab === 'rejected'"
+          type="selection"
+          width="42"
+          :selectable="isBatchSelectable"
+        />
+        <!-- 第 0 列（已驳回页签下变成第 1 列）：树形展开箭头列（空 label），Element Plus 自动把箭头放这 -->
         <el-table-column width="40" label="">
           <template #default="{ row }">
             <template v-if="row._isDetail">
@@ -57,7 +80,7 @@
         </el-table-column>
 
         <!-- 第 1 列：申报编号（父行）/ 明细行合并内容（子行） -->
-        <el-table-column label="申报编号" min-width="400">
+        <el-table-column label="申报编号" min-width="240">
           <template #default="{ row }">
             <template v-if="!row._isDetail">{{ row.businessCode }}</template>
             <template v-else-if="row._detailKind === 'household'">
@@ -143,9 +166,6 @@
         </el-table-column>
         <el-table-column label="申报金额" width="140" align="right">
           <template #default="{ row }">{{ !row._isDetail ? '¥ ' + row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '' }}</template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">{{ !row._isDetail ? row.createTime : '' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
@@ -830,7 +850,9 @@
     <!-- 提交弹窗：选择接收审核人 + 二次确认 -->
     <el-dialog
       v-model="submitDialog.visible"
-      :title="`提交申报：${submitDialog.row?.businessCode || ''}`"
+      :title="(submitDialog as any)._batchMode
+        ? `批量重新提交：${submitDialog.row?.businessCode || ''}（${selectedBatchDetails.length} 条明细）`
+        : `提交申报：${submitDialog.row?.businessCode || ''}`"
       width="520px"
       :close-on-click-modal="false"
       append-to-body
@@ -1032,12 +1054,144 @@ function resetQuery() {
   loadData()
 }
 function onStatusTabChange(tab: string) {
+  // 切走已驳回页签时清空已勾选的批量选择，避免跨页签残留脏状态
+  if (activeStatusTab.value === 'rejected' && tab !== 'rejected') {
+    selectedBatchDetails.value = []
+    clearBatchSelection()
+  }
   activeStatusTab.value = tab
   query.pageNum = 1
   loadData()
 }
 
-/** 把父行里挂的 households + facilities 明细扁平化成一个数组 */
+// ================== 已驳回页签：批量重新提交（勾选明细行） ==================
+const listTableRef = ref()
+const selectedBatchDetails = ref<any[]>([])
+
+/** 选中明细所属的父申报单编号（用于 tab-bar 上展示） */
+const selectedBatchParentCode = computed(() => {
+  if (!selectedBatchDetails.value.length) return ''
+  const first = selectedBatchDetails.value[0]
+  return first?._parentRef?.id
+    ? treeTableData.value.find((p: any) => p.id === first._parentRef.id)?.businessCode || ''
+    : ''
+})
+
+/**
+ * 哪些行可被勾选：
+ *   - 仅已驳回页签
+ *   - 仅明细行（row._isDetail）
+ *   - 仅 auditStatus === 'rejected' （已通过的、待审核的、未提交的都不让勾）
+ */
+function isBatchSelectable(row: any): boolean {
+  if (activeStatusTab.value !== 'rejected') return false
+  if (!row?._isDetail) return false
+  return row.auditStatus === 'rejected'
+}
+
+/**
+ * 批量勾选 change 回调（Element Plus 树形表格：selection 是所有被勾中的行，包含父行+子行）
+ * 只保留可提交的（已驳回 + 明细行），并校验不能跨多个申报单勾选——否则后端一次 submit 只能针对一个父申报单
+ */
+function onBatchSelectionChange(selection: any[]) {
+  let valid = selection.filter((r: any) => isBatchSelectable(r))
+  if (valid.length > 0) {
+    // 校验父申报单 id 一致性
+    const parentIds = new Set(valid.map((r: any) => r._parentRef?.id).filter(Boolean))
+    if (parentIds.size > 1) {
+      // 跨单 → 只保留第一个申报单的明细，同时给提示
+      const firstParentId = valid[0]._parentRef?.id
+      valid = valid.filter((r: any) => r._parentRef?.id === firstParentId)
+      ElMessage.warning('批量重新提交仅支持同一个申报单下的明细，已自动保留首个申报单内的勾选')
+      // 回写勾选：把不在 valid 里的行取消勾选
+      nextTick(() => {
+        selection.forEach((r: any) => {
+          if (!isBatchSelectable(r)) return
+          if (!valid.some((v: any) => v._rowKey === r._rowKey)) {
+            listTableRef.value?.toggleRowSelection(r, false)
+          }
+        })
+      })
+    }
+  }
+  selectedBatchDetails.value = valid
+}
+
+function clearBatchSelection() {
+  nextTick(() => {
+    listTableRef.value?.clearSelection?.()
+    selectedBatchDetails.value = []
+  })
+}
+
+/** 从已勾明细里按 kind 拆分成 householdDetailIds / facilityDetailIds */
+function buildBatchDetailIds() {
+  const householdDetailIds: string[] = []
+  const facilityDetailIds: string[] = []
+  for (const d of selectedBatchDetails.value) {
+    if (!d?.id) continue
+    if (d._detailKind === 'household') householdDetailIds.push(String(d.id))
+    else if (d._detailKind === 'public_facility') facilityDetailIds.push(String(d.id))
+  }
+  return { householdDetailIds, facilityDetailIds }
+}
+
+/** 打开批量重新提交的"选审核人"弹窗 */
+function openBatchSubmitDialog() {
+  if (!selectedBatchDetails.value.length) {
+    ElMessage.warning('请先勾选需要重新提交的被驳回明细')
+    return
+  }
+  // 拿父申报单（所有勾明细都来自同一个）
+  const first = selectedBatchDetails.value[0]
+  const parentRow = treeTableData.value.find((p: any) => p.id === first._parentRef?.id)
+  if (!parentRow) {
+    ElMessage.error('未找到对应的申报单，请刷新后重试')
+    return
+  }
+  // 复用 submitDialog：row 字段存父申报单；多带一个标记表示批量模式
+  ;(submitDialog as any)._batchMode = true
+  submitDialog.row = parentRow
+  submitDialog.recipientUserId = ''
+  submitDialog.recipientList = []
+  submitDialog.visible = true
+  searchRecipients('')
+}
+
+/** 批量重新提交：在 doSubmitDeclaration 里被 _batchMode 分支命中 */
+async function doBatchSubmit() {
+  if (!submitDialog.row || !submitDialog.recipientUserId) return
+  const { householdDetailIds, facilityDetailIds } = buildBatchDetailIds()
+  //region debug-point batch-submit
+  // 排查批量重提"勾 2 走 3"问题：前端 console.error 打印最终要提交的 DTO
+  // eslint-disable-next-line no-console
+  console.error('[DEBUG-BATCH-SUBMIT] selectedBatchDetails.length=', selectedBatchDetails.value.length)
+  // eslint-disable-next-line no-console
+  console.error('[DEBUG-BATCH-SUBMIT] householdDetailIds=', householdDetailIds)
+  // eslint-disable-next-line no-console
+  console.error('[DEBUG-BATCH-SUBMIT] facilityDetailIds=', facilityDetailIds)
+  //endregion
+  const dto: DeclarationSubmitDTO = {
+    id: submitDialog.row.id,
+    recipientUserId: submitDialog.recipientUserId,
+    householdDetailIds: householdDetailIds.length ? householdDetailIds : undefined,
+    facilityDetailIds: facilityDetailIds.length ? facilityDetailIds : undefined
+  }
+  submitDialog.submitting = true
+  try {
+    await submitDeclaration(dto)
+    ElMessage.success(`已重新提交 ${householdDetailIds.length + facilityDetailIds.length} 条明细`)
+    submitDialog.visible = false
+    ;(submitDialog as any)._batchMode = false
+    clearBatchSelection()
+    loadData()
+  } catch { /* 拦截器已弹 */ }
+  finally {
+    submitDialog.submitting = false
+  }
+}
+
+/** 把父申报单里挂的 households + facilities 明细扁平化成一个数组 */
 function flatDetails(row: any): any[] {
   return [
     ...(row?.households || []),
@@ -1098,21 +1252,25 @@ function formatAmount(v?: number | string | null) {
 }
 
 /**
- * 子明细行横向合并：
- * 总 10 列：col0=展开箭头 / col1=申报编号 / col2-8=中间7列 / col9=操作列(固定右侧)
- * 子明细行：col0 独立；col1 横向合并到 col8 共 8 列；col9 操作列独立
+ * 子明细行横向合并（已移除"创建时间"列）：
+ *   默认页签（无 selection）：col0=箭头 / col1=申报编号 / ... / col9=操作（共 10 列）
+ *   已驳回页签（有 selection）：col0=selection / col1=箭头 / col2=申报编号 / ... / col10=操作（共 11 列）
+ *
+ * 子明细行：申报编号列横向合并到操作列之前；selection / 箭头 / 操作列独立
  * 父行：全部正常 1×1
  */
-/**
- * 当前 Submit 页列数：箭头(0) + 申报编号(1) + 申报标题 + 申报日期 + 乡镇 + 村组 + 类型 + 类别 + 金额 + 创建时间 + 操作(10) = 11 列
- * 明细行横向合并：col 1 (申报编号) 一次性合并到 col 9 (创建时间)，操作列(10) 独立
- */
-const ACTION_COL_INDEX = 10
 function detailMergeMethod({ row, columnIndex }: { row: any; columnIndex: number }) {
+  const rejectedTab = activeStatusTab.value === 'rejected'
+  const ACTION_COL = rejectedTab ? 10 : 9            // 操作列索引
+  const ARROW_COL = rejectedTab ? 1 : 0             // 箭头列索引
+  const FIRST_DATA_COL = rejectedTab ? 2 : 1        // 申报编号（合并起点）
   if (!row._isDetail) return { rowspan: 1, colspan: 1 }
-  if (columnIndex === 0)           return { rowspan: 1, colspan: 1 }  // 展开箭头列独立
-  if (columnIndex === ACTION_COL_INDEX) return { rowspan: 1, colspan: 1 }  // 操作列独立
-  if (columnIndex === 1)           return { rowspan: 1, colspan: ACTION_COL_INDEX - 1 }  // col1 横向合并到操作列之前
+  // 独立列：selection(仅 rejected 时) / 箭头 / 操作
+  if (rejectedTab && columnIndex === 0) return { rowspan: 1, colspan: 1 }
+  if (columnIndex === ARROW_COL)           return { rowspan: 1, colspan: 1 }
+  if (columnIndex === ACTION_COL)          return { rowspan: 1, colspan: 1 }
+  // 申报编号列一次性合并到操作列之前
+  if (columnIndex === FIRST_DATA_COL)      return { rowspan: 1, colspan: ACTION_COL - FIRST_DATA_COL }
   return { rowspan: 0, colspan: 0 }  // 被合并掉的中间列
 }
 function isDetailRowClass({ row }: { row: any }) {
@@ -1837,6 +1995,7 @@ const selectedRecipientLabel = computed(() => {
 })
 
 function openSubmitDialog(row: DeclarationVO) {
+  ;(submitDialog as any)._batchMode = false  // 父行单点提交：先清掉批量模式标记
   submitDialog.row = row
   submitDialog.recipientUserId = ''
   submitDialog.recipientList = []
@@ -1855,6 +2014,11 @@ async function searchRecipients(keyword: string) {
 }
 async function doSubmitDeclaration() {
   if (!submitDialog.row || !submitDialog.recipientUserId) return
+  // 批量重新提交模式（已驳回页签勾选多条明细时走这里）
+  if ((submitDialog as any)._batchMode) {
+    await doBatchSubmit()
+    return
+  }
   const dto: DeclarationSubmitDTO = {
     id: submitDialog.row.id,
     recipientUserId: submitDialog.recipientUserId
@@ -1929,6 +2093,8 @@ onMounted(async () => {
 .tab-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .tab-bar .status-tabs { flex: 1; }
 .tab-bar :deep(.el-tabs__header) { margin: 0; margin-bottom: 0; }
+.tab-bar__actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.batch-tip { font-size: 13px; color: #606266; margin-right: 4px; white-space: nowrap; }
 
 .detail-mode .detail-section { margin-top: 16px; }
 .detail-mode .detail-section-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #303133; }

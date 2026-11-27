@@ -176,6 +176,10 @@ export interface DeclarationSubmitDTO {
   id: string
   /** 接收审核人（雪花ID，前端从 /api/declaration/recipients 下拉选） */
   recipientUserId: string
+  /** 仅重新提交的农户明细ID列表（可选；为空或不传则全量重置该申报单下所有 unsubmitted+rejected 的农户） */
+  householdDetailIds?: string[]
+  /** 仅重新提交的公建设施明细ID列表（可选；为空或不传则全量重置该申报单下所有 unsubmitted+rejected 的公建） */
+  facilityDetailIds?: string[]
 }
 
 export interface DeclarationAuditDTO {

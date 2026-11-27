@@ -69,7 +69,7 @@
         </el-table-column>
 
         <!-- 第 1 列：申报编号（父行）/ 明细行合并内容（子行） -->
-        <el-table-column label="申报编号" min-width="400">
+        <el-table-column label="申报编号" min-width="240">
           <template #default="{ row }">
             <template v-if="!row._isDetail">{{ row.businessCode }}</template>
             <template v-else-if="row._detailKind === 'household'">
@@ -134,9 +134,6 @@
         </el-table-column>
         <el-table-column label="申报金额" width="140" align="right">
           <template #default="{ row }">{{ !row._isDetail ? '¥ ' + row.amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '' }}</template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">{{ !row._isDetail ? row.createTime : '' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
@@ -452,7 +449,7 @@
         <el-descriptions-item label="申报金额">¥ {{ formatAmount(detailAuditDialog.row?.amount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form :label-position="'top'" style="margin-top:12px">
-        <el-form-item :label="detailAuditDialog.action === 'reject' ? '驳回理由（必填）' : '审核意见（选填）'" required>
+        <el-form-item :label="detailAuditDialog.action === 'reject' ? '驳回理由（必填）' : '审核意见（选填）'" :required="detailAuditDialog.action === 'reject'">
           <el-input
             v-model="detailAuditDialog.auditRemark"
             type="textarea"
@@ -1014,15 +1011,15 @@ function resetAuditLogs() {
 
 /**
  * 子明细行横向合并（列索引随 selection 列的 v-if 动态变化，不能硬编码）
- * 待审核等 tab（无 selection，共 10 列）：0=箭头列，1=申报编号(明细内容)…8，9=操作列
- * 已通过/已立项 tab（有 selection，共 11 列）：0=勾选列，1=箭头列，2=申报编号(明细内容)…9，10=操作列
+ * 已移除"创建时间"列后：
+ *   无 selection tab（共 10 列）：0=箭头列，1=申报编号(明细内容)…8，9=操作列
+ *   有 selection tab（共 11 列）：0=勾选列，1=箭头列，2=申报编号(明细内容)…9，10=操作列
  * 规则：最左侧的勾选/箭头列各自独立；申报编号列横向合并到操作列之前；操作列独立
  */
 function detailMergeMethod({ row, columnIndex }: { row: any; columnIndex: number }) {
   if (!row._isDetail) return { rowspan: 1, colspan: 1 }
-  // 已通过等页签多出一列 selection，总列数动态计算（加了"申报日期"列后变 11 / 12）
   const hasSelection = activeStatusTab.value === 'approved'
-  const totalCols = hasSelection ? 12 : 11
+  const totalCols = hasSelection ? 11 : 10
   const actionColIndex = totalCols - 1              // 操作列（固定右侧）
   const firstMergedCol = hasSelection ? 2 : 1       // 申报编号列（明细内容模板所在列）
   // 勾选列 / 箭头列：独立不合并
