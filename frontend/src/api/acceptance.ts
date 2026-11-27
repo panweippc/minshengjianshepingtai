@@ -104,6 +104,8 @@ export interface AcceptanceNodeVO {
   villageName?: string
   /** 是否已归档（仅一级） */
   archived?: boolean
+  /** 项目级验收状态：NONE未发起验收 APPLYING已发起验收 ARCHIVED已归档（透传自 ProjectApproval.acceptStatus，用于验收按钮门控） */
+  projectAcceptStatus?: string
   children?: AcceptanceNodeVO[]
 }
 

@@ -11,6 +11,8 @@ import com.msjs.project.dto.AcceptDetailDTO;
 import com.msjs.project.dto.AcceptNodeDTO;
 import com.msjs.project.dto.AcceptRecordUpdateDTO;
 import com.msjs.project.dto.ArchiveDTO;
+import com.msjs.project.entity.DeclarationHousehold;
+import com.msjs.project.entity.DeclarationPublicFacility;
 import com.msjs.project.entity.ProjectAcceptance;
 import com.msjs.project.entity.ProjectAcceptanceAttachment;
 import com.msjs.project.entity.ProjectApproval;
@@ -20,6 +22,8 @@ import com.msjs.project.entity.ProjectApprovalDetail;
 import com.msjs.project.entity.ProjectArchive;
 import com.msjs.project.entity.ProjectConstruction;
 import com.msjs.project.entity.SysRegion;
+import com.msjs.project.mapper.DeclarationHouseholdMapper;
+import com.msjs.project.mapper.DeclarationPublicFacilityMapper;
 import com.msjs.project.mapper.ProjectAcceptanceAttachmentMapper;
 import com.msjs.project.mapper.ProjectAcceptanceMapper;
 import com.msjs.project.mapper.ProjectApprovalAttachmentMapper;
@@ -40,9 +44,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +71,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
     private final ProjectArchiveMapper archiveMapper;
     private final ProjectConstructionMapper constructionMapper;
     private final SysRegionMapper regionMapper;
+    private final DeclarationHouseholdMapper householdMapper;
+    private final DeclarationPublicFacilityMapper facilityMapper;
 
     @Override
     public PageVO<AcceptanceNodeVO> page(long pageNum, long pageSize, String projectName,
@@ -241,6 +249,10 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                             .in(ProjectApprovalDetail::getDeclareId, declareIds)
                             .orderByAsc(ProjectApprovalDetail::getSort)
                             .orderByAsc(ProjectApprovalDetail::getId));
+            // 明细事项说明兜底：历史立项数据的 t_project_approval_detail.remark 快照可能为空，
+            // 此时按 household_id / facility_id 回查申报侧明细表（农户明细/公建明细）的 remark，
+            // 保证验收管理、资金管理、施工管理三级查看能正常展示事项说明。仅在内存中补值，不回写数据库。
+            applyDetailRemarkFallback(details);
             detailMap = details.stream().collect(Collectors.groupingBy(ProjectApprovalDetail::getDeclareId));
         }
 
@@ -386,6 +398,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                     detailNode.setAcceptanceRecords(toAcceptanceRecords(records, acceptAttachMap));
                     detailNode.setDetailRemark(detail.getRemark());
                     detailNode.setVillageName(detail.getRegionName());
+                    // 透传项目级验收状态，用于前端验收按钮门控
+                    detailNode.setProjectAcceptStatus(approval.getAcceptStatus());
                     detailNodes.add(detailNode);
                 }
 
@@ -412,6 +426,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
                 declareNode.setDeclareContent(declare.getDeclareContent());
                 declareNode.setTownName(declare.getTownName());
                 declareNode.setVillageName(declare.getVillageName());
+                // 透传项目级验收状态，用于前端验收按钮门控
+                declareNode.setProjectAcceptStatus(approval.getAcceptStatus());
                 declareNode.setChildren(detailNodes);
                 // 二级验收状态与二级验收记录
                 fillNodeAcceptance(declareNode,
@@ -435,6 +451,8 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
             projectNode.setPercent(calcPercent(approvalAcceptedCount, approvalTotalCount));
             fillBuildProgress(projectNode, approvalTotalCount, approvalCompletedCount, approvalStartedCount);
             projectNode.setArchived(archiveMap.containsKey(approval.getId()));
+            // 项目级验收状态透传，用于前端验收按钮门控（只有 APPLYING 才允许验收）
+            projectNode.setProjectAcceptStatus(approval.getAcceptStatus());
             projectNode.setApprovalAttachments(approvalAttachMap.getOrDefault(
                     approval.getId(), Collections.emptyList()));
             projectNode.setChildren(declareNodes);
@@ -460,6 +478,10 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         }
         if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
             throw new BizException("仅审核通过的立项可进行验收");
+        }
+        // 业务约束：必须先在施工管理中点击"完工"发起验收（acceptStatus = APPLYING）
+        if (!Constants.APPROVAL_ACCEPT_APPLYING.equals(approval.getAcceptStatus())) {
+            throw new BizException("请先在施工管理中点击完工，发起验收");
         }
 
         // 校验明细存在且属于该立项
@@ -511,6 +533,10 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         }
         if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
             throw new BizException("仅审核通过的立项可进行验收");
+        }
+        // 业务约束：必须先在施工管理中点击"完工"发起验收（acceptStatus = APPLYING）
+        if (!Constants.APPROVAL_ACCEPT_APPLYING.equals(approval.getAcceptStatus())) {
+            throw new BizException("请先在施工管理中点击完工，发起验收");
         }
 
         ProjectAcceptance record = new ProjectAcceptance();
@@ -846,5 +872,69 @@ public class ProjectAcceptanceServiceImpl implements ProjectAcceptanceService {
         if (town != null) {
             wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
         }
+    }
+
+    /**
+     * 明细事项说明兜底。
+     * 业务约束：历史立项数据的 t_project_approval_detail.remark 快照可能为空，
+     * 此时按 household_id / facility_id 回查申报侧明细表（农户明细/公建明细）的 remark，
+     * 保证验收管理三级明细的事项说明能正常展示。仅在内存中补值，不回写数据库。
+     */
+    private void applyDetailRemarkFallback(List<ProjectApprovalDetail> details) {
+        if (details == null || details.isEmpty()) {
+            return;
+        }
+        Set<Long> householdIds = new HashSet<>();
+        Set<Long> facilityIds = new HashSet<>();
+        for (ProjectApprovalDetail detail : details) {
+            if (detail.getRemark() != null && !detail.getRemark().isBlank()) {
+                continue;
+            }
+            boolean facility = Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(normalizeDetailType(detail.getDetailType()));
+            if (facility) {
+                if (detail.getFacilityId() != null) {
+                    facilityIds.add(detail.getFacilityId());
+                }
+            } else if (detail.getHouseholdId() != null) {
+                householdIds.add(detail.getHouseholdId());
+            }
+        }
+        if (householdIds.isEmpty() && facilityIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> householdRemarks = new HashMap<>();
+        if (!householdIds.isEmpty()) {
+            householdMapper.selectList(new LambdaQueryWrapper<DeclarationHousehold>()
+                            .in(DeclarationHousehold::getId, householdIds)
+                            .select(DeclarationHousehold::getId, DeclarationHousehold::getRemark))
+                    .forEach(item -> householdRemarks.put(item.getId(), item.getRemark()));
+        }
+        Map<Long, String> facilityRemarks = new HashMap<>();
+        if (!facilityIds.isEmpty()) {
+            facilityMapper.selectList(new LambdaQueryWrapper<DeclarationPublicFacility>()
+                            .in(DeclarationPublicFacility::getId, facilityIds)
+                            .select(DeclarationPublicFacility::getId, DeclarationPublicFacility::getRemark))
+                    .forEach(item -> facilityRemarks.put(item.getId(), item.getRemark()));
+        }
+        for (ProjectApprovalDetail detail : details) {
+            if (detail.getRemark() != null && !detail.getRemark().isBlank()) {
+                continue;
+            }
+            boolean facility = Constants.APPROVAL_DETAIL_TYPE_FACILITY.equals(normalizeDetailType(detail.getDetailType()));
+            String fallback = facility
+                    ? (detail.getFacilityId() == null ? null : facilityRemarks.get(detail.getFacilityId()))
+                    : (detail.getHouseholdId() == null ? null : householdRemarks.get(detail.getHouseholdId()));
+            if (fallback != null && !fallback.isBlank()) {
+                detail.setRemark(fallback);
+            }
+        }
+    }
+
+    /** 兼容 PUBLIC_FACILITY → FACILITY 的明细类型规范化 */
+    private String normalizeDetailType(String detailType) {
+        if ("PUBLIC_FACILITY".equals(detailType)) {
+            return Constants.APPROVAL_DETAIL_TYPE_FACILITY;
+        }
+        return detailType;
     }
 }

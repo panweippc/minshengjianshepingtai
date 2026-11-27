@@ -57,6 +57,15 @@ public class ProjectApproval implements Serializable {
     /** 验收状态：NONE未发起 APPLYING验收中 ARCHIVED已归档 */
     private String acceptStatus;
 
+    /** 资金台账状态：NORMAL正常 FINISHED已办结（资金台账锁定，不可新增拨付/调整） */
+    private String fundStatus;
+
+    /** 办结时间 */
+    private LocalDateTime fundFinishTime;
+
+    /** 办结人 */
+    private String fundFinishBy;
+
     /** 发起验收时间 */
     private LocalDateTime acceptApplyTime;
 

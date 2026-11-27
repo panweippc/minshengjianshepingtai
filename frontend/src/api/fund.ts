@@ -57,6 +57,8 @@ export interface FundNodeVO {
   submitTime?: string
   /** 审核状态（仅一级） */
   status?: string
+  /** 资金台账状态（仅一级）：NORMAL正常 FINISHED已办结 */
+  fundStatus?: string
   /** 备注（仅一级） */
   remark?: string
   /** 所属乡镇（仅二级） */
@@ -186,4 +188,9 @@ export function fetchFundAcceptanceDetail(approvalId: string) {
   return get<Result<AcceptanceNodeVO>>('/api/project/fund/acceptance-detail', {
     params: { approvalId }
   }).then(r => r.data)
+}
+
+/** 资金台账办结（一级项目）：办结后项目从资金管理列表消失，台账锁定 */
+export function finishFund(approvalId: string, finishBy?: string) {
+  return post<Result<void>>('/api/project/fund/finish', { approvalId, finishBy })
 }
