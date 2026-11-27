@@ -7,8 +7,13 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import GlobalDialog from './components/GlobalDialog.vue'
+import { formatDate, formatDateCell } from './utils/date'
 
 const app = createApp(App)
+
+// 全局时间展示工具：业务页面时间统一只显示年月日（YYYY-MM-DD）
+app.config.globalProperties.$formatDate = formatDate
+app.config.globalProperties.$formatDateCell = formatDateCell
 
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)

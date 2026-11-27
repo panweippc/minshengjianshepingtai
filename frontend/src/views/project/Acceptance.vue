@@ -215,7 +215,7 @@
           <el-descriptions-item label="项目名称">{{ viewRow.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="项目类别">{{ viewRow.category || '-' }}</el-descriptions-item>
           <el-descriptions-item label="项目类型">{{ viewRow.type || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="提交时间">{{ viewRow.raw.submitTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="提交时间">{{ $formatDate(viewRow.raw.submitTime) }}</el-descriptions-item>
           <el-descriptions-item label="验收进度">
             <div class="simple-progress simple-progress--inline">
               <div class="simple-progress__bar">
@@ -248,7 +248,7 @@
               {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="acceptTime" label="验收时间" width="170" />
+          <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
           <el-table-column prop="acceptBy" label="验收人" width="120" />
           <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
           <el-table-column label="附件" width="110">
@@ -381,7 +381,7 @@
                 </el-descriptions-item>
                 <el-descriptions-item label="项目预算">{{ formatMoney(viewApproval?.budget) }} 元</el-descriptions-item>
                 <el-descriptions-item label="负责人">{{ viewApproval?.leader || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="提交时间">{{ viewApproval?.submitTime || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="提交时间">{{ $formatDate(viewApproval?.submitTime) }}</el-descriptions-item>
                 <el-descriptions-item label="备注" :span="2">{{ viewApproval?.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
 
@@ -435,7 +435,7 @@
                   <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
                 </el-table-column>
                 <el-table-column prop="createBy" label="操作人" width="100" />
-                <el-table-column prop="createTime" label="时间" width="165" />
+                <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                 <el-table-column prop="remark" label="拨付说明" min-width="150" show-overflow-tooltip />
                 <el-table-column label="附件" width="130" align="center">
                   <template #default="{ row }">
@@ -505,7 +505,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="巡检日期" width="120">
-                  <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                 </el-table-column>
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -597,7 +597,7 @@
               {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="acceptTime" label="验收时间" width="170" />
+          <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
           <el-table-column prop="acceptBy" label="验收人" width="120" />
           <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
           <el-table-column label="附件" width="110">
@@ -733,7 +733,7 @@
                 </el-table-column>
                 <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
                 <el-table-column prop="createBy" label="操作人" width="100" />
-                <el-table-column prop="createTime" label="时间" width="165" />
+                <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                 <el-table-column label="附件" width="130" align="center">
                   <template #default="{ row }">
                     <el-button
@@ -807,7 +807,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="巡检日期" width="120">
-                  <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                 </el-table-column>
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -862,7 +862,7 @@
           <el-descriptions-item label="验收结果">
             {{ dictLabel('yan_shou_jie_guo', viewRow?.raw.acceptResult) || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="验收时间">{{ viewRow?.raw.acceptTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="验收时间">{{ $formatDate(viewRow?.raw.acceptTime) }}</el-descriptions-item>
           <el-descriptions-item label="验收人">{{ viewRow?.raw.acceptBy || '-' }}</el-descriptions-item>
           <el-descriptions-item label="验收备注" :span="2">{{ viewRow?.raw.acceptRemark || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -879,7 +879,7 @@
               {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="acceptTime" label="验收时间" width="170" />
+          <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
           <el-table-column prop="acceptBy" label="验收人" width="120" />
           <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
           <el-table-column label="附件" width="110">
@@ -968,7 +968,7 @@
                 </el-table-column>
                 <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
                 <el-table-column prop="createBy" label="操作人" width="100" />
-                <el-table-column prop="createTime" label="时间" width="165" />
+                <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                 <el-table-column label="附件" width="130" align="center">
                   <template #default="{ row }">
                     <el-button
@@ -986,7 +986,7 @@
             <!-- 施工页签：与施工管理三级查看一致（施工记录 + 附件） -->
             <el-tab-pane label="施工" name="construction">
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="记录日期">{{ constructionLog?.constructionDate || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="记录日期">{{ $formatDate(constructionLog?.constructionDate) }}</el-descriptions-item>
                 <el-descriptions-item label="巡检人">{{ constructionLog?.inspector || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="巡检状态">
                   <span
@@ -1011,7 +1011,7 @@
               <el-empty v-if="!inspectionHistory.length" description="暂无巡检记录" :image-size="60" />
               <el-table v-else :data="inspectionHistory" size="small" border>
                 <el-table-column label="记录日期" width="120">
-                  <template #default="{ row }">{{ row.constructionDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.constructionDate) }}</template>
                 </el-table-column>
                 <el-table-column label="巡检人" width="110">
                   <template #default="{ row }">{{ row.inspector || '-' }}</template>
@@ -1162,9 +1162,10 @@
             <el-form-item label="验收时间" prop="acceptTime">
               <el-date-picker
                 v-model="recordEditForm.acceptTime"
-                type="datetime"
+                type="date"
+                format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD HH:mm:ss"
-                placeholder="请选择验收时间"
+                placeholder="请选择验收日期"
                 style="width: 100%"
               />
             </el-form-item>
@@ -1314,9 +1315,10 @@
             <el-form-item label="验收时间" prop="acceptTime">
               <el-date-picker
                 v-model="acceptForm.acceptTime"
-                type="datetime"
+                type="date"
+                format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD HH:mm:ss"
-                placeholder="请选择验收时间"
+                placeholder="请选择验收日期"
                 style="width: 100%"
               />
             </el-form-item>
@@ -1435,9 +1437,9 @@
         <el-form-item label="归档时间" prop="archiveTime">
           <el-date-picker
             v-model="archiveForm.archiveTime"
-            type="datetime"
-            placeholder="请选择归档时间"
-            format="YYYY-MM-DD HH:mm:ss"
+            type="date"
+            placeholder="请选择归档日期"
+            format="YYYY-MM-DD"
             value-format="YYYY-MM-DD HH:mm:ss"
             style="width: 100%"
           />
@@ -1486,6 +1488,7 @@ import {
   type ApprovalAttachmentVO
 } from '@/api/approval'
 import type { FundNodeVO } from '@/api/fund'
+import { formatDate } from '@/utils/date'
 import {
   getConstructionDetail,
   getDetailLog,
@@ -1737,11 +1740,17 @@ const buildProgressColor = (status?: string): string => {
 }
 
 /**
- * 验收前置条件：当前节点施工必须已完工（COMPLETED）
- * 施工中、未开工均不可验收，返回禁用提示文案；可验收时返回空字符串
+ * 验收前置条件：
+ *   1) 项目级验收状态必须为 APPLYING（已在施工管理中点击完工，发起验收）
+ *   2) 三级明细看自身施工状态 COMPLETED；一级/二级还需全部明细完工（进度 100%）
+ * 施工中、未开工、未发起验收均不可验收，返回禁用提示文案；可验收时返回空字符串
  */
 const acceptDisabledTip = (row: DisplayRow): string => {
-  // 三级明细看自身施工状态；一级/二级还需全部明细完工（进度 100%）
+  // 门控1：必须先在施工管理中点击"完工"，将项目级 acceptStatus 置为 APPLYING
+  if (row.raw.projectAcceptStatus !== 'APPLYING') {
+    return '请先在施工管理中点击完工，发起验收'
+  }
+  // 门控2：施工状态检查（三级明细看自身；一级/二级还需全部明细完工）
   const allCompleted = row.nodeType === 'detail'
     ? row.buildStatus === 'COMPLETED'
     : row.buildStatus === 'COMPLETED' && (row.buildPercent ?? 0) === 100
@@ -1973,7 +1982,7 @@ const recordAttachTitle = ref('')
 /** 打开某条验收记录的附件列表 */
 const openRecordAttachments = (record: AcceptanceRecordVO) => {
   recordAttachList.value = record.attachments || []
-  recordAttachTitle.value = `验收附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
+  recordAttachTitle.value = `验收附件 — ${[record.acceptBy, record.acceptTime ? formatDate(record.acceptTime) : ''].filter(Boolean).join(' ')}`
   recordAttachVisible.value = true
 }
 

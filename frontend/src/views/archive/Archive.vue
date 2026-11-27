@@ -58,7 +58,7 @@
           <template #default="{ row }">{{ row.leader || '-' }}</template>
         </el-table-column>
         <el-table-column prop="archiveTime" label="归档时间" width="170">
-          <template #default="{ row }">{{ row.archiveTime || '-' }}</template>
+          <template #default="{ row }">{{ $formatDate(row.archiveTime) }}</template>
         </el-table-column>
         <el-table-column prop="storageLocation" label="存储位置" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.storageLocation || '-' }}</template>
@@ -140,8 +140,9 @@
             <el-form-item label="归档时间">
               <el-date-picker
                 v-model="editForm.archiveTime"
-                type="datetime"
-                placeholder="请选择归档时间"
+                type="date"
+                format="YYYY-MM-DD"
+                placeholder="请选择归档日期"
                 value-format="YYYY-MM-DD HH:mm:ss"
                 style="width: 100%"
               />
@@ -183,7 +184,7 @@
                   <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
                 </el-table-column>
                 <el-table-column prop="declarationDate" label="申报日期" width="110">
-                  <template #default="{ row }">{{ row.declarationDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.declarationDate) }}</template>
                 </el-table-column>
                 <el-table-column prop="townName" label="所属乡镇" width="120" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.townName || '-' }}</template>
@@ -224,7 +225,7 @@
                 </el-descriptions-item>
                 <el-descriptions-item label="项目预算">{{ formatMoney(detail.approval.budget) }} 元</el-descriptions-item>
                 <el-descriptions-item label="负责人">{{ detail.approval.leader || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="提交时间">{{ detail.approval.submitTime || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="提交时间">{{ $formatDate(detail.approval.submitTime) }}</el-descriptions-item>
                 <el-descriptions-item label="所属乡镇">{{ detail.approval.regionName || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="备注" :span="2">{{ detail.approval.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
@@ -310,7 +311,7 @@
                 <el-descriptions-item label="负责人姓名">{{ detail.construction.leaderName || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="负责人联系电话">{{ detail.construction.leaderPhone || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="开工/完工日期">
-                  {{ detail.construction.startDate || '-' }} ~ {{ detail.construction.completeDate || '-' }}
+                  {{ $formatDate(detail.construction.startDate) }} ~ {{ $formatDate(detail.construction.completeDate) }}
                 </el-descriptions-item>
                 <el-descriptions-item label="备注" :span="2">{{ detail.construction.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
@@ -371,7 +372,7 @@
                 </template>
               </el-table-column>
               <el-table-column prop="acceptTime" label="验收时间" width="170">
-                <template #default="{ row }">{{ row.acceptTime || '-' }}</template>
+                <template #default="{ row }">{{ $formatDate(row.acceptTime) }}</template>
               </el-table-column>
               <el-table-column prop="acceptBy" label="验收人" width="110">
                 <template #default="{ row }">{{ row.acceptBy || '-' }}</template>
@@ -395,7 +396,7 @@
               <el-descriptions :column="2" border label-width="110px">
                 <el-descriptions-item label="档案编号">{{ detail.archive.archiveNo || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="存储位置">{{ detail.archive.storageLocation || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="归档时间">{{ detail.archive.archiveTime || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="归档时间">{{ $formatDate(detail.archive.archiveTime) }}</el-descriptions-item>
                 <el-descriptions-item label="归档人">{{ detail.archive.archiveBy || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="项目编号">{{ detail.archive.approvalCode || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="项目名称">{{ detail.archive.projectName || '-' }}</el-descriptions-item>
@@ -499,7 +500,7 @@
           <template #default="{ row }">{{ row.createBy || '-' }}</template>
         </el-table-column>
         <el-table-column prop="createTime" label="操作时间" width="170">
-          <template #default="{ row }">{{ row.createTime || '-' }}</template>
+          <template #default="{ row }">{{ $formatDate(row.createTime) }}</template>
         </el-table-column>
         <el-table-column label="附件" width="90">
           <template #default="{ row }">
@@ -518,7 +519,7 @@
       <el-empty v-if="!inspectionRecords.length" description="暂无巡检记录" :image-size="70" />
       <el-table v-else v-loading="inspectionLoading" :data="inspectionRecords" border size="small">
         <el-table-column prop="constructionDate" label="记录日期" width="120">
-          <template #default="{ row }">{{ row.constructionDate || '-' }}</template>
+          <template #default="{ row }">{{ $formatDate(row.constructionDate) }}</template>
         </el-table-column>
         <el-table-column prop="inspector" label="巡检人" width="110">
           <template #default="{ row }">{{ row.inspector || '-' }}</template>
@@ -552,7 +553,7 @@
           <template #default="{ row }">{{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}</template>
         </el-table-column>
         <el-table-column prop="acceptTime" label="验收时间" width="170">
-          <template #default="{ row }">{{ row.acceptTime || '-' }}</template>
+          <template #default="{ row }">{{ $formatDate(row.acceptTime) }}</template>
         </el-table-column>
         <el-table-column prop="acceptBy" label="验收人" width="110">
           <template #default="{ row }">{{ row.acceptBy || '-' }}</template>

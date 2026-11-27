@@ -121,7 +121,7 @@
             <template v-else>-</template>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button v-if="canView" link type="primary" @click="openView(row)">查看</el-button>
@@ -131,6 +131,14 @@
                 type="success"
                 @click="openForm(row)"
               >资金登记</el-button>
+              <el-button
+                v-if="row.nodeType === 'approval' && canFinish"
+                link
+                type="danger"
+                :disabled="row.fundStatus === 'FINISHED'"
+                :title="row.fundStatus === 'FINISHED' ? '该项目资金台账已办结' : '办结后资金台账锁定，项目从列表消失'"
+                @click="openFinishConfirm(row)"
+              >办结</el-button>
               <el-button
                 v-if="row.nodeType !== 'approval' && canAllocate"
                 link
@@ -187,7 +195,7 @@
                 <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
               </el-table-column>
               <el-table-column prop="createBy" label="操作人" width="100" />
-              <el-table-column prop="createTime" label="时间" width="165" />
+              <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
               <el-table-column prop="remark" label="拨付说明" min-width="150" show-overflow-tooltip />
               <el-table-column label="附件" width="130" align="center">
                 <template #default="{ row }">
@@ -293,7 +301,7 @@
               <el-descriptions-item label="项目类型">{{ viewRow.type || '-' }}</el-descriptions-item>
               <el-descriptions-item label="项目预算">{{ formatMoney(viewRow.budget) }} 元</el-descriptions-item>
               <el-descriptions-item label="负责人">{{ viewRow.raw.leader || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="提交时间">{{ viewRow.raw.submitTime || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="提交时间">{{ $formatDate(viewRow.raw.submitTime) }}</el-descriptions-item>
               <el-descriptions-item label="备注" :span="2">{{ viewRow.raw.remark || '-' }}</el-descriptions-item>
             </el-descriptions>
 
@@ -374,7 +382,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="巡检日期" width="120">
-                  <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                 </el-table-column>
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -437,7 +445,7 @@
                   <el-descriptions-item label="项目类型">
                     {{ dictLabel('xiang_mu_lei_xing', acceptanceProject.source) || '-' }}
                   </el-descriptions-item>
-                  <el-descriptions-item label="提交时间">{{ acceptanceProject.submitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ $formatDate(acceptanceProject.submitTime) }}</el-descriptions-item>
                   <el-descriptions-item label="验收进度">
                     <div class="simple-progress simple-progress--inline">
                       <div class="simple-progress__bar">
@@ -470,7 +478,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="165" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="110" />
                   <el-table-column prop="remark" label="验收备注" min-width="180" show-overflow-tooltip />
                   <el-table-column label="附件" width="110" align="center">
@@ -615,7 +623,7 @@
               </el-table-column>
               <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
               <el-table-column prop="createBy" label="操作人" width="100" />
-              <el-table-column prop="createTime" label="时间" width="165" />
+              <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
               <el-table-column label="附件" width="130" align="center">
                 <template #default="{ row }">
                   <el-button
@@ -773,7 +781,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column label="巡检日期" width="120">
-                  <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                  <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                 </el-table-column>
                 <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -836,7 +844,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="165" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="110" />
                   <el-table-column prop="remark" label="验收备注" min-width="180" show-overflow-tooltip />
                   <el-table-column label="附件" width="110" align="center">
@@ -927,7 +935,7 @@
               </el-table-column>
               <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
               <el-table-column prop="createBy" label="操作人" width="100" />
-              <el-table-column prop="createTime" label="时间" width="165" />
+              <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
               <el-table-column label="附件" min-width="190">
                 <template #default="{ row }">
                   <template v-if="row.attachments?.length">
@@ -986,7 +994,7 @@
           <el-tab-pane label="施工" name="construction">
             <div v-loading="constructionLoading">
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="记录日期">{{ constructionLog?.constructionDate || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="记录日期">{{ $formatDate(constructionLog?.constructionDate) }}</el-descriptions-item>
                 <el-descriptions-item label="巡检人">{{ constructionLog?.inspector || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="巡检状态">
                   <span
@@ -1047,7 +1055,7 @@
                   <el-descriptions-item label="验收结果">
                     {{ dictLabel('yan_shou_jie_guo', acceptanceDetail.acceptResult) || '-' }}
                   </el-descriptions-item>
-                  <el-descriptions-item label="验收时间">{{ acceptanceDetail.acceptTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收时间">{{ $formatDate(acceptanceDetail.acceptTime) }}</el-descriptions-item>
                   <el-descriptions-item label="验收人">{{ acceptanceDetail.acceptBy || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="验收备注" :span="2">
                     {{ acceptanceDetail.acceptRemark || '-' }}
@@ -1066,7 +1074,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="165" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="110" />
                   <el-table-column prop="remark" label="验收备注" min-width="180" show-overflow-tooltip />
                   <el-table-column label="附件" width="110" align="center">
@@ -1229,9 +1237,10 @@
               <el-form-item label="时间" prop="operateTime">
                 <el-date-picker
                   v-model="formData.operateTime"
-                  type="datetime"
+                  type="date"
+                  format="YYYY-MM-DD"
                   value-format="YYYY-MM-DD HH:mm:ss"
-                  placeholder="请选择时间"
+                  placeholder="请选择日期"
                   style="width: 100%"
                 />
               </el-form-item>
@@ -1281,24 +1290,30 @@
               <span class="attachment-field-label">上传附件</span>
               <el-upload
                 :show-file-list="false"
-                :before-upload="uploadBefore(index)"
+                multiple
+                :before-upload="(file: File) => handleAttachmentUpload(file, item)"
               >
                 <div class="upload-trigger">
                   <el-icon><Upload /></el-icon>
-                  <span>{{ uploadingIndex === index ? '上传中...' : '点击选择文件...' }}</span>
+                  <span>{{ item.uploadingCount > 0 ? '上传中...' : (item.files.length ? '继续添加文件...' : '点击选择文件...') }}</span>
                 </div>
               </el-upload>
-              <div v-if="item.fileName" class="upload-file-item">
+              <!-- 同一附件类型支持多个文件：逐个展示图标 + 文件名 + 下载/移除 -->
+              <div
+                v-for="(fileItem, fileIndex) in item.files"
+                :key="fileIndex"
+                class="upload-file-item"
+              >
                 <el-icon class="upload-file-icon"><Document /></el-icon>
-                <span class="upload-file-name" :title="item.fileName">{{ item.fileName }}</span>
+                <span class="upload-file-name" :title="fileItem.fileName">{{ fileItem.fileName }}</span>
                 <el-icon
                   class="upload-file-download"
                   title="下载"
-                  @click="openFile(item, true)"
+                  @click="openFile(fileItem, true)"
                 >
                   <Download />
                 </el-icon>
-                <el-icon class="upload-file-remove" title="移除" @click="clearAttachmentFile(index)">
+                <el-icon class="upload-file-remove" title="移除" @click="clearAttachmentFile(item, fileIndex)">
                   <Close />
                 </el-icon>
               </div>
@@ -1321,7 +1336,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getDictByType } from '@/api/dict'
@@ -1334,6 +1349,7 @@ import {
   allocateFund,
   updateFundRecord,
   fetchFundAcceptanceDetail,
+  finishFund,
   type FundNodeVO,
   type FundNodeType,
   type FundRecordVO,
@@ -1343,6 +1359,7 @@ import {
   type DeclareAttachmentVO
 } from '@/api/fund'
 import type { AcceptanceNodeVO, AcceptanceRecordVO } from '@/api/acceptance'
+import { formatDate } from '@/utils/date'
 import {
   getConstructionDetail,
   getDetailLog,
@@ -1361,6 +1378,7 @@ const userStore = useUserStore()
 const canView = computed(() => userStore.hasPerm('project:fund:view'))
 const canRegister = computed(() => userStore.hasPerm('project:fund:register'))
 const canAllocate = computed(() => userStore.hasPerm('project:fund:allocate'))
+const canFinish = computed(() => userStore.hasPerm('project:fund:edit'))
 
 /* ============ 字典 ============ */
 const dictMap = ref<Record<string, DictVO[]>>({})
@@ -1856,7 +1874,7 @@ const openDeclareDetailAttachList = (row: FundNodeVO, type: 'material' | 'fund')
 const openRecordAttachList = (record: FundRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'zi_jin_fu_jian_lei_xing'
-  attachListTitle.value = `资金凭证附件 — ${[record.createBy, record.createTime].filter(Boolean).join(' ')}`
+  attachListTitle.value = `资金凭证附件 — ${[record.createBy, record.createTime ? formatDate(record.createTime) : ''].filter(Boolean).join(' ')}`
   attachListVisible.value = true
 }
 
@@ -1864,7 +1882,7 @@ const openRecordAttachList = (record: FundRecordVO) => {
 const openAcceptanceAttachList = (record: AcceptanceRecordVO) => {
   attachListData.value = record.attachments || []
   attachDictType.value = 'yan_shou_fu_jian_lei_xing'
-  attachListTitle.value = `验收资料附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
+  attachListTitle.value = `验收资料附件 — ${[record.acceptBy, record.acceptTime ? formatDate(record.acceptTime) : ''].filter(Boolean).join(' ')}`
   attachListVisible.value = true
 }
 
@@ -1893,17 +1911,28 @@ const formTitle = computed(() => {
   return formRow.value?.nodeType === 'approval' ? '资金登记' : '下拨资金'
 })
 
-/** 资金凭证附件表单项 */
-interface FormAttachment extends FundAttachmentVO {
+/** 资金凭证附件文件项：一张附件卡片可包含多个文件 */
+interface FormAttachmentFile {
+  id?: string
+  fileName?: string
+  fileKey?: string
+  bucket?: string
+  fileSize?: number
+}
+
+/** 资金凭证附件卡片：一张卡片对应一种附件类型，可上传多个文件 */
+interface FormAttachment {
   attachmentType?: string
   remark?: string
+  files: FormAttachmentFile[]
+  /** 正在上传的文件数，用于展示“上传中...” */
+  uploadingCount: number
 }
 const formAttachments = ref<FormAttachment[]>([])
-const uploadingIndex = ref<number | null>(null)
 
 /** 添加一条附件卡片 */
 const addAttachment = () => {
-  formAttachments.value.push({ fileKey: '', fileName: '', bucket: 'archive-formal', attachmentType: '', remark: '' })
+  formAttachments.value.push({ files: [], attachmentType: '', remark: '', uploadingCount: 0 })
 }
 
 /** 删除附件卡片 */
@@ -1911,33 +1940,51 @@ const removeAttachment = (index: number) => {
   formAttachments.value.splice(index, 1)
 }
 
-/** 仅移除已上传文件，保留卡片 */
-const clearAttachmentFile = (index: number) => {
-  const item = formAttachments.value[index]
-  item.fileKey = ''
-  item.fileName = ''
-  item.fileSize = undefined
+/** 仅移除卡片中的某个已上传文件，保留卡片 */
+const clearAttachmentFile = (item: FormAttachment, fileIndex: number) => {
+  item.files.splice(fileIndex, 1)
 }
 
-/** 上传资金凭证到正式归档桶，返回 false 阻止组件自动上传 */
-const handleAttachmentUpload = async (file: File, index: number) => {
-  uploadingIndex.value = index
+/** 上传资金凭证到正式归档桶，返回 false 阻止组件自动上传；同一附件类型可承载多个文件 */
+const handleAttachmentUpload = async (file: File, item: FormAttachment) => {
+  item.uploadingCount += 1
   try {
     const res = await uploadFile(file)
     const data: FileUploadVO = res.data
-    const item = formAttachments.value[index]
-    item.fileName = data.fileName
-    item.fileKey = data.fileKey
-    item.bucket = data.bucket
-    item.fileSize = data.fileSize
+    item.files.push({
+      fileName: data.fileName,
+      fileKey: data.fileKey,
+      bucket: data.bucket,
+      fileSize: data.fileSize
+    })
   } finally {
-    uploadingIndex.value = null
+    item.uploadingCount -= 1
   }
   return false
 }
 
-/** 生成指定附件卡片的上传前置回调 */
-const uploadBefore = (index: number) => (file: File) => handleAttachmentUpload(file, index)
+/** 将扁平的附件记录按“附件类型+备注”归并为一张卡片，同一类型多个文件共用一行 */
+const toFormAttachments = (list: FundAttachmentVO[]): FormAttachment[] => {
+  const rows: FormAttachment[] = []
+  list.forEach((att) => {
+    const attachmentType = att.attachmentType || ''
+    const remark = att.remark || ''
+    const file: FormAttachmentFile = {
+      id: att.id,
+      fileName: att.fileName || '',
+      fileKey: att.fileKey,
+      bucket: att.bucket || 'archive-formal',
+      fileSize: att.fileSize
+    }
+    const exist = rows.find((row) => row.attachmentType === attachmentType && row.remark === remark)
+    if (exist) {
+      exist.files.push(file)
+    } else {
+      rows.push({ attachmentType, remark, files: [file], uploadingCount: 0 })
+    }
+  })
+  return rows
+}
 
 const formData = reactive({
   fundType: '',
@@ -1950,7 +1997,7 @@ const formData = reactive({
   remark: ''
 })
 
-/** 资金类型（一级）/下拨类型（二级、三级）必填；资金来源仅一级登记必填 */
+/** 资金类型（一级）/下拨类型（二级、三级）必填；资金来源非必填 */
 const formRules = computed<FormRules>(() => ({
   fundType: [
     {
@@ -1959,10 +2006,7 @@ const formRules = computed<FormRules>(() => ({
       trigger: 'change'
     }
   ],
-  fundSource:
-    formRow.value?.nodeType === 'approval'
-      ? [{ required: true, message: '请选择资金来源', trigger: 'change' }]
-      : [],
+  fundSource: [],
   amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
   operator: [{ required: true, message: '请输入操作人', trigger: 'blur' }],
   operateTime: [{ required: true, message: '请选择时间', trigger: 'change' }]
@@ -2012,7 +2056,6 @@ const openForm = (row: DisplayRow) => {
   formData.operateTime = ''
   formData.remark = ''
   formAttachments.value = []
-  uploadingIndex.value = null
   formLimit.value = limit
   formVisible.value = true
 }
@@ -2051,17 +2094,8 @@ const editRecord = (record: FundRecordVO) => {
   formData.operator = record.createBy || ''
   formData.operateTime = record.createTime || ''
   formData.remark = record.remark || ''
-  // 回填附件
-  formAttachments.value = (record.attachments || []).map((att) => ({
-    id: att.id,
-    attachmentType: att.attachmentType,
-    fileName: att.fileName,
-    fileKey: att.fileKey,
-    bucket: att.bucket || 'archive-formal',
-    fileSize: att.fileSize,
-    remark: att.remark
-  }))
-  uploadingIndex.value = null
+  // 回填附件：按附件类型 + 备注归并为卡片，同类型多个文件共用一行
+  formAttachments.value = toFormAttachments(record.attachments || [])
   formLimit.value = limit
   formVisible.value = true
   // 校验上限至少为原金额，避免 InputNumber max < min(0.01)
@@ -2070,20 +2104,46 @@ const editRecord = (record: FundRecordVO) => {
   }
 }
 
+/** 资金台账办结：确认弹窗，确定后项目从资金管理列表消失，台账锁定 */
+const openFinishConfirm = (row: DisplayRow) => {
+  if (row.raw?.fundStatus === 'FINISHED') {
+    ElMessage.warning('该项目资金台账已办结，请勿重复操作')
+    return
+  }
+  ElMessageBox.confirm(
+    '确认本项目全部资金业务办结，办结后资金台账锁定，不可新增拨付、调整记录，历史记录仅可查看。',
+    '资金台账办结确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+      dangerouslyUseHTMLString: false
+    }
+  ).then(async () => {
+    try {
+      await finishFund(String(row.raw?.id ?? row.raw?.approvalId ?? ''))
+      ElMessage.success('资金台账已办结')
+      await loadData()
+    } catch (e) {
+      // request 拦截器已统一提示，此处静默
+    }
+  }).catch(() => { /* 用户取消 */ })
+}
+
 const handleSubmit = async () => {
   if (!formRef.value || !formRow.value) return
   await formRef.value.validate()
   const row = formRow.value
-  const attachments = formAttachments.value
-    .filter((item) => item.fileKey)
-    .map((item) => ({
-      attachmentType: item.attachmentType || undefined,
-      fileName: item.fileName,
-      fileKey: item.fileKey,
-      bucket: item.bucket || 'archive-formal',
-      fileSize: item.fileSize,
-      remark: item.remark || undefined
+  const attachments = formAttachments.value.flatMap((row) =>
+    row.files.map((file) => ({
+      attachmentType: row.attachmentType || undefined,
+      fileName: file.fileName,
+      fileKey: file.fileKey || '',
+      bucket: file.bucket || 'archive-formal',
+      fileSize: file.fileSize,
+      remark: row.remark || undefined
     }))
+  )
   submitLoading.value = true
   try {
     if (editingId.value) {
