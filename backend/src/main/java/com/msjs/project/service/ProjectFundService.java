@@ -35,4 +35,11 @@ public interface ProjectFundService {
 
     /** 编辑资金流水（仅可编辑金额、备注、类型、来源、操作人、时间、附件；节点定位字段不可修改） */
     void update(FundUpdateDTO dto);
+
+    /**
+     * 一级项目资金台账办结：
+     * 将立项 fund_status 置为 FINISHED，锁定资金台账，不可新增拨付、下拨、调整记录，
+     * 办结后该项目不再出现在资金管理列表中（历史资金流水仅可在档案管理查看）
+     */
+    void finish(Long approvalId, String finishBy);
 }

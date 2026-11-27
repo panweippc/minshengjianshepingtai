@@ -173,6 +173,11 @@ public final class Constants {
     /** 立项验收状态：已归档 */
     public static final String APPROVAL_ACCEPT_ARCHIVED = "ARCHIVED";
 
+    /** 立项资金台账状态：正常（可继续登记/下拨） */
+    public static final String APPROVAL_FUND_NORMAL = "NORMAL";
+    /** 立项资金台账状态：已办结（资金台账锁定，不可新增拨付/调整，历史记录仅可查看） */
+    public static final String APPROVAL_FUND_FINISHED = "FINISHED";
+
     /** 登录验证码 Redis 键前缀 */
     public static final String CAPTCHA_KEY_PREFIX = "msjs:captcha:";
     /** 登录验证码有效期（分钟） */

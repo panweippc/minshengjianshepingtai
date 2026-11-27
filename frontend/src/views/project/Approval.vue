@@ -125,7 +125,7 @@
         </el-table-column>
         <el-table-column prop="leader" label="负责人" width="100" show-overflow-tooltip />
         <el-table-column label="立项日期" width="140">
-          <template #default="{ row }">{{ row.submitTime ? row.submitTime.slice(0, 10) : '-' }}</template>
+          <template #default="{ row }">{{ $formatDate(row.submitTime) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
@@ -173,7 +173,7 @@
               </el-descriptions-item>
               <el-descriptions-item label="项目预算">{{ formatMoney(viewApproval.budget) }} 元</el-descriptions-item>
               <el-descriptions-item label="负责人">{{ viewApproval.leader || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="提交时间">{{ viewApproval.submitTime || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="提交时间">{{ $formatDate(viewApproval.submitTime) }}</el-descriptions-item>
               <el-descriptions-item label="备注" :span="2">{{ viewApproval.remark || '-' }}</el-descriptions-item>
             </el-descriptions>
 

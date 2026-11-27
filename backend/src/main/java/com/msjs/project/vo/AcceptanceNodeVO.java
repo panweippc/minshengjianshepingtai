@@ -118,6 +118,9 @@ public class AcceptanceNodeVO implements Serializable {
     @Schema(description = "是否已归档（仅一级）")
     private Boolean archived;
 
+    @Schema(description = "项目级验收状态：NONE未发起验收 APPLYING已发起验收 ARCHIVED已归档（透传自 ProjectApproval.acceptStatus，用于验收按钮门控）")
+    private String projectAcceptStatus;
+
     @Schema(description = "子节点")
     private List<AcceptanceNodeVO> children;
 }

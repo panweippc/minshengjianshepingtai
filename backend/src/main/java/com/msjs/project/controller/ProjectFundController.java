@@ -128,4 +128,20 @@ public class ProjectFundController {
             @Parameter(description = "立项ID") @RequestParam Long approvalId) {
         return Result.ok(acceptanceService.detail(approvalId));
     }
+
+    @Operation(summary = "资金台账办结（一级项目）")
+    @RequirePerm("project:fund:edit")
+    @OperLog(module = "资金管理", operation = "资金台账办结")
+    @PostMapping("/finish")
+    public Result<Void> finish(@RequestBody java.util.Map<String, Object> payload) {
+        Object aid = payload.get("approvalId");
+        if (aid == null) {
+            throw new BizException("立项ID不能为空");
+        }
+        Long approvalId = Long.valueOf(String.valueOf(aid));
+        Object fb = payload.get("finishBy");
+        String finishBy = fb == null ? null : String.valueOf(fb);
+        fundService.finish(approvalId, finishBy);
+        return Result.ok();
+    }
 }

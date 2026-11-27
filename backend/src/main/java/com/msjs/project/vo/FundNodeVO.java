@@ -66,6 +66,9 @@ public class FundNodeVO implements Serializable {
     @Schema(description = "审核状态（仅一级）")
     private String status;
 
+    @Schema(description = "资金台账状态（仅一级）：NORMAL正常 FINISHED已办结")
+    private String fundStatus;
+
     @Schema(description = "备注（仅一级）")
     private String remark;
 

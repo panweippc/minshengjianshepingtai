@@ -84,11 +84,11 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         Page<ProjectApproval> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<ProjectApproval> wrapper = new LambdaQueryWrapper<>();
         // 数据来源：立项管理中审核通过的项目
-        // 已归档项目（验收管理归档后）不再在资金管理中显示，与验收管理数据口径保持一致
+        // 已办结项目（资金台账锁定）不再在资金管理中显示；允许 null（未设置过状态视为 NORMAL）
         wrapper.eq(ProjectApproval::getStatus, Constants.APPROVAL_STATUS_APPROVED)
-                .and(w -> w.ne(ProjectApproval::getAcceptStatus, Constants.APPROVAL_ACCEPT_ARCHIVED)
+                .and(w -> w.isNull(ProjectApproval::getFundStatus)
                         .or()
-                        .isNull(ProjectApproval::getAcceptStatus))
+                        .ne(ProjectApproval::getFundStatus, Constants.APPROVAL_FUND_FINISHED))
                 .like(isNotBlank(projectName), ProjectApproval::getProjectName, trimToNull(projectName))
                 .eq(isNotBlank(projectCategory), ProjectApproval::getProjectCategory, projectCategory)
                 .eq(isNotBlank(projectSource), ProjectApproval::getProjectType, projectSource)
@@ -201,6 +201,10 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
             throw new BizException("仅审核通过的立项可进行资金拨付");
         }
+        // 业务约束：资金台账已办结时锁定，不可新增拨付/调整记录
+        if (Constants.APPROVAL_FUND_FINISHED.equals(approval.getFundStatus())) {
+            throw new BizException("本项目资金业务已办结，台账已锁定，不可新增拨付/调整记录");
+        }
 
         ProjectFund fund = new ProjectFund();
         fund.setApprovalId(approval.getId());
@@ -258,6 +262,12 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         ProjectFund fund = fundMapper.selectById(dto.getId());
         if (fund == null) {
             throw new BizException("资金流水不存在或已被删除");
+        }
+        // 业务约束：资金台账已办结时锁定，不可新增拨付/调整记录
+        ProjectApproval approval = approvalMapper.selectById(fund.getApprovalId());
+        if (approval != null
+                && Constants.APPROVAL_FUND_FINISHED.equals(approval.getFundStatus())) {
+            throw new BizException("本项目资金业务已办结，台账已锁定，不可调整资金流水");
         }
         // 节点定位字段以现有记录为准，前端不允许修改（避免破坏余额校验链路）
         BigDecimal originalAmount = fund.getAmount() == null ? BigDecimal.ZERO : fund.getAmount();
@@ -660,6 +670,7 @@ public class ProjectFundServiceImpl implements ProjectFundService {
             root.setLeader(approval.getLeader());
             root.setSubmitTime(approval.getSubmitTime());
             root.setStatus(approval.getStatus());
+            root.setFundStatus(approval.getFundStatus());
             root.setRemark(approval.getRemark());
             root.setAttachments(approvalAttachMap.getOrDefault(approval.getId(), new ArrayList<>()));
             BigDecimal registered = approvalRegistered.get(approval.getId());
@@ -857,5 +868,25 @@ public class ProjectFundServiceImpl implements ProjectFundService {
         if (town != null) {
             wrapper.eq(ProjectApproval::getRegionCode, town.getCode());
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void finish(Long approvalId, String finishBy) {
+        ProjectApproval approval = approvalMapper.selectById(approvalId);
+        if (approval == null) {
+            throw new BizException("立项信息不存在或已被删除");
+        }
+        if (!Constants.APPROVAL_STATUS_APPROVED.equals(approval.getStatus())) {
+            throw new BizException("仅审核通过的立项可办结资金台账");
+        }
+        if (Constants.APPROVAL_FUND_FINISHED.equals(approval.getFundStatus())) {
+            throw new BizException("该项目资金台账已办结，请勿重复操作");
+        }
+        approval.setFundStatus(Constants.APPROVAL_FUND_FINISHED);
+        approval.setFundFinishTime(LocalDateTime.now());
+        approval.setFundFinishBy(finishBy != null && !finishBy.isBlank() ? finishBy.trim() : null);
+        approval.setUpdateTime(LocalDateTime.now());
+        approvalMapper.updateById(approval);
     }
 }

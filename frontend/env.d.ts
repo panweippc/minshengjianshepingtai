@@ -11,3 +11,11 @@ declare module 'exceljs/dist/exceljs.min.js' {
   import ExcelJS from 'exceljs'
   export default ExcelJS
 }
+
+// 全局属性类型声明：时间统一只展示年月日
+declare module '@vue/runtime-core' {
+  interface ComponentCustomProperties {
+    $formatDate: (value: unknown, fallback?: string) => string
+    $formatDateCell: (row: unknown, column: unknown, cellValue: unknown) => string
+  }
+}

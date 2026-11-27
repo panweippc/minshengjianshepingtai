@@ -241,7 +241,7 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="巡检日期" width="120">
-                    <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                    <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                   </el-table-column>
                   <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                     <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -325,7 +325,7 @@
                   </el-descriptions-item>
                   <el-descriptions-item label="项目预算">{{ formatMoney(viewApproval?.budget) }} 元</el-descriptions-item>
                   <el-descriptions-item label="负责人">{{ viewApproval?.leader || '-' }}</el-descriptions-item>
-                  <el-descriptions-item label="提交时间">{{ viewApproval?.submitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ $formatDate(viewApproval?.submitTime) }}</el-descriptions-item>
                   <el-descriptions-item label="备注" :span="2">{{ viewApproval?.remark || '-' }}</el-descriptions-item>
                 </el-descriptions>
 
@@ -387,7 +387,7 @@
                     <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
                   </el-table-column>
                   <el-table-column prop="createBy" label="操作人" width="100" />
-                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column prop="remark" label="拨付说明" min-width="150" show-overflow-tooltip />
                   <el-table-column label="附件" width="130" align="center">
                     <template #default="{ row }">
@@ -418,7 +418,7 @@
                   <el-descriptions-item label="项目类型">
                     {{ dictLabel('xiang_mu_lei_xing', viewAcceptance?.source || projectView?.source) || '-' }}
                   </el-descriptions-item>
-                  <el-descriptions-item label="提交时间">{{ viewAcceptance?.submitTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="提交时间">{{ $formatDate(viewAcceptance?.submitTime) }}</el-descriptions-item>
                   <el-descriptions-item label="验收进度">
                     <div class="accept-progress">
                       <el-progress
@@ -450,7 +450,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="120" />
                   <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
                   <el-table-column label="附件" width="110">
@@ -522,7 +522,7 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="巡检日期" width="120">
-                    <template #default="{ row }">{{ row.detailLogSnapshot?.constructionDate || '-' }}</template>
+                    <template #default="{ row }">{{ $formatDate(row.detailLogSnapshot?.constructionDate) }}</template>
                   </el-table-column>
                   <el-table-column label="施工内容" min-width="220" show-overflow-tooltip>
                     <template #default="{ row }">{{ row.detailLogSnapshot?.content || '-' }}</template>
@@ -627,7 +627,7 @@
                   </el-table-column>
                   <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
                   <el-table-column prop="createBy" label="操作人" width="100" />
-                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column label="附件" width="130" align="center">
                     <template #default="{ row }">
                       <el-button
@@ -682,7 +682,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="120" />
                   <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
                   <el-table-column label="附件" width="110">
@@ -708,7 +708,7 @@
             <el-tabs v-model="detailActiveTab">
               <el-tab-pane label="详情" name="detail">
                 <el-descriptions :column="2" border label-width="110px">
-                  <el-descriptions-item label="记录日期">{{ detailLog?.constructionDate || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="记录日期">{{ $formatDate(detailLog?.constructionDate) }}</el-descriptions-item>
                   <el-descriptions-item label="巡检人">{{ detailLog?.inspector || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="巡检状态">
                     <span
@@ -767,7 +767,7 @@
                 <el-empty v-if="!detailLogHistory.length" description="暂无施工记录" :image-size="50" />
                 <el-table v-else :data="detailLogHistory" border size="small">
                   <el-table-column label="记录日期" width="110">
-                    <template #default="{ row }">{{ row.constructionDate || '-' }}</template>
+                    <template #default="{ row }">{{ $formatDate(row.constructionDate) }}</template>
                   </el-table-column>
                   <el-table-column label="巡检人" width="100">
                     <template #default="{ row }">{{ row.inspector || '-' }}</template>
@@ -913,7 +913,7 @@
                   </el-table-column>
                   <el-table-column prop="remark" label="拨付说明" min-width="160" show-overflow-tooltip />
                   <el-table-column prop="createBy" label="操作人" width="100" />
-                  <el-table-column prop="createTime" label="时间" width="165" />
+                  <el-table-column prop="createTime" label="时间" width="165" :formatter="$formatDateCell" />
                   <el-table-column label="附件" width="130" align="center">
                     <template #default="{ row }">
                       <el-button
@@ -954,7 +954,7 @@
                   <el-descriptions-item label="验收结果">
                     {{ dictLabel('yan_shou_jie_guo', viewAcceptanceDetail?.acceptResult) || '-' }}
                   </el-descriptions-item>
-                  <el-descriptions-item label="验收时间">{{ viewAcceptanceDetail?.acceptTime || '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="验收时间">{{ $formatDate(viewAcceptanceDetail?.acceptTime) }}</el-descriptions-item>
                   <el-descriptions-item label="验收人">{{ viewAcceptanceDetail?.acceptBy || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="验收备注" :span="2">{{ viewAcceptanceDetail?.acceptRemark || '-' }}</el-descriptions-item>
                 </el-descriptions>
@@ -971,7 +971,7 @@
                       {{ dictLabel('yan_shou_jie_guo', row.acceptResult) || '-' }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="acceptTime" label="验收时间" width="170" />
+                  <el-table-column prop="acceptTime" label="验收时间" width="170" :formatter="$formatDateCell" />
                   <el-table-column prop="acceptBy" label="验收人" width="120" />
                   <el-table-column prop="remark" label="验收备注" min-width="200" show-overflow-tooltip />
                   <el-table-column label="附件" width="110">
@@ -1291,26 +1291,31 @@
               <el-upload
                 :auto-upload="false"
                 :show-file-list="false"
+                multiple
                 class="attach-upload"
                 @change="(file: UploadFile) => handleAttachmentChange(item, file)"
               >
                 <div class="attach-upload__inner">
                   <el-icon><Upload /></el-icon>
-                  <span>{{ item.uploading ? '上传中...' : '点击选择文件...' }}</span>
+                  <span>{{ item.uploadingCount > 0 ? '上传中...' : (item.files.length ? '继续添加文件...' : '点击选择文件...') }}</span>
                 </div>
               </el-upload>
-              <!-- 已上传文件：缩略图标 + 文件名 + 移除 -->
-              <div v-if="item.fileName" class="attach-file-chip">
+              <!-- 同一附件类型支持多个文件：逐个展示图标 + 文件名 + 下载/移除 -->
+              <div
+                v-for="(fileItem, fileIndex) in item.files"
+                :key="fileIndex"
+                class="attach-file-chip"
+              >
                 <el-icon class="attach-file-chip__icon"><Document /></el-icon>
                 <span
                   class="attach-file-chip__name"
-                  :title="item.fileName"
-                  @click="previewAttachment(item)"
-                >{{ item.fileName }}</span>
-                <el-icon class="attach-file-chip__download" title="下载" @click.stop="downloadAttachment(item)">
+                  :title="fileItem.fileName"
+                  @click="previewAttachment(fileItem)"
+                >{{ fileItem.fileName }}</span>
+                <el-icon class="attach-file-chip__download" title="下载" @click.stop="downloadAttachment(fileItem)">
                   <Download />
                 </el-icon>
-                <el-icon class="attach-file-chip__close" title="移除" @click.stop="clearAttachmentFile(item)">
+                <el-icon class="attach-file-chip__close" title="移除" @click.stop="clearAttachmentFile(item, fileIndex)">
                   <Close />
                 </el-icon>
               </div>
@@ -1372,6 +1377,7 @@ import {
 import { uploadFile, getPresignUrl } from '@/api/file'
 import { applyAcceptance, getAcceptanceDetail } from '@/api/acceptance'
 import type { AcceptanceNodeVO, AcceptanceAttachmentVO } from '@/api/acceptance'
+import { formatDate } from '@/utils/date'
 
 /**
  * 施工管理
@@ -1612,7 +1618,7 @@ const acceptAttachTitle = ref('')
 /** 打开某条验收记录的附件列表 */
 const openAcceptanceAttachments = (record: { acceptBy?: string; acceptTime?: string; attachments?: AcceptanceAttachmentVO[] }) => {
   acceptAttachList.value = record.attachments || []
-  acceptAttachTitle.value = `验收附件 — ${[record.acceptBy, record.acceptTime].filter(Boolean).join(' ')}`
+  acceptAttachTitle.value = `验收附件 — ${[record.acceptBy, record.acceptTime ? formatDate(record.acceptTime) : ''].filter(Boolean).join(' ')}`
   acceptAttachVisible.value = true
 }
 const detailLogLoading = ref(false)
@@ -1830,16 +1836,22 @@ interface EditForm {
   content: string
 }
 
-/** 施工资料附件行：一行对应一条附件 */
-interface AttachmentRow {
+/** 附件文件项：一张附件卡片可包含多个文件 */
+interface AttachmentFileItem {
   id?: string
-  attachmentType: string
-  remark: string
   fileName: string
   fileKey: string
   bucket: string
   fileSize?: number
-  uploading: boolean
+}
+
+/** 施工资料附件卡片：一张卡片对应一种附件类型，可上传多个文件 */
+interface AttachmentRow {
+  attachmentType: string
+  remark: string
+  files: AttachmentFileItem[]
+  /** 正在上传的文件数，用于展示“上传中...” */
+  uploadingCount: number
 }
 
 const editVisible = ref(false)
@@ -1927,16 +1939,7 @@ const openEdit = async (row: DisplayRow) => {
         leaderName: detail.leaderName || '',
         leaderPhone: detail.leaderPhone || ''
       })
-      attachmentRows.value = (detail.attachments || []).map((item) => ({
-        id: item.id,
-        attachmentType: item.attachmentType || '',
-        remark: item.remark || '',
-        fileName: item.fileName || '',
-        fileKey: item.fileKey || '',
-        bucket: item.bucket || '',
-        fileSize: item.fileSize,
-        uploading: false
-      }))
+      attachmentRows.value = toAttachmentRows(detail.attachments || [])
     } catch {
       return
     }
@@ -1967,27 +1970,39 @@ const openHistoryLogEdit = (row: ConstructionLogVO) => {
     content: row.content || ''
   })
   detailLog.value = row
-  attachmentRows.value = (row.attachments || []).map((item) => ({
-    id: item.id,
-    attachmentType: item.attachmentType || '',
-    remark: item.remark || '',
-    fileName: item.fileName || '',
-    fileKey: item.fileKey || '',
-    bucket: item.bucket || '',
-    fileSize: item.fileSize,
-    uploading: false
-  }))
+  attachmentRows.value = toAttachmentRows(row.attachments || [])
   editVisible.value = true
+}
+
+/** 将扁平的附件记录按“附件类型+备注”归并为一张卡片，同一类型多个文件共用一行 */
+const toAttachmentRows = (list: ConstructionAttachmentItem[]): AttachmentRow[] => {
+  const rows: AttachmentRow[] = []
+  list.forEach((item) => {
+    const attachmentType = item.attachmentType || ''
+    const remark = item.remark || ''
+    const file: AttachmentFileItem = {
+      id: item.id,
+      fileName: item.fileName || '',
+      fileKey: item.fileKey || '',
+      bucket: item.bucket || '',
+      fileSize: item.fileSize
+    }
+    const exist = rows.find((row) => row.attachmentType === attachmentType && row.remark === remark)
+    if (exist) {
+      exist.files.push(file)
+    } else {
+      rows.push({ attachmentType, remark, files: [file], uploadingCount: 0 })
+    }
+  })
+  return rows
 }
 
 const addAttachmentRow = () => {
   attachmentRows.value.push({
     attachmentType: '',
     remark: '',
-    fileName: '',
-    fileKey: '',
-    bucket: '',
-    uploading: false
+    files: [],
+    uploadingCount: 0
   })
 }
 
@@ -1995,25 +2010,24 @@ const removeAttachmentRow = (index: number) => {
   attachmentRows.value.splice(index, 1)
 }
 
-const clearAttachmentFile = (item: AttachmentRow) => {
-  item.fileName = ''
-  item.fileKey = ''
-  item.bucket = ''
-  item.fileSize = undefined
+const clearAttachmentFile = (item: AttachmentRow, fileIndex: number) => {
+  item.files.splice(fileIndex, 1)
 }
 
-/** 选择文件后立即上传至 MinIO，仅保存返回的存储信息 */
+/** 选择文件后立即上传至 MinIO，仅保存返回的存储信息；同一附件类型可承载多个文件 */
 const handleAttachmentChange = async (item: AttachmentRow, file: UploadFile) => {
   if (!file.raw) return
-  item.uploading = true
+  item.uploadingCount += 1
   try {
     const res = await uploadFile(file.raw)
-    item.fileName = res.data.fileName
-    item.fileKey = res.data.fileKey
-    item.bucket = res.data.bucket
-    item.fileSize = res.data.fileSize
+    item.files.push({
+      fileName: res.data.fileName,
+      fileKey: res.data.fileKey,
+      bucket: res.data.bucket,
+      fileSize: res.data.fileSize
+    })
   } finally {
-    item.uploading = false
+    item.uploadingCount -= 1
   }
 }
 
@@ -2049,17 +2063,17 @@ const handleSubmit = async () => {
   const valid = await editFormRef.value.validate().catch(() => false)
   if (!valid) return
   const isProject = editForm.nodeLevel === 1
-  const attachments: ConstructionAttachmentItem[] = attachmentRows.value
-    .filter((item) => !!item.fileKey)
-    .map((item) => ({
-      id: item.id,
-      attachmentType: item.attachmentType || undefined,
-      fileName: item.fileName,
-      fileKey: item.fileKey,
-      bucket: item.bucket,
-      fileSize: item.fileSize,
-      remark: item.remark || undefined
+  const attachments: ConstructionAttachmentItem[] = attachmentRows.value.flatMap((row) =>
+    row.files.map((file) => ({
+      id: file.id,
+      attachmentType: row.attachmentType || undefined,
+      fileName: file.fileName,
+      fileKey: file.fileKey,
+      bucket: file.bucket,
+      fileSize: file.fileSize,
+      remark: row.remark || undefined
     }))
+  )
   submitLoading.value = true
   try {
     if (isProject) {
@@ -2689,16 +2703,17 @@ onMounted(async () => {
   width: 100%;
 }
 
-/* 已上传文件展示：浅灰圆角条，含图标、文件名与移除按钮 */
+/* 已上传文件展示：浅灰圆角条，含图标、文件名与移除按钮；同一附件类型多个文件纵向排列 */
 .attach-file-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
+  width: 100%;
   margin-top: 8px;
   padding: 4px 8px;
   border-radius: 4px;
   background: #f5f7fa;
+  box-sizing: border-box;
 }
 
 .attach-file-chip__icon {
@@ -2867,8 +2882,9 @@ onMounted(async () => {
   overflow-x: hidden !important;
 }
 
-/* 巡检记录表单内容较少：不显示滚动条 */
+/* 巡检记录弹窗：允许纵向滚动，禁止横向滚动 */
 .construction-edit-dialog--compact .el-dialog__body {
-  overflow: hidden !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 </style>
