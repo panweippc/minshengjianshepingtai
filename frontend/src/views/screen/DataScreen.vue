@@ -1555,6 +1555,7 @@ onBeforeUnmount(() => {
 }
 
 /* 画布：左上角对齐后整体等比缩放，宽高经缩放后正好铺满容器 */
+/* 画布容器：底色几乎全透明，只留极淡暗角压底图亮度，让 user-full-bg 真透出来 */
 .screen-canvas {
   position: absolute;
   top: 0;
@@ -1562,10 +1563,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   transform-origin: top left;
-  /* 回调：让用户 sci-fi 底图作为氛围层，canvas 本身要有足够底色盖实面板 */
+  /* 暗角：4 个角极淡压一下亮度（alpha 全 ≤0.06），中间彻底透明不蒙底图 */
   background:
-    radial-gradient(ellipse 75% 50% at 50% -8%, rgba(32, 108, 190, 0.24) 0%, rgba(3, 10, 20, 0) 62%),
-    linear-gradient(180deg, rgba(2, 6, 14, 0.7) 0%, rgba(7, 21, 40, 0.6) 46%, rgba(3, 10, 20, 0.7) 100%);
+    radial-gradient(ellipse 70% 48% at 50% 0%, rgba(20, 80, 150, 0.04) 0%, rgba(0, 4, 12, 0) 55%),
+    radial-gradient(ellipse 80% 70% at 50% 100%, rgba(0, 4, 14, 0.06) 0%, rgba(0, 4, 12, 0) 65%),
+    radial-gradient(ellipse 50% 50% at 0% 50%, rgba(0, 6, 14, 0.05) 0%, rgba(0, 4, 12, 0) 65%),
+    radial-gradient(ellipse 50% 50% at 100% 50%, rgba(0, 6, 14, 0.05) 0%, rgba(0, 4, 12, 0) 65%);
   color: #cfe9ff;
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
@@ -1731,7 +1734,7 @@ onBeforeUnmount(() => {
   background-position: center top;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.65;   /* 回调：别把面板盖太猛，让它当氛围层 */
+  opacity: 0.95;   /* 让底图本身尽可能清晰，canvas 底色已换成全透明不会蒙它 */
 }
 
 /* ========== 顶部标题栏 ========== */
